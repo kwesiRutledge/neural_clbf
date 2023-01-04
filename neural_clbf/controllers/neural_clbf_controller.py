@@ -149,7 +149,15 @@ class NeuralCLBFController(pl.LightningModule, CLFController):
         self.V_nn = nn.Sequential(self.V_layers)
 
     def prepare_data(self):
-        return self.datamodule.prepare_data()
+        # Tell the data module to prepare data
+        datamodule_out = self.datamodule.prepare_data()
+        print("Output of prepare_data():")
+        print(datamodule_out)
+
+        # Plot training data
+        self.datamodule.log_dataset(self.logger, (0,1))
+
+        return datamodule_out
 
     def setup(self, stage: Optional[str] = None):
         return self.datamodule.setup(stage)

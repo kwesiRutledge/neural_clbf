@@ -117,7 +117,7 @@ class ControlAffineSystem(ABC):
         Compute the continuous time linear dynamics matrices, x_{t+1} = Ax_{t} + Bu
         """
         Act, Bct = self.linearized_ct_dynamics_matrices(scenario)
-        A = np.eye(self.n_dims) + self.controller_dt * Act
+        A = np.eye(self.n_dims) + self.controller_dt * Act # Uhh. This is wrong...
         B = self.controller_dt * Bct
 
         return A, B

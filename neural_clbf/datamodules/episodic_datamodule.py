@@ -13,6 +13,8 @@ from torch.utils.data import TensorDataset, DataLoader
 
 from neural_clbf.systems import ControlAffineSystem
 
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 class EpisodicDataModule(pl.LightningDataModule):
     """
@@ -132,9 +134,12 @@ class EpisodicDataModule(pl.LightningDataModule):
         """Create the dataset"""
         # Get some data points from simulations
         x_sim = self.sample_trajectories(self.model.nominal_simulator)
+        self.x_sim = x_sim
 
         # Augment those points with samples from the fixed range
         x_sample = self.sample_fixed()
+        self.x_sample = x_sample
+
         x = torch.cat((x_sim, x_sample), dim=0)
 
         # Randomly split data into training and test sets
@@ -257,3 +262,48 @@ class EpisodicDataModule(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=4,
         )
+
+    """
+    log_dataset
+    Description:
+        This function attempts to add to the log file a visualization of:
+        (1) All trajectories used in the dataset and 
+        (2) The samples used to log the dataset?
+    """
+    def log_dataset(self, logger, dimsToPlot:tuple, optional_name_of_fig:str="dataset"):
+        # Constants
+        x_sim = self.x_sim
+        TL = self.trajectory_length
+
+        dim0, dim1 = dimsToPlot
+
+        # Plot
+        # ====
+
+        print(x_sim.shape)
+
+        # Set the color scheme
+        sns.set_theme(context="talk", style="white")
+
+        # Plot a contour of V
+        fig, ax = plt.subplots(1, 1)
+        fig.set_size_inches(12, 8)
+
+        for traj_i in range(self.trajectories_per_episode):
+            plt.plot(
+                x_sim[traj_i*TL:(traj_i+1)*TL, dim0],
+                x_sim[traj_i*TL:(traj_i+1)*TL, dim1]
+            )
+
+        # Use Logger To Save
+        # ==================
+
+        fig_tuple = ("Training Trajectories", fig)
+
+        plot_tag = "::test"
+        plot_name, figure_handle = fig_tuple
+        logger.experiment.add_figure(
+            plot_name + plot_tag, figure_handle, global_step=0
+        )
+
+        return
