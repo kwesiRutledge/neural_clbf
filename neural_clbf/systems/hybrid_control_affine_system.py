@@ -40,7 +40,7 @@ class HybridControlAffineSystem(ABC):
 
     def __init__(
         self,
-        nominal_params: Scenario,
+        scenario_params: Scenario,
         dt: float = 0.01,
         controller_dt: Optional[float] = None,
         use_linearized_controller: bool = True,
@@ -65,10 +65,10 @@ class HybridControlAffineSystem(ABC):
         super().__init__()
 
         # Validate parameters, raise error if they're not valid
-        if not self.validate_params(nominal_params):
+        if not self.validate_scenario(scenario_params):
             raise ValueError(f"Parameters not valid: {nominal_params}")
 
-        self.nominal_params = nominal_params
+        self.scenario_params = scenario_params
 
         # Make sure the timestep is valid
         assert dt > 0.0
@@ -195,7 +195,7 @@ class HybridControlAffineSystem(ABC):
             self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
 
     @abstractmethod
-    def validate_params(self, params: Scenario) -> bool:
+    def validate_scenario(self, params: Scenario) -> bool:
         """Check if a given set of parameters is valid
 
         args:
@@ -400,7 +400,7 @@ class HybridControlAffineSystem(ABC):
         return self.sample_with_mask(num_samples, self.boundary_mask, max_tries)
 
     def control_affine_dynamics(
-        self, x: torch.Tensor, u: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, u: torch.Tensor=None, params: Optional[Scenario] = None
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return a tuple (f, g) representing the system dynamics in control-affine form:
@@ -445,8 +445,6 @@ class HybridControlAffineSystem(ABC):
         # Get the control-affine dynamics
         f, g = self.control_affine_dynamics(x, u, params=params)
         # Compute state derivatives using control-affine form
-        print(f)
-        print(g)
         xdot = f + torch.bmm(g, u.unsqueeze(-1))
         return xdot.view(x.shape)
 
@@ -639,10 +637,20 @@ class HybridControlAffineSystem(ABC):
         g_all = self._g_all(x, u, rc_scenarios)
         mode_tensor = self.identify_mode(x, u)
 
-        g_combined = torch.matmul(g_all, mode_tensor)
+        # g_combined = torch.matmul(g_all, mode_tensor) # Multiplication does not work
 
         g_out = torch.zeros((batch_size, self.n_dims, self.n_controls))
-        g_out[:, :, :] = g_combined.squeeze()
+        for mode_index in range(self.n_modes):
+            # Extract a simplified flag tensor for mode selection
+            mode_slice = mode_tensor[:, mode_index] == 1
+            mode_slice = torch.reshape(mode_slice, (batch_size,))
+
+            # Extract g
+            g_i = torch.zeros((batch_size, self.n_dims, self.n_controls))
+            g_i[mode_slice, :, :] = g_all[mode_slice, :, :, mode_index]
+            g_out = g_out + g_i
+
+        # g_out[:, :, :] = g_combined.squeeze()
 
         return g_out
 

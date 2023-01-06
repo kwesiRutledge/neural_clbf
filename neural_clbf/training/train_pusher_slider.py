@@ -1,3 +1,10 @@
+"""
+train_pusher_slider.py
+Description:
+    This script will be used to train some basic control lyapunov barrier functions
+    for a simple scenario of the Pusher-Slider system.
+"""
+
 from argparse import ArgumentParser
 from copy import copy
 
@@ -18,7 +25,7 @@ from neural_clbf.experiments import (
     PusherObstacleAvoidanceExperiment,
     CarSCurveExperiment2,
 )
-from neural_clbf.systems import StickingPusherSlider
+from neural_clbf.systems import PusherSlider
 from neural_clbf.training.utils import current_git_hash
 
 
@@ -28,7 +35,7 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 # Simulation Setup
 start_x = torch.tensor(
     [
-        [-1.0, -1.0, 0.0],
+        [-1.0, -1.0, 0.0, 0.0],
         # [0.0, 0.0, 0.0, 0.0, np.pi / 6, 0.0, 0.0],
     ]
 )
@@ -38,12 +45,13 @@ simulation_dt = 0.001
 
 def main(args):
     # Define the dynamics model
-    nominal_params = {
+    scenario = {
         "s_x_ref": 1.0,
         "s_y_ref": 1.0,
+        "bar_radius": 0.15
     }
-    dynamics_model = StickingPusherSlider(
-        nominal_params, dt=simulation_dt, controller_dt=controller_period
+    dynamics_model = PusherSlider(
+        scenario, dt=simulation_dt, controller_dt=controller_period
     )
 
     # Initialize the DataModule
@@ -51,6 +59,7 @@ def main(args):
         (-1.1, -0.9),  # s_x
         (-1.1, -0.9),  # s_y
         (-0.1, 0.1),  # s_theta
+        (-0.001, 0.001),  # s_theta
     ]
     data_module = EpisodicDataModule(
         dynamics_model,
@@ -69,7 +78,7 @@ def main(args):
     s_x_ref_vals = [1.0, 1.5]
     s_y_ref_vals = [1.0, 1.5]
     for ref_index in range(len(s_x_ref_vals)):
-        s = copy(nominal_params)
+        s = copy(scenario)
         s["s_x_ref"] = s_x_ref_vals[ref_index]
         s["s_y_ref"] = s_y_ref_vals[ref_index]
 
@@ -80,8 +89,8 @@ def main(args):
         "V_Contour",
         domain=[(-2.0, 2.0), (-2.0, 2.0)],
         n_grid=100,
-        x_axis_index=StickingPusherSlider.S_X,
-        y_axis_index=StickingPusherSlider.S_Y,
+        x_axis_index=PusherSlider.S_X,
+        y_axis_index=PusherSlider.S_Y,
         x_axis_label="$x - x_{ref}$",
         y_axis_label="$y - y_{ref}$",
     )

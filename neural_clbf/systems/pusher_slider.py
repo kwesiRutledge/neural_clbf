@@ -67,7 +67,7 @@ class PusherSlider(HybridControlAffineSystem):
 
     def __init__(
             self,
-            rc_scenario: Scenario,
+            scenario_params: Scenario,
             dt: float = 0.01,
             controller_dt: Optional[float] = None,
     ):
@@ -75,7 +75,7 @@ class PusherSlider(HybridControlAffineSystem):
         Initialize the pusher-slider model.
 
         args:
-            rc_scenario: a dictionary giving the parameter values for the system.
+            task_scenario: a dictionary giving the scenario/task parameter values for the system.
                             Requires keys ["s_x_ref", "s_y_ref", "bar_radius"]
             dt: the timestep to use for the simulation
             controller_dt: the timestep for the LQR discretization. Defaults to dt
@@ -88,14 +88,14 @@ class PusherSlider(HybridControlAffineSystem):
 
         # Then initialize
         super().__init__(
-            rc_scenario, dt, controller_dt, use_linearized_controller=False, n_modes=PusherSlider.N_MODES
+            scenario_params, dt, controller_dt, use_linearized_controller=False, n_modes=PusherSlider.N_MODES
         )
 
         # Since we aren't using a linearized controller, we need to provide
         # some guess for a Lyapunov matrix
         self.P = torch.eye(self.n_dims)
 
-    def validate_params(self, params: Scenario) -> bool:
+    def validate_scenario(self, scenario_params: Scenario) -> bool:
         """Check if a given set of parameters is valid
 
         args:
@@ -106,8 +106,9 @@ class PusherSlider(HybridControlAffineSystem):
         """
         valid = True
         # Make sure all needed parameters were provided
-        valid = valid and "s_x_ref" in params
-        valid = valid and "s_y_ref" in params
+        valid = valid and "s_x_ref" in scenario_params
+        valid = valid and "s_y_ref" in scenario_params
+        valid = valid and "bar_radius" in scenario_params
 
         return valid
 
@@ -130,8 +131,8 @@ class PusherSlider(HybridControlAffineSystem):
     @property
     def goal_point(self):
         goal = torch.zeros((1, self.n_dims))
-        goal[:, PusherSlider.S_X] = self.nominal_params["s_x_ref"]
-        goal[:, PusherSlider.S_Y] = self.nominal_params["s_y_ref"]
+        goal[:, PusherSlider.S_X] = self.scenario_params["s_x_ref"]
+        goal[:, PusherSlider.S_Y] = self.scenario_params["s_y_ref"]
 
         return goal
 
@@ -146,7 +147,7 @@ class PusherSlider(HybridControlAffineSystem):
         upper_limit[PusherSlider.S_X] = 5.0
         upper_limit[PusherSlider.S_Y] = 5.0
         upper_limit[PusherSlider.S_THETA] = np.pi / 2
-        # upper_limit[PusherSlider.P_Y] = self.manip_params.s_width/2.0
+        upper_limit[PusherSlider.P_Y] = self.manip_params.s_width/2.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -181,7 +182,7 @@ class PusherSlider(HybridControlAffineSystem):
         # Bar parameters
         bar_x = 0.0
         bar_y = 0.0
-        bar_radius = self.rc_scenario['bar_radius']
+        bar_radius = self.scenario_params['bar_radius']
         safety_factor = 1.5
 
         # Get position of head of segway
@@ -211,7 +212,7 @@ class PusherSlider(HybridControlAffineSystem):
         # Bar parameters
         bar_x = 0
         bar_y = 0
-        bar_radius = self.rc_scenario['bar_radius']
+        bar_radius = self.scenario_params['bar_radius']
         safety_factor = 1.5
 
         # Get position of head of segway
@@ -300,7 +301,7 @@ class PusherSlider(HybridControlAffineSystem):
 
         # Algorithm
         gamma_pos = (mu_ps * c ** 2 + (p_x * mu_ps - p_y) * p_x) / (c ** 2 - (p_x * mu_ps - p_y) * p_y)
-        gamma_neg = (-mu_ps * c ** 2 + (- p_x * mu_ps - p_y) * p_x) / (c ** 2 - (p_x * mu_ps + p_y) * p_y)
+        gamma_neg = (-mu_ps * c ** 2 + (- p_x * mu_ps - p_y) * p_x) / (c ** 2 + (p_x * mu_ps + p_y) * p_y)
 
         return gamma_pos, gamma_neg
 
@@ -318,14 +319,23 @@ class PusherSlider(HybridControlAffineSystem):
         batch_size = x.shape[0]
         v_n = u[:, PusherSlider.V_N]
         v_t = u[:, PusherSlider.V_T]
+        # print(f"v_n's shape is {v_n.shape} and v_t's is {v_t.shape}")
+
+        v_n = torch.reshape(v_n, (batch_size, 1 , 1) )
+        v_t = torch.reshape(v_t, (batch_size, 1 , 1))
 
         # Algorithm
         gamma_pos, gamma_neg = self.get_motion_cone_vectors(x)
 
+        gamma_pos = torch.reshape(gamma_pos, (batch_size, 1, 1))
+        gamma_neg = torch.reshape(gamma_neg, (batch_size, 1, 1))
+
+        # print(f"gamma_pos * v_n = {gamma_pos*v_n}")
+
         # Compare the current input values with the cone vectors
 
         # Sticking
-        sticking_mask = torch.ones((batch_size, 1 , 1), dtype=torch.bool)
+        sticking_mask = torch.ones((batch_size, 1, 1), dtype=torch.bool)
         # sticking_mask = torch.ones_like(x[:, 0], dtype=torch.bool) # labels each
         sticking_mask = torch.logical_and(
             sticking_mask, v_t <= gamma_pos * v_n
@@ -335,7 +345,7 @@ class PusherSlider(HybridControlAffineSystem):
         )
 
         # Sliding Up (Positive)
-        sliding_up_mask = torch.ones((batch_size, 1 , 1), dtype=torch.bool)
+        sliding_up_mask = torch.ones((batch_size, 1, 1), dtype=torch.bool)
         #sliding_up_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
         sliding_up_mask = torch.logical_and(
             sliding_up_mask, v_t > gamma_pos * v_n
@@ -350,6 +360,9 @@ class PusherSlider(HybridControlAffineSystem):
 
         # Return
         mode_matrix = torch.zeros((batch_size, PusherSlider.N_MODES, 1))
+        # print(
+        #     f"Shape of sticking mask, sliding_up_mask, sliding_down_mask: ({sticking_mask.shape},{sliding_up_mask.shape},{sliding_down_mask.shape}"
+        # )
         mode_matrix[:, :, :] = torch.hstack((sticking_mask, sliding_up_mask, sliding_down_mask))
         return mode_matrix
 
@@ -368,8 +381,8 @@ class PusherSlider(HybridControlAffineSystem):
         s_width = self.manip_params.s_width
 
         f_max = st_cof * s_mass * g
-        m_max = st_cof * s_mass * g * (s_width / 2.0)
-        c = m_max / f_max
+        tau_max = st_cof * s_mass * g * (s_width / 2.0)
+        c = tau_max / f_max
 
         p_x = self.manip_params.p_x
 
@@ -380,7 +393,7 @@ class PusherSlider(HybridControlAffineSystem):
         s_x = x[:, PusherSlider.S_X]
         s_y = x[:, PusherSlider.S_Y]
         s_theta = x[:, PusherSlider.S_THETA]
-        p_y = self.p_y  # p_y = x[:, PusherSlider.P_Y]
+        p_y = x[:, PusherSlider.P_Y]
 
         # Compute the elements of the product Q*P
         R_theta = torch.zeros((batch_size, 2, 2))
@@ -418,30 +431,45 @@ class PusherSlider(HybridControlAffineSystem):
 
         c2 = torch.zeros((batch_size, 1, 2)) # sliding up (positive)
         c2[:, 0, 0] = -gamma_pos
-        c2[:, 0, 0] = 1
+        c2[:, 0, 1] = 1
 
         c3 = torch.zeros((batch_size, 1, 2))  # sliding down (negative)
         c3[:, 0, 0] = -gamma_neg
-        c3[:, 0, 0] = 1
+        c3[:, 0, 1] = 1
 
         # Compose all of these into a single vector.
-        RQ = torch.matmul(R_theta,Q)
-        g1 = torch.hstack(
-            ( torch.matmul(RQ, P1), (1/(c ** 2 + p_x**2 + p_y**2)) * torch.matmul(b, P1), c1)
-        )
+        RQ = torch.bmm(R_theta, Q)
+        print(f"torch.bmm(RQ,P1).shape = {torch.bmm(RQ, P1).shape}")
+        print(f"b.shape = {b.shape} but P1.shape={P1.shape}")
+        print(f"torch.matmul(b,P1).shape = {torch.matmul(b,P1).shape}")
+        print(f"torch.bmm(b,P1).shape = {torch.bmm(b, P1).shape}")
+        print(f"c1.shape = {c1.shape}")
+        print(f"(1 / (c ** 2 + p_x ** 2 + p_y ** 2)).shape = {(1 / (c ** 2 + p_x ** 2 + p_y ** 2)).shape}")
+        batched_frac = torch.reshape((1/(c ** 2 + p_x**2 + p_y**2)), (batch_size, 1, 1))
+        g1 = torch.hstack((
+            torch.bmm(RQ, P1),
+            torch.bmm(batched_frac, torch.bmm(b, P1)),
+            c1
+        ))
 
-        g2 = torch.hstack(
-            ( torch.matmul(RQ, P2), (1/(c ** 2 + p_x**2 + p_y**2)) * torch.matmul(b, P2), c2)
-        )
+        g2 = torch.hstack((
+            torch.bmm(RQ, P2),
+            torch.bmm(batched_frac, torch.bmm(b, P2)),
+            c2
+        ))
 
-        g3 = torch.hstack(
-            (torch.matmul(RQ, P3), (1 / (c ** 2 + p_x ** 2 + p_y ** 2)) * torch.matmul(b, P3), c3)
-        )
+        g3 = torch.hstack((
+            torch.bmm(RQ, P3),
+            torch.bmm(batched_frac, torch.bmm(b, P3)),
+            c3
+        ))
 
         # Create output
         g_all[:, :, :, 0] = g1
         g_all[:, :, :, 1] = g2
         g_all[:, :, :, 2] = g3
+
+        print(g_all)
 
         return g_all
 
@@ -587,8 +615,8 @@ class PusherSlider(HybridControlAffineSystem):
         returns:
             u_nominal: bs x self.n_controls tensor of controls
         """
-        if params is None or not self.validate_params(params):
-            params = self.rc_scenario
+        if params is None or not self.validate_scenario(params):
+            params = self.scenario_params
 
         # Compute the LQR gain matrix
 
@@ -607,10 +635,10 @@ class PusherSlider(HybridControlAffineSystem):
         Q = np.eye(self.n_dims - 1)
         R = np.eye(self.n_controls)
 
-        A_sub, B_sub = A[:self.N_DIMS - 1, :self.N_DIMS - 1], B[:self.N_DIMS - 1, :]
+        A_sub, B_sub = A[:self.N_DIMS - 2, :self.N_DIMS - 2], B[:self.N_DIMS - 2, :]
         K_np0 = lqr(A_sub, B_sub, Q, R)
 
-        K_np1 = np.zeros((self.N_CONTROLS, 1))
+        K_np1 = np.zeros((self.N_CONTROLS, 2))
         K_np = np.hstack((K_np0, K_np1))
         # print(K_np)
         self.K = torch.tensor(K_np)
