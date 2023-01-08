@@ -561,7 +561,7 @@ class HybridControlAffineSystem(ABC):
         )
 
     @abstractmethod
-    def _f_all(self, x: torch.Tensor, u: torch.Tensor, rc_scenarios: Scenario) -> torch.Tensor:
+    def _f_all(self, x: torch.Tensor, rc_scenarios: Scenario) -> torch.Tensor:
         """
         Description:
             Returns the potential options for the control-independent part of the hybrid
@@ -588,7 +588,7 @@ class HybridControlAffineSystem(ABC):
         # Constants
 
         # Algorithm
-        f_all = self._f_all(x, u, rc_scenarios)
+        f_all = self._f_all(x, rc_scenarios)
         mode_tensor = self.identify_mode(x, u)
 
         # print(f"Shape of f_all = {f_all.shape}")
@@ -600,7 +600,7 @@ class HybridControlAffineSystem(ABC):
         return torch.matmul(f_all, mode_tensor)
 
     @abstractmethod
-    def _g_all(self, x: torch.Tensor, u: torch.Tensor, rc_scenarios: Scenario) -> torch.Tensor:
+    def _g_all(self, x: torch.Tensor, rc_scenarios: Scenario) -> torch.Tensor:
         """
         _g_all
         Description:
@@ -634,7 +634,7 @@ class HybridControlAffineSystem(ABC):
         batch_size = x.shape[0]
 
         # Algorithm
-        g_all = self._g_all(x, u, rc_scenarios)
+        g_all = self._g_all(x, rc_scenarios)
         mode_tensor = self.identify_mode(x, u)
 
         # g_combined = torch.matmul(g_all, mode_tensor) # Multiplication does not work

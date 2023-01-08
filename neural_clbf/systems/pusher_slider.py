@@ -257,7 +257,7 @@ class PusherSlider(HybridControlAffineSystem):
 
         return goal_mask
 
-    def _f_all(self, x: torch.Tensor, u: torch.Tensor, params: Scenario):
+    def _f_all(self, x: torch.Tensor, params: Scenario):
         """
         Return the control-independent part of the control-affine dynamics.
 
@@ -321,8 +321,8 @@ class PusherSlider(HybridControlAffineSystem):
         v_t = u[:, PusherSlider.V_T]
         # print(f"v_n's shape is {v_n.shape} and v_t's is {v_t.shape}")
 
-        v_n = torch.reshape(v_n, (batch_size, 1 , 1) )
-        v_t = torch.reshape(v_t, (batch_size, 1 , 1))
+        v_n = torch.reshape(v_n, (batch_size, 1, 1) )
+        v_t = torch.reshape(v_t, (batch_size, 1, 1))
 
         # Algorithm
         gamma_pos, gamma_neg = self.get_motion_cone_vectors(x)
@@ -366,7 +366,7 @@ class PusherSlider(HybridControlAffineSystem):
         mode_matrix[:, :, :] = torch.hstack((sticking_mask, sliding_up_mask, sliding_down_mask))
         return mode_matrix
 
-    def _g_all(self, x: torch.Tensor, u: torch.Tensor, params: Scenario):
+    def _g_all(self, x: torch.Tensor, params: Scenario):
         # Constants
 
         # Extract batch size and set up a tensor for holding the result

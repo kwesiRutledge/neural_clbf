@@ -17,11 +17,12 @@ from neural_clbf.systems import PusherSlider
 def test_PusherSlider_init():
     """Test initialization of StickingPusherSlider model"""
     # Test instantiation with valid parameters
-    valid_params = {
+    scenario = {
         "s_x_ref": 1.0,
         "s_y_ref": 1.0,
+        "bar_radius": 0.15,
     }
-    ps0 = PusherSlider(valid_params)
+    ps0 = PusherSlider(scenario)
     assert ps0 is not None
 
 def test_PusherSlider_f_all1():
