@@ -11,10 +11,12 @@ import pytorch_lightning as pl
 from torch.utils.data import TensorDataset, DataLoader
 
 
-from neural_clbf.systems import ControlAffineSystem
+from neural_clbf.systems import ControlAffineSystem, HybridControlAffineSystem
 
 import seaborn as sns
 import matplotlib.pyplot as plt
+
+from typing import Union
 
 class EpisodicDataModule(pl.LightningDataModule):
     """
@@ -23,7 +25,7 @@ class EpisodicDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        model: ControlAffineSystem,
+        model: Union[ControlAffineSystem, HybridControlAffineSystem],
         initial_domain: List[Tuple[float, float]],
         trajectories_per_episode: int = 100,
         trajectory_length: int = 5000,
