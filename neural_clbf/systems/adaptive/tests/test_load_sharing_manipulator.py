@@ -43,7 +43,11 @@ def test_loadsharingmanipulator_simulate_and_plot1():
         "obstacle_center": 1.0,
         "obstacle_width": 1.0,
     }
-    sys0 = LoadSharingManipulator(scenario0)
+    th_dim = 3
+    A = np.vstack((np.eye(th_dim), -np.eye(th_dim)))
+    b = np.ones(th_dim * 2)
+    Theta = pc.Polytope(A, b)
+    sys0 = LoadSharingManipulator(scenario0, Theta)
 
     # Create initial condition options
     batch_size = 10
@@ -55,28 +59,37 @@ def test_loadsharingmanipulator_simulate_and_plot1():
     x[3, 0] = 1.0
     x[4, 1] = 1.0
 
-    # print("Initial conditions:")
-    # print(x)
+    print("Initial conditions:")
+    print(x)
+
+    theta = sys0.get_N_samples_from_polytope(Theta, batch_size).T
+    theta = torch.Tensor(theta)
+    print("Parameter values:")
+    print(theta)
+
+    N_sim = 1000
 
     # Create silly controller
     def silly_controller(x_in: torch.Tensor):
         # Constants
         n_batch = x_in.shape[0]
+        n_controls = 3
 
         # Algorithm
-        u = torch.zeros((n_batch, 2))
+        u = torch.zeros((n_batch, n_controls))
         u[:, 0] = 0.05
+        u[:, 1] = 10*10
 
         return u
 
     # Simulate using the built-in function
-    x_sim = ps0.simulate(x, 100, silly_controller, 0.01)
+    x_sim = sys0.simulate(x, theta, N_sim, silly_controller, 0.01)
 
-    # Plot
+    # Plot 1 (Projection onto 2d)
     fig, ax = plt.subplots(1, 1)
     list_of_lines = []
     list_of_line_labels = []
-    for batch_i in range(5): #range(batch_size):
+    for batch_i in range(batch_size):
         temp_line, = plt.plot(
             x_sim[batch_i, :, 0],
             x_sim[batch_i, :, 1]
@@ -89,7 +102,30 @@ def test_loadsharingmanipulator_simulate_and_plot1():
     # Add legend
     ax.legend(list_of_lines, list_of_line_labels)
 
-    fig.savefig("s_and_plot1.png")
+    fig.savefig("lsm-s_and_plot1.png")
+
+    # Plot 3d
+    #fig, ax = plt.subplots(1, 1)
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(projection='3d')
+    list_of_lines = []
+    list_of_line_labels = []
+    for batch_i in range(batch_size):
+        ax2.scatter(
+            np.array(x_sim[batch_i, :, 0].flatten()),
+            np.array(x_sim[batch_i, :, 1].flatten()),
+            np.array(x_sim[batch_i, :, 2].flatten()),
+            marker='o'
+        )
+
+        # print(x_sim[batch_i, :, :])
+        # list_of_lines.append(temp_line)
+        list_of_line_labels.append('Line #' + str(batch_i))
+
+    # Add legend
+    #ax2.legend(list_of_lines, list_of_line_labels)
+
+    fig2.savefig("lsm-s_and_plot2.png")
 
 if __name__ == "__main__":
     # Test initialization

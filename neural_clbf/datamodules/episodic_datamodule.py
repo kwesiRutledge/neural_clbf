@@ -4,7 +4,7 @@ sampling from fixed sets.
 Code based on the Pytorch Lightning example at
 pl_examples/domain_templates/reinforce_learn_Qnet.py
 """
-from typing import List, Callable, Tuple, Dict, Optional
+from typing import List, Callable, Tuple, Dict, Optional, Union
 
 import torch
 import pytorch_lightning as pl
@@ -12,6 +12,7 @@ from torch.utils.data import TensorDataset, DataLoader
 
 
 from neural_clbf.systems import ControlAffineSystem
+from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
 
 
 class EpisodicDataModule(pl.LightningDataModule):
@@ -21,7 +22,7 @@ class EpisodicDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        model: ControlAffineSystem,
+        model: Union[ControlAffineSystem,ControlAffineParameterAffineSystem],
         initial_domain: List[Tuple[float, float]],
         trajectories_per_episode: int = 100,
         trajectory_length: int = 5000,
@@ -83,6 +84,8 @@ class EpisodicDataModule(pl.LightningDataModule):
             simulator: a function that simulates the given initial conditions out for
                        the specified number of timesteps
         """
+
+
         # Start by sampling from initial conditions from the given region
         x_init = torch.Tensor(self.trajectories_per_episode, self.n_dims).uniform_(
             0.0, 1.0
@@ -92,7 +95,12 @@ class EpisodicDataModule(pl.LightningDataModule):
             x_init[:, i] = x_init[:, i] * (max_val - min_val) + min_val
 
         # Simulate each initial condition out for the specified number of steps
-        x_sim = simulator(x_init, self.trajectory_length)
+        if isinstance(self.model, ControlAffineSystem):
+            x_sim = simulator(x_init, self.trajectory_length)
+        elif isinstance(self.model, ControlAffineParameterAffineSystem):
+            theta_init = self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode)
+            theta_init = torch.Tensor(theta_init.T)
+            x_sim = simulator(x_init, theta_init, self.trajectory_length)
 
         # Reshape the data into a single replay buffer
         x_sim = x_sim.view(-1, self.n_dims)

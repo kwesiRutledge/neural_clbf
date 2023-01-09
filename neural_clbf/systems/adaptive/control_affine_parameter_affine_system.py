@@ -639,14 +639,14 @@ class ControlAffineParameterAffineSystem(ABC):
         # Constants
         batch_size = x.shape[0]
         if len(theta.shape) == 2:
-            theta = theta.reshape((theta.shape[0],theta.shape[1],1))
+            theta = theta.reshape((theta.shape[0], theta.shape[1], 1))
 
         # Algorithm
         g_like = self._g(x, params)
         G = self._G(x, params)
         for param_index in range(self.n_params):
-            theta_i = torch.zeros((batch_size, 1, 1))
-            theta_i[:, :, :] = theta[:, param_index, 0]
+
+            theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
             G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))
             G_i[:, :, :] = G[:, :, :, param_index]
             # Update g

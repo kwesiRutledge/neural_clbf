@@ -103,9 +103,9 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # Define parameters
         self.m = 10 # kg
 
-        self.K_x = 1
-        self.K_y = 1
-        self.K_z = 1
+        self.K_x = -1
+        self.K_y = -1
+        self.K_z = -1
 
         # Then initialize
         super().__init__(nominal_scenario, Theta, dt, controller_dt)
@@ -184,12 +184,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # Constants
         batch_size = x.shape[0]
         obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"])
-        obst_width = torch.Tensor(self.nominal_scenario["obstacle_width"])
+        obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
 
-        displacement_to_obst_center = x - obst_center.repeat(batch_size, 1)
+        displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
         dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) >= obst_width
 
         safe_mask.logical_and_(dist_to_obst_center_big_enough)
@@ -208,12 +208,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # Constants
         batch_size = x.shape[0]
         obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"])
-        obst_width = torch.Tensor(self.nominal_scenario["obstacle_width"])
+        obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
         safe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
 
-        displacement_to_obst_center = x - obst_center.repeat(batch_size, 1)
+        displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
         dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) <= obst_width
 
         safe_mask.logical_or_(dist_to_obst_center_big_enough)
