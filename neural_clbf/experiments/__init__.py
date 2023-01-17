@@ -12,9 +12,8 @@ from .rollout_norm_experiment import RolloutNormExperiment
 from .rollout_state_space_experiment import RolloutStateSpaceExperiment
 from .rollout_success_rate_experiment import RolloutSuccessRateExperiment
 from .car_s_curve_experiment import CarSCurveExperiment
-from .car_s_curve_experiment2 import CarSCurveExperiment2
 from .obs_bf_verification_experiment import ObsBFVerificationExperiment
-from .obstacle_avoidance_pushing_experiment import PusherObstacleAvoidanceExperiment
+# from .obstacle_avoidance_pushing_experiment import PusherObstacleAvoidanceExperiment
 
 __all__ = [
     "Experiment",
@@ -30,7 +29,7 @@ __all__ = [
     "CarSCurveExperiment",
     "CarSCurveExperiment2",
     "ObsBFVerificationExperiment",
-    "PusherObstacleAvoidanceExperiment",
+    # "PusherObstacleAvoidanceExperiment",
 ]
 
 try:

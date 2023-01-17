@@ -446,6 +446,9 @@ class ControlAffineParameterAffineSystem(ABC):
         """
         # Get the control-affine dynamics
         f, g = self.control_affine_dynamics(x, theta, params=params)
+        # print("f", f.shape)
+        # print("g", g.shape)
+        # print("u", u.shape)
         # Compute state derivatives using control-affine form
         xdot = f + torch.bmm(g, u.unsqueeze(-1))
         return xdot.view(x.shape)
@@ -655,7 +658,7 @@ class ControlAffineParameterAffineSystem(ABC):
         return g_like
 
     def u_nominal(
-        self, x: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, theta_hat: torch.Tensor, params: Optional[Scenario] = None
     ) -> torch.Tensor:
         """
         Compute the nominal control for the nominal parameters, using LQR unless
