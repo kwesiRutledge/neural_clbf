@@ -2,7 +2,7 @@
 ScalarCAPA2Demo.py
 Description:
     Define an instance of class ControlAffineParameterAffineSystem for the system of
-    a manipulator attempting to move a specified load
+    a scalar CAPA2 system that is useful for illustrating the concepts of adaptive CLFs.
 """
 from abc import (
     ABC,
@@ -140,7 +140,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 10 * torch.ones(LoadSharingManipulator.N_CONTROLS)
+        upper_limit = 10 * torch.ones(ScalarCAPA2Demo.N_CONTROLS)
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)

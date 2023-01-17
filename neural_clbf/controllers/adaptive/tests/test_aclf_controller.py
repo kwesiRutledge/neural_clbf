@@ -19,6 +19,9 @@ from neural_clbf.systems.adaptive import (
     ScalarCAPA2Demo, ControlAffineParameterAffineSystem
 )
 from neural_clbf.systems.utils import Scenario
+from neural_clbf.experiments import (
+    AdaptiveCLFContourExperiment, ExperimentSuite
+)
 
 def test_aclfcontroller_layerconcept1():
     """
@@ -179,6 +182,7 @@ def test_aclfcontroller_V_lie_derivatives1():
 
     # Algorithm
     # =========
+    print("test_aclfcontroller_V_lie_derivatives1")
 
     scenarios = [scenario0]
     n_scenarios = len(scenarios)
@@ -266,7 +270,17 @@ def test_aclfcontroller_init1():
     Theta = pc.box2poly(np.array([lb, ub]).T)
 
     scalar_system = ScalarCAPA2Demo(scenario0, Theta)
-    controller = aCLFController(scalar_system, [scenario0])
+
+    # Create ExperimentSuite
+    experiment0 = AdaptiveCLFContourExperiment(
+        "experiment0",
+        [(-2.0, 2.0), (0.4, 0.9)],
+    )
+
+    suite0 = ExperimentSuite([experiment0])
+
+    # Define Controller
+    controller = aCLFController(scalar_system, [scenario0], suite0)
 
 def test_aclfcontroller_gradient1():
     """
@@ -283,7 +297,7 @@ if __name__ == "__main__":
     test_aclfcontroller_layerconcept2()
 
     # Test the ACLF controller
-    # test_aclfcontroller_init1()
+    test_aclfcontroller_init1()
 
     # Test the method V_with_jacobian
     test_aclfcontroller_V_with_jacobian1()
