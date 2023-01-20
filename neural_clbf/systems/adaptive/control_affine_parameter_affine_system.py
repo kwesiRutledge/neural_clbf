@@ -216,6 +216,10 @@ class ControlAffineParameterAffineSystem(ABC):
         pass
 
     @abstractproperty
+    def parameter_angle_dims(self) -> List[int]:
+        pass
+
+    @abstractproperty
     def state_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return a tuple (upper, lower) describing the expected range of states for this
@@ -511,13 +515,27 @@ class ControlAffineParameterAffineSystem(ABC):
             params - a dictionary giving the parameter values for the system. If None,
                      default to the nominal parameters used at initialization
         returns
-            a bs x num_steps x self.n_dims tensor of simulated trajectories. If an error
-            occurs on any trajectory, the simulation of all trajectories will stop and
-            the second dimension will be less than num_steps
+            x_sim - bs x num_steps x self.n_dims tensor of simulated trajectories. If an error
+                    occurs on any trajectory, the simulation of all trajectories will stop and
+                    the second dimension will be less than num_steps
+            th_sim -    bs x num_steps x self.n_params tensor of randomly chosen parameters
+                        for each trajectory. Parameters should not change.
+            th_h_sim -  bs x num_steps x self.n_params tensor of estimated parameters.
+                        Estimate may change.
         """
         # Create a tensor to hold the simulation results
-        x_sim = torch.zeros(x_init.shape[0], num_steps, self.n_dims).type_as(x_init)
+        batch_size = x_init.shape[0]
+
+        x_sim = torch.zeros(batch_size, num_steps, self.n_dims).type_as(x_init)
         x_sim[:, 0, :] = x_init
+
+        th_sim = torch.zeros(batch_size, num_steps, self.n_params).type_as(theta)
+        th_sim[:, 0, :] = theta
+
+        th_h_sim = torch.zeros(batch_size, num_steps, self.n_params).type_as(theta)
+        th_h_samples = self.get_N_samples_from_polytope(self.Theta, batch_size)
+        th_h_sim[:, 0, :] = torch.Tensor(th_h_samples.T).type_as(theta)
+
         u = torch.zeros(x_init.shape[0], self.n_controls).type_as(x_init)
 
         # Compute controller update frequency
@@ -529,8 +547,11 @@ class ControlAffineParameterAffineSystem(ABC):
         t_sim_final = 0
         for tstep in range(1, num_steps):
             try:
-                # Get the current state
+                # Get the current state, theta and theta_hat
                 x_current = x_sim[:, tstep - 1, :]
+                theta_current = th_sim[:, tstep - 1, :]
+                theta_hat_current = th_h_sim[:, tstep - 1, :]
+
                 # Get the control input at the current state if it's time
                 if tstep == 1 or tstep % controller_update_freq == 0:
                     u = controller(x_current)
@@ -538,6 +559,8 @@ class ControlAffineParameterAffineSystem(ABC):
                 # Simulate forward using the dynamics
                 xdot = self.closed_loop_dynamics(x_current, u, theta, params)
                 x_sim[:, tstep, :] = x_current + self.dt * xdot
+                th_sim[:, tstep, :] = theta_current
+                th_h_sim[:, tstep, :] = theta_hat_current
 
                 # If the guard is activated for any trajectory, reset that trajectory
                 # to a random state
@@ -552,7 +575,7 @@ class ControlAffineParameterAffineSystem(ABC):
             except ValueError:
                 break
 
-        return x_sim[:, : t_sim_final + 1, :]
+        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :]
 
     def nominal_simulator(self, x_init: torch.Tensor, theta: torch.Tensor, num_steps: int) -> torch.Tensor:
         """
@@ -563,7 +586,13 @@ class ControlAffineParameterAffineSystem(ABC):
             theta - bs x n_params tensor of parameters
             num_steps - a positive integer
         returns
-            a bs x num_steps x self.n_dims tensor of simulated trajectories
+            x_sim - bs x num_steps x self.n_dims tensor of simulated trajectories. If an error
+                    occurs on any trajectory, the simulation of all trajectories will stop and
+                    the second dimension will be less than num_steps
+            th_sim -    bs x num_steps x self.n_params tensor of randomly chosen parameters
+                        for each trajectory. Parameters should not change.
+            th_h_sim -  bs x num_steps x self.n_params tensor of estimated parameters.
+                        Estimate may change.
         """
         # Call the simulate method using the nominal controller
         return self.simulate(

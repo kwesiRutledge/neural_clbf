@@ -27,7 +27,7 @@ def normalize(
 
 
 def normalize_with_angles(
-    dynamics_model: ControlAffineSystem, x: torch.Tensor, k: float = 1.0
+    dynamics_model: ControlAffineSystem, x: torch.Tensor, k: float = 1.0, angle_dims = None
 ) -> torch.Tensor:
     """Normalize the input using the stored center point and range, and replace all
     angles with the sine and cosine of the angles
@@ -41,9 +41,12 @@ def normalize_with_angles(
     x = normalize(dynamics_model, x, k)
 
     # Replace all angles with their sine, and append cosine
-    angle_dims = dynamics_model.angle_dims
-    angles = x[:, angle_dims]
-    x[:, angle_dims] = torch.sin(angles)
-    x = torch.cat((x, torch.cos(angles)), dim=-1)
+    if angle_dims is None:
+        angle_dims = dynamics_model.angle_dims
+
+    if len(angle_dims) > 0:
+        angles = x[:, angle_dims]
+        x[:, angle_dims] = torch.sin(angles)
+        x = torch.cat((x, torch.cos(angles)), dim=-1)
 
     return x

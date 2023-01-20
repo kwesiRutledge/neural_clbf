@@ -120,6 +120,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         return ScalarCAPA2Demo.N_PARAMETERS
 
     @property
+    def parameter_angle_dims(self) -> List[int]:
+        return []
+
+    @property
     def state_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return a tuple (upper, lower) describing the expected range of states for this
@@ -127,7 +131,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Define Upper and lower values
         upper_limit = torch.ones(self.n_dims)
-        upper_limit[ScalarCAPA2Demo.P_X] = 10.0
+        upper_limit[ScalarCAPA2Demo.X_DEMO] = 10.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -156,12 +160,12 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_pos = torch.Tensor(self.nominal_scenario["obstacle_position"])
+        wall_pos = self.nominal_scenario["wall_position"]
 
         # Algorithm
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
 
-        safe_mask.logical_and_(obst_pos <= x[:, 0])
+        safe_mask.logical_and_(wall_pos <= x[:, 0])
 
         return safe_mask
 
@@ -176,12 +180,12 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_pos = torch.Tensor(self.nominal_scenario["obstacle_position"])
+        wall_pos = self.nominal_scenario["wall_position"]
 
         # Algorithm
         unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
 
-        unsafe_mask.logical_and_(obst_pos > x[:, 0])
+        unsafe_mask.logical_and_(wall_pos > x[:, 0])
 
         return unsafe_mask
 

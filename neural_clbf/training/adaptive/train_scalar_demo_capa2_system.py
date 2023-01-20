@@ -12,15 +12,16 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
-from neural_clbf.controllers import NeuralCLBFController
-from neural_clbf.datamodules.episodic_datamodule import (
-    EpisodicDataModule,
+from neural_clbf.controllers import NeuralaCLBFController
+from neural_clbf.datamodules import (
+    EpisodicDataModule, EpisodicDataModuleAdaptive
 )
 from neural_clbf.systems.adaptive import ScalarCAPA2Demo
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment,
     RolloutStateSpaceExperiment,
+    AdaptiveCLFContourExperiment
 )
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
@@ -64,7 +65,7 @@ def main(args):
     initial_conditions = [
         (1.0, 3.0),# p_x
     ]
-    data_module = EpisodicDataModule(
+    data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
         trajectories_per_episode=0,
@@ -77,14 +78,14 @@ def main(args):
     )
 
     # Define the experiment suite
-    V_contour_experiment = CLFContourExperiment(
+    V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        domain=[(-2.0, 2.0), (-2.0, 2.0)],
+        domain=[(-2.0, 2.0), (-2.0, 2.0)], #plotting domain
         n_grid=30,
-        x_axis_index=LoadSharingManipulator.P_X,
-        y_axis_index=LoadSharingManipulator.P_Z,
+        x_axis_index=ScalarCAPA2Demo.X_DEMO,
+        theta_axis_index=ScalarCAPA2Demo.P_DEMO,
         x_axis_label="$p_x$",
-        y_axis_label="$p_z$", #"$\\dot{\\theta}$",
+        theta_axis_label="$\theta$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
     # rollout_experiment = RolloutStateSpaceExperiment(
@@ -102,7 +103,7 @@ def main(args):
     experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    clbf_controller = NeuralCLBFController(
+    clbf_controller = NeuralaCLBFController(
         dynamics_model,
         scenarios,
         data_module,

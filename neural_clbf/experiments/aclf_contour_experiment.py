@@ -31,10 +31,11 @@ class AdaptiveCLFContourExperiment(Experiment):
         domain: Optional[List[Tuple[float, float]]] = None,
         n_grid: int = 50,
         x_axis_index: int = 0,
-        y_axis_index: int = 1,
+        theta_axis_index: int = 0,
         x_axis_label: str = "$x$",
-        y_axis_label: str = "$y$",
+        theta_axis_label: str = "$\theta$",
         default_state: Optional[torch.Tensor] = None,
+        default_param_estimate: Optional[torch.Tensor] = None,
         plot_unsafe_region: bool = True,
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
@@ -46,9 +47,9 @@ class AdaptiveCLFContourExperiment(Experiment):
                     one for each state dimension.
             n_grid: the number of points in each direction at which to compute V
             x_axis_index: the index of the state variable to plot on the x axis
-            y_axis_index: the index of the state variable to plot on the y axis
+            theta_axis_index: the index of the state variable to plot on the y axis
             x_axis_label: the label for the x axis
-            y_axis_label: the label for the y axis
+            theta_axis_label: the label for the y axis
             default_state: 1 x dynamics_model.n_dims tensor of default state
                            values. The values at x_axis_index and y_axis_index will be
                            overwritten by the grid values.
@@ -63,10 +64,11 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         self.n_grid = n_grid
         self.x_axis_index = x_axis_index
-        self.y_axis_index = y_axis_index
+        self.theta_axis_index = theta_axis_index
         self.x_axis_label = x_axis_label
-        self.y_axis_label = y_axis_label
+        self.theta_axis_label = theta_axis_label
         self.default_state = default_state
+        self.default_param_estimate = default_param_estimate
         self.plot_unsafe_region = plot_unsafe_region
 
     @torch.no_grad()
@@ -89,7 +91,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             hasattr(controller_under_test, "V")
             and hasattr(controller_under_test, "solve_CLF_QP")
         ):
-            raise ValueError("Controller under test must be a CLFController")
+            raise ValueError("Controller under test must be an AdaptiveCLFController")
 
         controller_under_test = cast("AdaptiveCLFController", controller_under_test)
 
@@ -108,13 +110,21 @@ class AdaptiveCLFContourExperiment(Experiment):
             self.domain[1][0], self.domain[1][1], self.n_grid, device=device
         )
 
-        # Default to all zeros if no default provided
+        # Default state is all zeros if no default provided
         if self.default_state is None:
             default_state = torch.zeros(1, controller_under_test.dynamics_model.n_dims)
         else:
             default_state = self.default_state
 
         default_state = default_state.type_as(x_vals)
+
+        # Default estimate is all zeros if no default provided
+        if self.default_param_estimate is None:
+            default_param_estimate = torch.zeros(1, controller_under_test.dynamics_model.n_params)
+        else:
+            default_param_estimate = self.default_param_estimate
+
+        default_param_estimate = default_param_estimate.type_as(x_vals)
 
         # Make a copy of the default state, which we'll modify on every loop
         x = (
@@ -123,16 +133,25 @@ class AdaptiveCLFContourExperiment(Experiment):
             .reshape(1, controller_under_test.dynamics_model.n_dims)
         )
 
+        # Make a copy of the default estimator state, which we'll modify on every loop
+        theta_hat = (
+            default_state.clone()
+            .detach()
+            .reshape(1, controller_under_test.dynamics_model.n_params)
+        )
+
         # Loop through the grid
         prog_bar_range = tqdm.trange(self.n_grid, desc="Plotting aCLF", leave=True)
         for i in prog_bar_range:
             for j in range(self.n_grid):
-                # Adjust x to be at the current grid point
+                # Adjust x and theta to be at the current grid point
                 x[0, self.x_axis_index] = x_vals[i]
-                x[0, self.y_axis_index] = y_vals[j]
+                # x[0, self.y_axis_index] = y_vals[j]
+
+                theta_hat[0, self.theta_axis_index] = y_vals[j]
 
                 # Get the value of the CLF
-                V = controller_under_test.V(x)
+                V = controller_under_test.V(x, theta_hat)
 
                 # Get the goal, safe, or unsafe classification
                 is_goal = controller_under_test.dynamics_model.goal_mask(x).all()
@@ -140,7 +159,7 @@ class AdaptiveCLFContourExperiment(Experiment):
                 is_unsafe = controller_under_test.dynamics_model.unsafe_mask(x).all()
 
                 # Get the QP relaxation
-                _, r = controller_under_test.solve_CLF_QP(x)
+                _, r = controller_under_test.solve_CLF_QP(x, theta_hat)
                 relaxation = r.max()
 
                 # Get the linearized CLF value
@@ -157,7 +176,7 @@ class AdaptiveCLFContourExperiment(Experiment):
                 results.append(
                     {
                         self.x_axis_label: x_vals[i].cpu().numpy().item(),
-                        self.y_axis_label: y_vals[j].cpu().numpy().item(),
+                        self.theta_axis_label: y_vals[j].cpu().numpy().item(),
                         "V": V.cpu().numpy().item(),
                         "QP relaxation": relaxation.cpu().numpy().item(),
                         "Goal region": is_goal.cpu().numpy().item(),
@@ -195,7 +214,7 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         contours = ax.tricontourf(
             results_df[self.x_axis_label],
-            results_df[self.y_axis_label],
+            results_df[self.theta_axis_label],
             results_df["V"],
             cmap=sns.color_palette("rocket", as_cmap=True),
             levels=20,
@@ -205,7 +224,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         # Plot the linearized CLF
         ax.tricontour(
             results_df[self.x_axis_label],
-            results_df[self.y_axis_label],
+            results_df[self.theta_axis_label],
             results_df["Linearized V"],
             cmap=sns.color_palette("winter", as_cmap=True),
             levels=[0.1],
@@ -213,7 +232,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         )
         ax.tricontour(
             results_df[self.x_axis_label],
-            results_df[self.y_axis_label],
+            results_df[self.theta_axis_label],
             results_df["V"],
             cmap=sns.color_palette("spring", as_cmap=True),
             levels=[0.1],
@@ -227,7 +246,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             )
             contours = ax.tricontourf(
                 results_df[self.x_axis_label],
-                results_df[self.y_axis_label],
+                results_df[self.theta_axis_label],
                 results_df["QP relaxation"],
                 colors=[(1.0, 1.0, 1.0, 0.3)],
                 levels=[1e-5, 1000],
@@ -238,7 +257,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             ax.plot([], [], c="green", label="Safe Region")
             ax.tricontour(
                 results_df[self.x_axis_label],
-                results_df[self.y_axis_label],
+                results_df[self.theta_axis_label],
                 results_df["Safe region"],
                 colors=["green"],
                 levels=[0.5],
@@ -246,7 +265,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             ax.plot([], [], c="magenta", label="Unsafe Region")
             ax.tricontour(
                 results_df[self.x_axis_label],
-                results_df[self.y_axis_label],
+                results_df[self.theta_axis_label],
                 results_df["Unsafe region"],
                 colors=["magenta"],
                 levels=[0.5],
@@ -256,7 +275,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             if hasattr(controller_under_test, "safe_level"):
                 ax.tricontour(
                     results_df[self.x_axis_label],
-                    results_df[self.y_axis_label],
+                    results_df[self.theta_axis_label],
                     results_df["V"],
                     colors=["blue"],
                     levels=[controller_under_test.safe_level],  # type: ignore
@@ -264,7 +283,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             else:
                 ax.tricontour(
                     results_df[self.x_axis_label],
-                    results_df[self.y_axis_label],
+                    results_df[self.theta_axis_label],
                     results_df["V"],
                     colors=["blue"],
                     levels=[0.0],
@@ -279,7 +298,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         #     ncol=4,
         # )
         ax.set_xlabel(self.x_axis_label)
-        ax.set_ylabel(self.y_axis_label)
+        ax.set_ylabel(self.theta_axis_label)
 
         fig_handle = ("V Contour", fig)
 
