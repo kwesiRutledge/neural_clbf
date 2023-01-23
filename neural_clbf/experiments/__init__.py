@@ -15,6 +15,8 @@ from .car_s_curve_experiment import CarSCurveExperiment
 from .obs_bf_verification_experiment import ObsBFVerificationExperiment
 # from .obstacle_avoidance_pushing_experiment import PusherObstacleAvoidanceExperiment
 from .aclf_contour_experiment import AdaptiveCLFContourExperiment
+from .rollout_state_parameter_space_experiment import RolloutStateParameterSpaceExperiment
+from .rollout_timing_comparison_experiment import ACLFRolloutTimingExperiment
 
 __all__ = [
     "Experiment",
@@ -32,6 +34,8 @@ __all__ = [
     "ObsBFVerificationExperiment",
     # "PusherObstacleAvoidanceExperiment",
     "AdaptiveCLFContourExperiment",
+    "RolloutStateParameterSpaceExperiment",
+    "ACLFRolloutTimingExperiment",
 ]
 
 try:

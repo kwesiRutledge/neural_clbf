@@ -15,6 +15,8 @@ from neural_clbf.controllers.controller_utils import normalize_with_angles
 from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
 from neural_clbf.experiments import ExperimentSuite
 
+import polytope as pc
+
 
 class NeuralaCLBFController(pl.LightningModule, aCLFController):
     """
@@ -54,6 +56,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         barrier: bool = True,
         add_nominal: bool = False,
         normalize_V_nominal: bool = False,
+        saved_Vnn: torch.nn.Sequential = None,
     ):
         """Initialize the controller.
 
@@ -152,10 +155,16 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             self.V_layers[f"layer_{i}_linear"] = nn.Linear(
                 self.clbf_hidden_size, self.clbf_hidden_size
             )
+
             if i < self.clbf_hidden_layers - 1:
                 self.V_layers[f"layer_{i}_activation"] = nn.Tanh()
         # self.V_layers["output_linear"] = nn.Linear(self.clbf_hidden_size, 1)
         self.V_nn = nn.Sequential(self.V_layers)
+
+        if saved_Vnn is not None:
+            for layer_idx in range(len(saved_Vnn)):
+                if isinstance(saved_Vnn[layer_idx], nn.Linear):
+                    self.V_nn[layer_idx].weight = saved_Vnn[layer_idx].weight
 
     def prepare_data(self):
         return self.datamodule.prepare_data()
@@ -414,6 +423,9 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         """
         # Compute loss to encourage satisfaction of the following conditions...
         loss = []
+        bs = x.shape[0]
+        n_controls = self.dynamics_model.n_controls
+        n_params = self.dynamics_model.n_params
 
         # The CLBF decrease condition requires that V is decreasing everywhere where
         # V <= safe_level. We'll encourage this in three ways:
@@ -444,13 +456,19 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         clbf_descent_term_lin = torch.tensor(0.0).type_as(x)
         clbf_descent_acc_lin = torch.tensor(0.0).type_as(x)
         # Get the current value of the CLBF and its Lie derivatives
-        Lf_V, LF_V, LFGammadV_V, Lg_V, LG_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
+        Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
         for i, s in enumerate(self.scenarios):
             # Use the dynamics to compute the derivative of V
-            Vdot = Lf_V[:, i, :].unsqueeze(1) + torch.bmm(
-                Lg_V[:, i, :].unsqueeze(1),
-                u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
-            )
+            sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
+            for theta_dim in range(n_params):
+                sum_LG_V = sum_LG_V + torch.bmm(theta[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
+            Vdot = Lf_Va[:, i, :].unsqueeze(1) + \
+                   torch.bmm(LF_Va[:, i, :].unsqueeze(1), theta.reshape((theta.shape[0], theta.shape[1], 1))) + \
+                   LFGammadVa_Va[:, i, :].unsqueeze(1) + \
+                   torch.bmm(
+                        Lg_V[:, i, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
+                        u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
+                    )
             Vdot = Vdot.reshape(V.shape)
             violation = F.relu(eps + Vdot + self.clf_lambda * V)
             violation = violation * condition_active
@@ -495,6 +513,10 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             x: the states at which to evaluate the loss
             theta_hat: the parameter estimate points at which to evaluate the loss
         """
+        # Constants
+        bs = x.shape[0]
+        V_Theta = pc.extreme(self.dynamics_model.Theta)
+
         loss = []
 
         # The initial losses should decrease exponentially to zero, based on the epoch
@@ -504,6 +526,12 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         #   1.) Compare the CLBF to the nominal solution
         # Get the learned CLBF
         V = self.V(x, theta_hat)
+        V_corners = []
+        for v_Theta_np in V_Theta:
+            v_Theta = torch.Tensor(v_Theta_np.T)
+            v_Theta = v_Theta.reshape((1, self.dynamics_model.n_dims))
+            v_Theta = v_Theta.repeat((bs, 1))
+            V_corners.append(self.V(x, v_Theta))
 
         # Get the nominal Lyapunov function
         P = self.dynamics_model.P.type_as(x)
@@ -519,6 +547,10 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         # Compute the error between the two
         clbf_mse_loss = (V - V_nominal) ** 2
         clbf_mse_loss = decrease_factor * clbf_mse_loss.mean()
+        for corner_idx in range(len(V_Theta)):
+            V_corner = (V_corners[corner_idx] - V_nominal) ** 2
+            clbf_mse_loss = clbf_mse_loss + decrease_factor * V_corner.mean()
+
         loss.append(("CLBF MSE", clbf_mse_loss))
 
         return loss

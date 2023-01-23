@@ -217,8 +217,14 @@ class aCLFController(Controller):
         returns:
             Lf_V: bs x len(scenarios) x 1 tensor of Lie derivatives of V
                   along f
+            LF_V: bs x len(scenarios) x self.dynamics_nodel.n_params tensor
+                    of Lie derivatives of V along F
+            LFGammadV_V: bs x len(scenarios) x 1 tensor
             Lg_V: bs x len(scenarios) x self.dynamics_model.n_controls tensor
                   of Lie derivatives of V along g
+            list_LGi_V: list of bs x len(scenarios) x
+            LGammadVG_V: bs x len(scenarios) x self.dynamics_model.n_controls
+
         usage:
             Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
         """
@@ -249,6 +255,13 @@ class aCLFController(Controller):
         Lg_V = Lg_V.type_as(x)
         LGammadVG_V = LGammadVG_V.type_as(x)
 
+        list_LGi_V = []
+        for param_index in range(self.dynamics_model.n_params):
+            LGi_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls)
+            LGi_V = LGi_V.type_as(x)
+            list_LGi_V.append(LGi_V)
+
+
         for i in range(n_scenarios):
             # Get the dynamics f and g for this scenario
             s = scenarios[i]
@@ -267,13 +280,9 @@ class aCLFController(Controller):
             LFGammadV_V[:, i, :] = torch.bmm(LFGamma, gradV_theta.mT).squeeze(1)
 
             # list_LGi_V
-            list_LGi_V = []
             for param_index in range(self.dynamics_model.n_params):
                 G_i = G[:, :, :, param_index].reshape((batch_size, self.dynamics_model.n_dims, self.dynamics_model.n_controls))
-                LGi_V = torch.zeros(batch_size, 1, self.dynamics_model.n_controls)
-                LGi_V = LGi_V.type_as(x)
-                LGi_V[:, i, :] = torch.bmm(gradV_x, G_i).squeeze(1)
-                list_LGi_V.append(LGi_V)
+                list_LGi_V[param_index][:, i, :] = torch.bmm(gradV_x, G_i).squeeze(1)
 
             # LGammadVG
             for mode_index in range(self.dynamics_model.n_params):
@@ -483,22 +492,20 @@ class aCLFController(Controller):
         params = []
         for i in range(self.n_scenarios):
             params.append(Lf_V[:, i, :])
-        for i in range(self.n_scenarios):
             params.append(Lg_V[:, i, :])
-        for i in range(self.n_scenarios):
             params.append(LF_V[:, i, :])
-        # Following the order of the paramter vector creation
-        params.append(V.reshape(-1, 1))
-        params.append(u_ref)
-        params.append(torch.tensor([relaxation_penalty]).type_as(x))
-        for i in range(self.n_scenarios):
+            # Following the order of the paramter vector creation
+            params.append(V.reshape(-1, 1))
+            params.append(u_ref)
+            params.append(torch.tensor([relaxation_penalty]).type_as(x))
+            # LFGammadV_V
             params.append(LFGammadV_V[:, i, :].reshape(-1, 1))
-        for i in range(self.n_scenarios):
+            # list_LGi_V
             for theta_dim_index in range(self.dynamics_model.n_params):
                 params.append(
                     list_LGi_V[theta_dim_index][:, i, :].reshape(-1, self.dynamics_model.n_controls)
                 )
-        for i in range(self.n_scenarios):
+            # LGammadVG_V
             params.append(LGammadVG_V[:, i, :])
 
         # We've already created a parameterized QP solver, so we can use that

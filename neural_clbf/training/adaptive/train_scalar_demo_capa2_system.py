@@ -3,6 +3,7 @@ train_load_sharing_manipulator.py
 Description:
     This script trains an aCLBF for the load sharing manipulator system defined in systems/load_sharing_manipulator.py.
 """
+from typing import Dict
 
 from argparse import ArgumentParser
 
@@ -21,36 +22,73 @@ from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment,
     RolloutStateSpaceExperiment,
-    AdaptiveCLFContourExperiment
+    AdaptiveCLFContourExperiment,
+    RolloutStateParameterSpaceExperiment
 )
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-batch_size = 64
-controller_period = 0.05
 
-start_x = torch.tensor(
-    [
-        [0.5, 1.5],
-    ]
-)
-simulation_dt = 0.01
 
+def create_hyperparam_struct()-> Dict:
+
+    # Get initial conditions for the experiment
+    start_x = torch.tensor(
+        [
+            [0.5],
+            [0.7],
+            [0.9],
+            [1.5],
+            [-0.5],
+            [-0.7]
+        ]
+    )
+
+    hyperparams_for_evaluation = {
+        "batch_size": 64,
+        "controller_period": 0.05,
+        "start_x": start_x,
+        "simulation_dt": 0.01,
+        "nominal_scenario_wall_pos": -0.5,
+        "Theta_lb": -2.5,
+        "Theta_ub": -1.5,
+        "clf_lambda": 1.0,
+        # layer specifications
+        "clbf_hidden_size": 64,
+        "clbf_hidden_layers": 2,
+        "max_epochs": 10,
+    }
+
+    return hyperparams_for_evaluation
 
 def main(args):
+    # Random Seed
+    pt_manual_seed = 30
+    torch.manual_seed(pt_manual_seed)
+    np_manual_seed = pt_manual_seed
+    np.random.seed(np_manual_seed)
+
+    hyperparams_for_evaluation = create_hyperparam_struct()
+
+    batch_size = hyperparams_for_evaluation["batch_size"]
+    controller_period = hyperparams_for_evaluation["controller_period"]
+
+    start_x = hyperparams_for_evaluation["start_x"]
+    simulation_dt = hyperparams_for_evaluation["simulation_dt"]
+
     # Define the scenarios
-    nominal_scenario = {"wall_position": -0.5}
+    wall_pos = hyperparams_for_evaluation["nominal_scenario_wall_pos"]
+    nominal_scenario = {"wall_position": wall_pos}
     scenarios = [
         nominal_scenario,
     ]
 
     # Define the range of possible uncertain parameters
-    lb = [0.5]
-    ub = [0.8]
+    lb = [hyperparams_for_evaluation["Theta_lb"]]
+    ub = [hyperparams_for_evaluation["Theta_ub"]]
     Theta = pc.box2poly(np.array([lb, ub]).T)
-    print(Theta)
 
     # Define the dynamics model
     dynamics_model = ScalarCAPA2Demo(
@@ -73,34 +111,34 @@ def main(args):
         fixed_samples=10000,
         max_points=100000,
         val_split=0.1,
-        batch_size=64,
+        batch_size=batch_size,
         # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
     # Define the experiment suite
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        domain=[(-2.0, 2.0), (-2.0, 2.0)], #plotting domain
+        x_domain=[(-2.0, 2.0)], #plotting domain
         n_grid=30,
         x_axis_index=ScalarCAPA2Demo.X_DEMO,
         theta_axis_index=ScalarCAPA2Demo.P_DEMO,
         x_axis_label="$p_x$",
-        theta_axis_label="$\theta$", #"$\\dot{\\theta}$",
+        theta_axis_label="$\\theta$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
-    # rollout_experiment = RolloutStateSpaceExperiment(
-    #     "Rollout",
-    #     start_x,
-    #     InvertedPendulum.THETA,
-    #     "$\\theta$",
-    #     InvertedPendulum.THETA_DOT,
-    #     "$\\dot{\\theta}$",
-    #     scenarios=scenarios,
-    #     n_sims_per_start=1,
-    #     t_sim=5.0,
-    # )
-    #experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
-    experiment_suite = ExperimentSuite([V_contour_experiment])
+    rollout_experiment = RolloutStateParameterSpaceExperiment(
+        "Rollout",
+        start_x,
+        ScalarCAPA2Demo.X_DEMO,
+        "$x$",
+        ScalarCAPA2Demo.P_DEMO,
+        "$\\theta$",
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=5.0,
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
+    #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
     clbf_controller = NeuralaCLBFController(
@@ -108,10 +146,10 @@ def main(args):
         scenarios,
         data_module,
         experiment_suite=experiment_suite,
-        clbf_hidden_layers=2,
-        clbf_hidden_size=64,
-        clf_lambda=1.0,
-        safe_level=1.0,
+        clbf_hidden_layers=hyperparams_for_evaluation["clbf_hidden_layers"],
+        clbf_hidden_size=hyperparams_for_evaluation["clbf_hidden_size"],
+        clf_lambda=hyperparams_for_evaluation["clf_lambda"],
+        safe_level=0.5,
         controller_period=controller_period,
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
@@ -128,13 +166,51 @@ def main(args):
         args,
         logger=tb_logger,
         reload_dataloaders_every_epoch=True,
-        max_epochs=51,
+        max_epochs=hyperparams_for_evaluation["max_epochs"],
     )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
     trainer.fit(clbf_controller)
 
+    # End of Training Sequence
+    # ========================
+
+    # Logging
+    tb_logger.log_metrics({"pytorch random seed": pt_manual_seed})
+    tb_logger.log_metrics({"numpy random seed": np_manual_seed})
+
+    # Saving Data
+    torch.save(
+        clbf_controller.V_nn,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/Vnn.pt"
+    )
+
+    for layer in clbf_controller.V_nn:
+        print(layer)
+        if isinstance(layer, torch.nn.Linear):
+            print(layer.weight)
+
+    # Record Hyperparameters in small pytorch format
+    torch.save(
+        hyperparams_for_evaluation,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/hyperparams.pt"
+    )
+
+    # Save model
+    torch.save(
+        clbf_controller.state_dict(),
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/state_dict.pt"
+    )
+
+    torch.save(
+        clbf_controller,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/controller.pt"
+    )
 
 if __name__ == "__main__":
     parser = ArgumentParser()

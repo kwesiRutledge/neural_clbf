@@ -30,6 +30,8 @@ from neural_clbf.systems.adaptive.control_affine_parameter_affine_system import 
     ControlAffineParameterAffineSystem
 )
 
+import cvxpy as cp
+
 class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
     """
     Represents a simple scalar system with scalar unknown parameter that I used to prove the intuition of the aCLF method.
@@ -337,3 +339,108 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
             ax: the axis on which to plot
         """
         pass
+
+    def basic_mpc1(self, x: torch.Tensor, dt: float, U: pc.Polytope = None, N_mpc: int = 5) -> torch.Tensor:
+        """
+        basic_mpc1
+        Description:
+            From the set of batch states x, this function computes the batch of inputs
+            that solve the basic linearized MPC.
+        """
+        # Constants
+        n_controls = self.n_controls
+        n_dims = self.n_dims
+        S_w, S_u, S_x0 = self.get_mpc_matrices(N_mpc, dt=dt)
+
+        U_T_A = np.kron(U.A, np.eye(N_mpc))
+        U_T_b = np.kron(U.b, np.ones(N_mpc))
+        U_T = pc.Polytope(U_T_A, U_T_b)
+
+        # Solve the MPC problem for each element of the batch
+        batch_size = x.shape[0]
+        u = torch.zeros(batch_size, n_controls).type_as(x)
+        goal_x = np.array([[0.0]])
+        for batch_idx in range(batch_size):
+            batch_x = x[batch_idx, :n_dims].cpu().detach().numpy()
+
+            # Create input for this batch
+            u_T = cp.Variable((n_controls * N_mpc,))
+
+            # Define objective as being the distance from state at t_0 + N_MPC to
+            # the goal.
+            M_T = np.zeros((n_dims, n_dims * (N_mpc)))
+            M_T[:, -n_dims:] = np.eye(n_dims)
+            obj = cp.norm(M_T @ (S_u @ u_T + np.dot(S_x0, batch_x)) - goal_x)
+            obj += cp.norm(u_T)
+
+            constraints = [U_T.A @ u_T <= U_T.b]
+
+            # Solve for the P with largest volume
+            prob = cp.Problem(
+                cp.Minimize(obj), constraints
+            )
+            prob.solve()
+            # Skip if no solution
+            if prob.status != "optimal":
+                continue
+
+            # Otherwise, collect optimal input value
+            u_T_opt = u_T.value
+
+            u[batch_idx, :] = torch.Tensor(u_T_opt[:n_controls])
+            # self.dynamics_model.u_nominal(
+            #     x_shifted.reshape(1, -1), track_zero_angle=False  # type: ignore
+            # ).squeeze()
+
+        return u
+
+    def get_mpc_matrices(self, T=-1, dt: float=0.01):
+        """
+        get_mpc_matrices
+        Description:
+            Get the mpc_matrices for the discrete-time dynamical system described by self.
+        Assumes:
+            Assumes T is an integer input
+        Usage:
+            S_w, S_u, S_x0 = ad0.get_mpc_matrices(T)
+        """
+
+        # Input Processing
+        if T < 0:
+            raise DomainError("T should be a positive integer; received " + str(T))
+
+        # Constants
+        theta_center = np.mean(pc.extreme(self.Theta))
+        A = np.array([[(1 + theta_center)*dt]])
+        B = np.array([[np.exp((1+theta_center)*dt)-1]])
+
+        n_x = self.n_dims
+        n_u = self.n_controls
+        n_w = 1
+
+        # Create the MPC Matrices (S_w)
+        E = np.eye(n_x)
+        S_w = np.zeros((T * n_x, T * n_w))
+        Bw_prefactor = np.zeros((T * n_x, T * n_x))
+        for j in range(T):
+            for i in range(j, T):
+                Bw_prefactor[i * n_x:(i + 1) * n_x, j * n_x:(j + 1) * n_x] = np.linalg.matrix_power(A, i - j)
+
+        S_w = np.dot(Bw_prefactor, np.kron(np.eye(T), E))
+
+        # Create the MPC Matrices (S_u)
+        S_u = np.zeros((T * n_x, T * n_u))
+        for j in range(T):
+            for i in range(j, T):
+                S_u[i * n_x:(i + 1) * n_x, j * n_u:(j + 1) * n_u] = np.dot(np.linalg.matrix_power(A, i - j), B)
+
+        # Create the MPC Matrices (S_x0)
+        S_x0 = np.zeros((T * n_x, n_x))
+        for j in range(T):
+            S_x0[j * n_x:(j + 1) * n_x, :] = np.linalg.matrix_power(A, j + 1)
+
+        # # Create the MPC Matrices (S_K)
+        # S_K = np.kron(np.ones((T, 1)), K)
+        # S_K = np.dot(Bw_prefactor, S_K)
+
+        return S_w, S_u, S_x0

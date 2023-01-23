@@ -28,7 +28,8 @@ class AdaptiveCLFContourExperiment(Experiment):
     def __init__(
         self,
         name: str,
-        domain: Optional[List[Tuple[float, float]]] = None,
+        x_domain: Optional[List[Tuple[float, float]]] = None,
+        theta_domain: Optional[List[Tuple[float, float]]] = None,
         n_grid: int = 50,
         x_axis_index: int = 0,
         theta_axis_index: int = 0,
@@ -58,9 +59,13 @@ class AdaptiveCLFContourExperiment(Experiment):
         super(AdaptiveCLFContourExperiment, self).__init__(name)
 
         # Default to plotting over [-1, 1] in all directions
-        if domain is None:
-            domain = [(-1.0, 1.0), (-1.0, 1.0)]
-        self.domain = domain
+        if x_domain is None:
+            x_domain = [(-1.0, 1.0)]
+        self.x_domain = x_domain
+
+        if theta_domain is None:
+            theta_domain = [(0.5, 0.8)]
+        self.theta_domain = theta_domain
 
         self.n_grid = n_grid
         self.x_axis_index = x_axis_index
@@ -86,6 +91,9 @@ class AdaptiveCLFContourExperiment(Experiment):
             format (i.e. each row should correspond to a single observation from the
             experiment).
         """
+        # Constants
+        system = controller_under_test.dynamics_model
+
         # Sanity check: can only be called on a NeuralCLFController
         if not (
             hasattr(controller_under_test, "V")
@@ -104,10 +112,10 @@ class AdaptiveCLFContourExperiment(Experiment):
             device = controller_under_test.device  # type: ignore
 
         x_vals = torch.linspace(
-            self.domain[0][0], self.domain[0][1], self.n_grid, device=device
+            self.x_domain[0][0], self.x_domain[0][1], self.n_grid, device=device
         )
         y_vals = torch.linspace(
-            self.domain[1][0], self.domain[1][1], self.n_grid, device=device
+            self.theta_domain[0][0], self.theta_domain[0][1], self.n_grid, device=device
         )
 
         # Default state is all zeros if no default provided
@@ -120,7 +128,9 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         # Default estimate is all zeros if no default provided
         if self.default_param_estimate is None:
-            default_param_estimate = torch.zeros(1, controller_under_test.dynamics_model.n_params)
+            default_param_estimate = torch.Tensor(
+                system.get_N_samples_from_polytope(system.Theta, 1).T
+            )
         else:
             default_param_estimate = self.default_param_estimate
 
@@ -135,7 +145,7 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         # Make a copy of the default estimator state, which we'll modify on every loop
         theta_hat = (
-            default_state.clone()
+            default_param_estimate.clone()
             .detach()
             .reshape(1, controller_under_test.dynamics_model.n_params)
         )

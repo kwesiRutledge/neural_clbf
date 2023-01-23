@@ -499,7 +499,7 @@ class ControlAffineParameterAffineSystem(ABC):
         controller_period: Optional[float] = None,
         guard: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         params: Optional[Scenario] = None,
-    ) -> torch.Tensor:
+    ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
         """
         Simulate the system for the specified number of steps using the given controller
 
@@ -522,6 +522,8 @@ class ControlAffineParameterAffineSystem(ABC):
                         for each trajectory. Parameters should not change.
             th_h_sim -  bs x num_steps x self.n_params tensor of estimated parameters.
                         Estimate may change.
+        usage
+            x_sim, th_sim, th_h_sim = simulate(x, theta, N_sim, silly_control, 0.01)
         """
         # Create a tensor to hold the simulation results
         batch_size = x_init.shape[0]
