@@ -33,6 +33,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         val_split: float = 0.1,
         batch_size: int = 64,
         quotas: Optional[Dict[str, float]] = None,
+        device: str = "cpu",
     ):
         """Initialize the DataModule
 
@@ -85,6 +86,9 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         theta_limits = np.vstack((self.theta_max, self.theta_min))
         self.center = [np.mean(theta_limits[:, i]) for i in range(theta_limits.shape[1])]
 
+        # Save the device
+        self.device = device
+
     def sample_trajectories(
         self, simulator: Callable[[torch.Tensor, int], torch.Tensor]
     ) -> torch.Tensor:
@@ -100,7 +104,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Start by sampling from initial conditions from the given region
         x_init = torch.Tensor(self.trajectories_per_episode, self.n_dims).uniform_(
             0.0, 1.0
-        )
+        ).to(self.device)
         for i in range(self.n_dims):
             min_val, max_val = self.initial_domain[i]
             x_init[:, i] = x_init[:, i] * (max_val - min_val) + min_val
@@ -108,7 +112,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Simulate each initial condition out for the specified number of steps
 
         theta_init = self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode)
-        theta_init = torch.Tensor(theta_init.T)
+        theta_init = torch.Tensor(theta_init.T).to(self.device)
         x_sim, theta_sim, theta_hat_sim = simulator(x_init, theta_init, self.trajectory_length)
 
         # Reshape the data into a single replay buffer
@@ -121,9 +125,14 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
     def sample_fixed(self) -> torch.Tensor:
         """
-        Generate new data points by sampling uniformly from the state space
+        Description:
+            Generate new data points by sampling uniformly from the state and parameter space
         """
-        samples = []
+
+        x_samples = []
+        theta_samples = []
+        theta_hat_samples = []
+
         # Figure out how many points are to be sampled at random, how many from the
         # goal, safe, or unsafe regions specifically
         allocated_samples = 0
@@ -132,29 +141,43 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
             allocated_samples += num_samples
 
             if region_name == "goal":
-                samples.append(self.model.sample_goal(num_samples))
+                _, x_sample_group, theta_sample_group = self.model.sample_goal(num_samples)
             elif region_name == "safe":
-                samples.append(self.model.sample_safe(num_samples))
+                _, x_sample_group, theta_sample_group = self.model.sample_safe(num_samples)
             elif region_name == "unsafe":
-                samples.append(self.model.sample_unsafe(num_samples))
+                _, x_sample_group, theta_sample_group = self.model.sample_unsafe(num_samples)
             elif region_name == "boundary":
-                samples.append(self.model.sample_boundary(num_samples))
+                _, x_sample_group, theta_sample_group = self.model.sample_boundary(num_samples)
+
+            # Append new samples to the respective lists
+            x_samples.append(x_sample_group)
+            theta_samples.append(theta_sample_group)
+            theta_hat_samples.append(self.model.sample_Theta_space(num_samples))
+
 
         # Sample all remaining points uniformly at random
         free_samples = self.fixed_samples - allocated_samples
         assert free_samples >= 0
-        samples.append(self.model.sample_state_space(free_samples))
+        x_samples.append(self.model.sample_state_space(free_samples))
 
         # Sample parameter estimates
-        theta_hat_samples = self.model.get_N_samples_from_polytope(self.model.Theta, self.fixed_samples)
-        theta_hat_samples = torch.Tensor(theta_hat_samples.T)
+        theta_hat_samples.append(
+            self.model.sample_Theta_space(free_samples)
+        )
 
         # Sample parameter estimates
-        theta_samples = self.model.get_N_samples_from_polytope(self.model.Theta, self.fixed_samples)
-        theta_samples = torch.Tensor(theta_samples.T)
+        theta_samples.append(
+            self.model.sample_Theta_space(free_samples)
+        )
+        for sample_cluster in x_samples:
+            print("sample_cluster.shape = ", sample_cluster.shape)
+
+        print("x_samples = ", torch.vstack(x_samples))
+        print("theta_samples = ", torch.vstack(theta_samples))
+        print("theta_hat_samples = ", torch.vstack(theta_hat_samples))
 
 
-        return torch.vstack(samples), theta_samples, theta_hat_samples
+        return torch.vstack(x_samples), torch.vstack(theta_samples), torch.vstack(theta_hat_samples)
 
     def prepare_data(self):
         """Create the dataset"""
@@ -189,31 +212,31 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         print(f"\t{self.theta_h_training.shape[0]} training theta estimates")
         print(f"\t{self.theta_h_validation.shape[0]} validation theta estimates")
         print("\t----------------------")
-        print(f"\t{self.model.goal_mask(self.x_training).sum()} goal points")
-        print(f"\t({self.model.goal_mask(self.x_validation).sum()} val)")
-        print(f"\t{self.model.safe_mask(self.x_training).sum()} safe points")
-        print(f"\t({self.model.safe_mask(self.x_validation).sum()} val)")
-        print(f"\t{self.model.unsafe_mask(self.x_training).sum()} unsafe points")
-        print(f"\t({self.model.unsafe_mask(self.x_validation).sum()} val)")
-        print(f"\t{self.model.boundary_mask(self.x_training).sum()} boundary points")
-        print(f"\t({self.model.boundary_mask(self.x_validation).sum()} val)")
+        print(f"\t{self.model.goal_mask(self.x_training, self.theta_training).sum()} goal points")
+        print(f"\t({self.model.goal_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.safe_mask(self.x_training, self.theta_training).sum()} safe points")
+        print(f"\t({self.model.safe_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.unsafe_mask(self.x_training, self.theta_training).sum()} unsafe points")
+        print(f"\t({self.model.unsafe_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.boundary_mask(self.x_training, self.theta_training).sum()} boundary points")
+        print(f"\t({self.model.boundary_mask(self.x_validation, self.theta_validation).sum()} val)")
 
         # Turn these into tensor datasets
         self.training_data = TensorDataset(
             self.x_training,
             self.theta_training,
             self.theta_h_training,
-            self.model.goal_mask(self.x_training),
-            self.model.safe_mask(self.x_training),
-            self.model.unsafe_mask(self.x_training),
+            self.model.goal_mask(self.x_training, self.theta_training),
+            self.model.safe_mask(self.x_training, self.theta_training),
+            self.model.unsafe_mask(self.x_training, self.theta_training),
         )
         self.validation_data = TensorDataset(
             self.x_validation,
             self.theta_validation,
             self.theta_h_validation,
-            self.model.goal_mask(self.x_validation),
-            self.model.safe_mask(self.x_validation),
-            self.model.unsafe_mask(self.x_validation),
+            self.model.goal_mask(self.x_validation, self.theta_validation),
+            self.model.safe_mask(self.x_validation, self.theta_validation),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation),
         )
 
     def add_data(self, simulator: Callable[[torch.Tensor, int], torch.Tensor]):

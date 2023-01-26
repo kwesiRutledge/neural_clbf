@@ -12,38 +12,97 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
-from neural_clbf.controllers import NeuralCLBFController
-from neural_clbf.datamodules.episodic_datamodule import (
-    EpisodicDataModule,
+from neural_clbf.controllers import (
+    NeuralCLBFController, NeuralaCLBFController
+)
+from neural_clbf.datamodules import (
+    EpisodicDataModule, EpisodicDataModuleAdaptive
 )
 from neural_clbf.systems.adaptive import LoadSharingManipulator
 from neural_clbf.experiments import (
     ExperimentSuite,
-    CLFContourExperiment,
+    CLFContourExperiment, AdaptiveCLFContourExperiment,
     RolloutStateSpaceExperiment,
 )
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
+
+from typing import Dict
+
+import time
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 batch_size = 64
 controller_period = 0.05
 
-start_x = torch.tensor(
-    [
-        [0.5, 0.5],
-        [-0.2, 1.0],
-        [0.2, -1.0],
-        [-0.2, -1.0],
-    ]
-)
+
 simulation_dt = 0.01
 
+def create_training_hyperparams()-> Dict:
+    """
+    create_hyperparams
+    Description
+        Creates a dictionary containing all hyperparameters used in
+        Neural aCLBF training.
+    """
+
+    # Get initial conditions for the experiment
+    start_x = torch.tensor(
+        [
+            [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+            [-0.2, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+            [-0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+    )
+
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+
+    hyperparams_for_evaluation = {
+        "batch_size": 64,
+        "controller_period": 0.05,
+        "start_x": start_x,
+        "simulation_dt": 0.01,
+        "nominal_scenario_obstacle_center": [1.0, 1.0, -1.0],
+        "nominal_scenario_obstacle_width": 1.0,
+        "Theta_lb": [0.5, 0.0, -0.5],
+        "Theta_ub": [1.0, 0.5, 0.5],
+        "clf_lambda": 1.0,
+        # layer specifications
+        "clbf_hidden_size": 64,
+        "clbf_hidden_layers": 2,
+        # Training parameters
+        "max_epochs": 6,
+        # Contour Experiment Parameters
+        "contour_exp_x_index": 0,
+        "contour_exp_theta_index": LoadSharingManipulator.P_X,
+        # Random Seed Info
+        "pt_manual_seed": 30,
+        "np_manual_seed": 51,
+        # Device
+        "device": device,
+        "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
+    }
+
+    return hyperparams_for_evaluation
 
 def main(args):
+    # Constants
+
+    # Get hyperparameters for training
+    t_hyper = create_training_hyperparams()
+
+    # Set Constants
+    torch.manual_seed(t_hyper["pt_manual_seed"])
+    np.random.seed(t_hyper["np_manual_seed"])
+    device = torch.device(t_hyper["device"])
+
     # Define the scenarios
-    nominal_scenario = {"obstacle_center": [1.0, 1.0, -1.0], "obstacle_width": 1.0}
+    nominal_scenario = {
+        "obstacle_center": t_hyper["nominal_scenario_obstacle_center"],
+        "obstacle_width": t_hyper["nominal_scenario_obstacle_width"],
+    }
     scenarios = [
         nominal_scenario,
         # {"m": 1.25, "L": 1.0, "b": 0.01},  # uncomment to add robustness
@@ -52,8 +111,8 @@ def main(args):
     ]
 
     # Define the range of possible goal region centers
-    lb = [-1.0, -1.0, -1.0]
-    ub = [1.0, 1.0, 1.0]
+    lb = t_hyper["Theta_lb"]
+    ub = t_hyper["Theta_ub"]
     Theta = pc.box2poly(np.array([lb, ub]).T)
     print(Theta)
 
@@ -68,34 +127,35 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-np.pi / 2, np.pi / 2),# p_x
+        (-np.pi / 4, np.pi / 4),# p_x
         (-1.0, 1.0),            # p_y
-        (-np.pi / 2, np.pi / 2),# p_z
+        (-np.pi / 4, np.pi / 4),# p_z
         (-1.0, 1.0),            # v_x
         (-1.0, 1.0),            # v_y
         (-1.0, 1.0),            # v_z
     ]
-    data_module = EpisodicDataModule(
+    data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
-        trajectories_per_episode=0,
+        trajectories_per_episode=1,
         trajectory_length=1,
         fixed_samples=10000,
         max_points=100000,
         val_split=0.1,
         batch_size=64,
-        # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
+        quotas=t_hyper["sample_quotas"],
     )
 
     # Define the experiment suite
-    V_contour_experiment = CLFContourExperiment(
+    V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        domain=[(-2.0, 2.0), (-2.0, 2.0)],
+        x_domain=[(-2.0, 2.0)],
+        theta_domain=[(-2.0, 2.0)],
         n_grid=30,
         x_axis_index=LoadSharingManipulator.P_X,
-        y_axis_index=LoadSharingManipulator.P_Z,
+        theta_axis_index=t_hyper["contour_exp_theta_index"],
         x_axis_label="$p_x$",
-        y_axis_label="$p_z$", #"$\\dot{\\theta}$",
+        theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
     # rollout_experiment = RolloutStateSpaceExperiment(
@@ -113,7 +173,7 @@ def main(args):
     experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    clbf_controller = NeuralCLBFController(
+    aclbf_controller = NeuralaCLBFController(
         dynamics_model,
         scenarios,
         data_module,
@@ -128,22 +188,57 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
     )
+    aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
-        "logs/inverted_pendulum",
+        "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
     )
     trainer = pl.Trainer.from_argparse_args(
         args,
         logger=tb_logger,
         reload_dataloaders_every_epoch=True,
-        max_epochs=51,
+        max_epochs=t_hyper["max_epochs"],
     )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
-    trainer.fit(clbf_controller)
+    training_time_start = time.time()
+    trainer.fit(aclbf_controller)
+    training_time_end = time.time()
+
+    # Logging
+    tb_logger.log_metrics({"pytorch random seed": t_hyper["pt_manual_seed"]})
+    tb_logger.log_metrics({"numpy random seed": t_hyper["np_manual_seed"]})
+    tb_logger.log_metrics({"training time": training_time_end - training_time_start})
+
+    # Saving Data
+    torch.save(
+        aclbf_controller.V_nn,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/Vnn.pt"
+    )
+
+    # Record Hyperparameters in small pytorch format
+    torch.save(
+        t_hyper,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/hyperparams.pt"
+    )
+
+    # Save model
+    torch.save(
+        aclbf_controller.state_dict(),
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/state_dict.pt"
+    )
+
+    torch.save(
+        aclbf_controller,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/controller.pt"
+    )
 
 
 if __name__ == "__main__":

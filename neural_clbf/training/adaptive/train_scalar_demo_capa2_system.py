@@ -30,8 +30,6 @@ import polytope as pc
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-
-
 def create_hyperparam_struct()-> Dict:
 
     # Get initial conditions for the experiment
@@ -64,6 +62,8 @@ def create_hyperparam_struct()-> Dict:
     return hyperparams_for_evaluation
 
 def main(args):
+    device = torch.device("mps")
+
     # Random Seed
     pt_manual_seed = 30
     torch.manual_seed(pt_manual_seed)
@@ -156,6 +156,8 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
     )
+
+    clbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(

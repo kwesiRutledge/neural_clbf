@@ -165,7 +165,10 @@ def plot_controlled_scalar_capa2():
         aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = torch.tensor(
             [
                 [1.5],
-                [0.9],
+                [1.4],
+                [1.1],
+                [1.0],
+                [0.7],
                 [0.3],
                 [0.0],
                 [-0.3],

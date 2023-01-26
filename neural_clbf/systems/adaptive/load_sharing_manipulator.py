@@ -83,6 +83,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         use_linearized_controller: bool = True,
         scenarios: Optional[ScenarioList] = None,
         theta: torch.Tensor = None,
+        device: str = "cpu",
     ):
         """
         Initialize a system.
@@ -101,14 +102,16 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             ValueError if nominal_scenario are not valid for this system
         """
         # Define parameters
-        self.m = 10 # kg
+        self.m = 10.0 # kg
 
-        self.K_x = -1
-        self.K_y = -1
-        self.K_z = -1
+        self.K_x = float(-1.0)
+        self.K_y = float(-1.0)
+        self.K_z = float(-1.0)
+
+        self.device = device
 
         # Then initialize
-        super().__init__(nominal_scenario, Theta, dt, controller_dt)
+        super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
 
     def validate_scenario(self, s: Scenario) -> bool:
         """Check if a given set of parameters is valid
@@ -134,6 +137,10 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         return []
 
     @property
+    def parameter_angle_dims(self) -> List[int]:
+        return []
+
+    @property
     def n_controls(self) -> int:
         return LoadSharingManipulator.N_CONTROLS
 
@@ -148,13 +155,13 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         system
         """
         # Define Upper and lower values
-        upper_limit = torch.ones(self.n_dims)
+        upper_limit = torch.ones(self.n_dims).to(self.device)
         upper_limit[LoadSharingManipulator.P_X] = 1.0
         upper_limit[LoadSharingManipulator.P_Y] = 1.0
         upper_limit[LoadSharingManipulator.P_Z] = 1.0
-        upper_limit[LoadSharingManipulator.V_X] = 10.0
-        upper_limit[LoadSharingManipulator.V_Y] = 10.0
-        upper_limit[LoadSharingManipulator.V_Z] = 10.0
+        upper_limit[LoadSharingManipulator.V_X] = 1.0
+        upper_limit[LoadSharingManipulator.V_Y] = 1.0
+        upper_limit[LoadSharingManipulator.V_Z] = 1.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -172,7 +179,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return (upper_limit, lower_limit)
 
-    def safe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def safe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating safe regions for this system
 
         args:
@@ -183,11 +190,11 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"])
+        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"]).to(self.device)
         obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
-        safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
+        safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
 
         displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
         dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) >= obst_width
@@ -196,7 +203,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return safe_mask
 
-    def unsafe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def unsafe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating unsafe regions for this system
 
         args:
@@ -207,7 +214,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"])
+        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"]).to(self.device)
         obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
@@ -220,7 +227,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return safe_mask
 
-    def goal_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def goal_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating goal regions for this system
 
         args:
@@ -231,20 +238,60 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Include a sensible default
         goal_tolerance = 0.1
+        batch_size = x.shape[0]
 
-        return (x - self.goal_point).norm(dim=-1) <= goal_tolerance
+        # Algorithm
+        r = torch.zeros(batch_size, 3).to(self.device) #get position from state
+        r[:, :] = x[:, :3]
+
+        return (r - theta).norm(dim=-1) <= goal_tolerance
 
     @property
     def goal_point(self):
-        goal = torch.zeros((1, self.n_dims))
-        goal[0, 0] = self.theta[0, 0]
-        goal[0, 1] = self.theta[1, 0]
-        goal[0, 2] = self.theta[2, 0]
+        goal = torch.zeros((1, self.n_dims)).to(self.device)
         return goal
 
     @property
     def u_eq(self):
-        return torch.zeros((1, self.n_controls))
+        return torch.zeros((1, self.n_controls)).to(self.device)
+
+    def sample_unsafe(self, num_samples: int, max_tries: int= 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Sample a batch of unsafe states from the system
+
+        args:
+            num_samples: the number of samples to return
+            max_tries: the maximum number of tries to sample a point before giving up
+        returns:
+            a tuple (x, u, theta) of tensors of size (num_samples, n_dims), (num_samples, n_controls),
+            and (num_samples, n_params) respectively.
+        """
+        # Constants
+        batch_size = num_samples
+        upper_limit, lower_limit = self.state_limits
+
+        # Create polytope for sampling
+        obst_center = np.array(self.nominal_scenario["obstacle_center"])
+        obst_width = self.nominal_scenario["obstacle_width"]
+
+        state_space_obst_center = np.zeros(6)
+        state_space_obst_center[:3] = obst_center
+
+        state_space_obst_width = upper_limit.cpu().numpy()
+        state_space_obst_width[:3] = obst_width
+
+        P_unsafe = pc.box2poly(
+            np.array([state_space_obst_center - state_space_obst_width, state_space_obst_center + state_space_obst_width]).T
+        )
+
+        # Sample States
+        x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
+        x_unsafe = torch.Tensor(x_unsafe_np.T).to(self.device)
+
+        theta_unsafe = self.sample_Theta_space(num_samples)
+
+        xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
+
+        return xtheta_unsafe, x_unsafe, theta_unsafe
 
     def _f(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
         """
@@ -259,7 +306,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        f = torch.zeros((batch_size, self.n_dims, 1))
+        f = torch.zeros((batch_size, self.n_dims, 1)).to(self.device)
 
         K_x = self.K_x
         K_y = self.K_y
@@ -298,7 +345,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        F = torch.zeros((batch_size, self.n_dims, self.n_params))
+        F = torch.zeros((batch_size, self.n_dims, self.n_params)).to(self.device)
 
         K_x = self.K_x
         K_y = self.K_y
@@ -306,9 +353,9 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         m = self.m
 
         # Algorithm
-        F[:, LoadSharingManipulator.V_X, LoadSharingManipulator.P_X_DES] = K_x / m
-        F[:, LoadSharingManipulator.V_Y, LoadSharingManipulator.P_Y_DES] = K_y / m
-        F[:, LoadSharingManipulator.V_Z, LoadSharingManipulator.P_Z_DES] = K_z / m
+        F[:, LoadSharingManipulator.V_X, LoadSharingManipulator.P_X_DES] = - K_x / m
+        F[:, LoadSharingManipulator.V_Y, LoadSharingManipulator.P_Y_DES] = - K_y / m
+        F[:, LoadSharingManipulator.V_Z, LoadSharingManipulator.P_Z_DES] = - K_z / m
 
         return F
 
@@ -325,7 +372,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        g = torch.zeros((batch_size, self.n_dims, self.n_controls))
+        g = torch.zeros((batch_size, self.n_dims, self.n_controls)).to(self.device)
         g = g.type_as(x)
 
         m = self.m
@@ -350,7 +397,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        G = torch.zeros((batch_size, self.n_dims, self.n_controls, self.n_params))
+        G = torch.zeros((batch_size, self.n_dims, self.n_controls, self.n_params)).to(self.device)
 
         return G
 

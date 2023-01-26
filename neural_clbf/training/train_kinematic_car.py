@@ -117,6 +117,7 @@ def main(args):
         logger=tb_logger,
         reload_dataloaders_every_epoch=True,
         max_epochs=26,
+        num_processes=1,
     )
 
     # Train

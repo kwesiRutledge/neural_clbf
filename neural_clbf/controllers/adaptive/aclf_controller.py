@@ -65,7 +65,7 @@ class aCLFController(Controller):
         self.clf_relaxation_penalty = clf_relaxation_penalty
         self.Gamma = Gamma
         if self.Gamma is None:
-            self.Gamma = torch.eye(self.dynamics_model.n_dims)
+            self.Gamma = torch.eye(self.dynamics_model.n_params)
 
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set
@@ -88,7 +88,9 @@ class aCLFController(Controller):
         LFGammadV_Va_params = []
         LG_Va_params = []
         LGammadVaG_params  = []  # LGammaVaG[scenario_idx] = (dVa/dx) * (\sum_i Gamma[i,:] * (dVa/dtheta).T * G_i)
+
         Theta_vertices = pc.extreme(self.dynamics_model.Theta)
+        n_Theta_v = Theta_vertices.shape[0]
         for scenario in self.scenarios:
 
             Lf_Va_params.append(cp.Parameter(1))
@@ -120,7 +122,7 @@ class aCLFController(Controller):
 
                 # Create the sum G_i term
                 sum_LG_i_Va = v_Theta[0] * LG_Va_params[i][0]
-                for theta_index in range(2, len(v_Theta)):
+                for theta_index in range(1, len(v_Theta)):
                     sum_LG_i_Va = sum_LG_i_Va + v_Theta[theta_index] * LG_Va_params[i][theta_index]
 
                 # CLF decrease constraint (with relaxation)
@@ -174,9 +176,11 @@ class aCLFController(Controller):
         """
         # Create batches of x-theta pairs
         x_theta = torch.cat([x, theta_hat], dim=1)
+        print("x_theta = ", x_theta)
 
         # First, get the Lyapunov function value and gradient at this state
         P = self.dynamics_model.P.type_as(x_theta)
+        print("P =", P)
         # Reshape to use pytorch's bilinear function
         P = P.reshape(
             1,
@@ -234,6 +238,7 @@ class aCLFController(Controller):
             scenarios = self.scenarios
         n_scenarios = len(scenarios)
         Gamma = self.Gamma
+        n_dims = self.dynamics_model.n_dims
 
 
         # Get the Jacobian of V for each entry in the batch
@@ -294,10 +299,15 @@ class aCLFController(Controller):
 
                 LGammadVG_V_current = torch.zeros((batch_size, 1, self.dynamics_model.n_controls))
                 LGammadVG_V_current = LGammadVG_V[:, i, :].unsqueeze(1)
-                coeff = torch.zeros((batch_size, 1, 1))
-                coeff = coeff.type_as(x)
-                coeff[:, 0, 0] = Gamma_gradVtheta[:, 0, mode_index]
-                LGammadVG_V[:, i, :] = (LGammadVG_V_current + torch.matmul(coeff, G_i)).squeeze(1)
+
+                Gamma_gradVtheta_i = Gamma_gradVtheta[:, mode_index, 0].reshape((batch_size, 1, 1))
+                coeff = torch.kron(
+                    Gamma_gradVtheta_i,
+                    torch.eye(n_dims).type_as(x).reshape((1, n_dims, n_dims)),
+                )
+
+                GammadVG_i = torch.bmm(coeff, G_i)
+                LGammadVG_V[:, i, :] = (LGammadVG_V_current + torch.matmul(gradV_x, GammadVG_i)).squeeze(1)
 
         # return the Lie derivatives
         return Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V
@@ -366,10 +376,12 @@ class aCLFController(Controller):
         allow_relaxation = not (relaxation_penalty == float("inf"))
 
         Theta_vertices = pc.extreme(self.dynamics_model.Theta)
+        n_Theta_vertices = Theta_vertices.shape[0]
 
         # Solve a QP for each row in x
         bs = x.shape[0]
         u_result = torch.zeros(bs, n_controls)
+        # r_result = torch.zeros(bs, n_scenarios, n_Theta_vertices)
         r_result = torch.zeros(bs, n_scenarios)
         for batch_idx in range(bs):
             # Skip any bad points
@@ -391,6 +403,9 @@ class aCLFController(Controller):
             lower_lim = lower_lim.cpu().numpy()
             u = model.addMVar(n_controls, lb=lower_lim, ub=upper_lim)
             if allow_relaxation:
+                # r_set = []
+                # for corner_idx in range(n_Theta_vertices):
+                #     r_set.append(model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY))
                 r = model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY)
 
             # Define the cost
@@ -398,6 +413,10 @@ class aCLFController(Controller):
             u_ref_np = u_ref[batch_idx, :].detach().cpu().numpy()
             objective = u @ Q @ u - 2 * u_ref_np @ Q @ u + u_ref_np @ Q @ u_ref_np
             if allow_relaxation:
+                # for corner_idx in range(self.dynamics_model.Theta.dim):
+                #     r = r_set[corner_idx]
+                #     relax_penalties = relaxation_penalty * np.ones(n_scenarios)
+                #     objective += relax_penalties @ r
                 relax_penalties = relaxation_penalty * np.ones(n_scenarios)
                 objective += relax_penalties @ r
 
@@ -415,7 +434,8 @@ class aCLFController(Controller):
 
                 V_np = V[batch_idx].detach().cpu().numpy()
 
-                for v_Theta in Theta_vertices:
+                for v_idx in range(Theta_vertices.shape[0]):
+                    v_Theta = Theta_vertices[v_idx]
                     # Create term from the sum of dv/dx * Gamma * dV_dth.T * G_i
                     sum_LG_V_np = np.zeros(n_controls)
                     for theta_dim in range(self.dynamics_model.n_params):
@@ -423,8 +443,10 @@ class aCLFController(Controller):
                     clf_constraint = Lf_V_np + LF_V_np @ v_Theta + LFGammadV_V_np + \
                         (Lg_V_np + sum_LG_V_np + LGammadVG_V_np) @ u + self.clf_lambda * V_np
                     #clf_constraint = Lf_V_np + Lg_V_np @ u + self.clf_lambda * V_np
-                if allow_relaxation:
-                    clf_constraint -= r[i]
+                    if allow_relaxation:
+                        # r = r_set[v_idx]
+                        clf_constraint -= r[i]
+
                 model.addConstr(clf_constraint <= 0.0, name=f"Scenario {i} Decrease")
 
             # Optimize!
@@ -445,6 +467,8 @@ class aCLFController(Controller):
                 u_result[batch_idx, i] = torch.tensor(u[i].x)
             if allow_relaxation:
                 for i in range(n_scenarios):
+                    # for th_idx in range(n_Theta_vertices):
+                    #     r_result[batch_idx, i, th_idx] = torch.tensor(r_set[th_idx][i].x)
                     r_result[batch_idx, i] = torch.tensor(r[i].x)
 
         return u_result.type_as(x), r_result.type_as(x)
@@ -492,21 +516,28 @@ class aCLFController(Controller):
         params = []
         for i in range(self.n_scenarios):
             params.append(Lf_V[:, i, :])
+        for i in range(self.n_scenarios):
             params.append(Lg_V[:, i, :])
+        for i in range(self.n_scenarios):
             params.append(LF_V[:, i, :])
-            # Following the order of the paramter vector creation
-            params.append(V.reshape(-1, 1))
-            params.append(u_ref)
-            params.append(torch.tensor([relaxation_penalty]).type_as(x))
+        # Following the order of the paramter vector creation
+        params.append(V.reshape(-1, 1))
+        params.append(u_ref)
+        params.append(torch.tensor([relaxation_penalty]).type_as(x))
+        for i in range(self.n_scenarios):
             # LFGammadV_V
-            params.append(LFGammadV_V[:, i, :].reshape(-1, 1))
+            params.append(LFGammadV_V[:, i, :])
+        for i in range(self.n_scenarios):
             # list_LGi_V
             for theta_dim_index in range(self.dynamics_model.n_params):
                 params.append(
-                    list_LGi_V[theta_dim_index][:, i, :].reshape(-1, self.dynamics_model.n_controls)
+                    list_LGi_V[theta_dim_index][:, i, :]
                 )
+        for i in range(self.n_scenarios):
             # LGammadVG_V
             params.append(LGammadVG_V[:, i, :])
+
+        # print("params", params)
 
         # We've already created a parameterized QP solver, so we can use that
         result = self.differentiable_qp_solver(

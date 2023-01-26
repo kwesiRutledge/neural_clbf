@@ -11,7 +11,7 @@ import pytorch_lightning as pl
 from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
 from neural_clbf.systems.utils import ScenarioList
 from neural_clbf.controllers.adaptive.aclf_controller import aCLFController
-from neural_clbf.controllers.controller_utils import normalize_with_angles
+from neural_clbf.controllers.controller_utils import normalize_with_angles, normalize_theta_with_angles
 from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
 from neural_clbf.experiments import ExperimentSuite
 
@@ -84,13 +84,14 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             normalize_V_nominal: if True, normalize V_nominal so that its average is 1
         """
         super(NeuralaCLBFController, self).__init__(
-            dynamics_model=dynamics_model,
-            scenarios=scenarios,
-            experiment_suite=experiment_suite,
+            dynamics_model,
+            scenarios,
+            experiment_suite,
             clf_lambda=clf_lambda,
             clf_relaxation_penalty=clf_relaxation_penalty,
             controller_period=controller_period,
         )
+
         self.save_hyperparameters()
 
         # Save the provided model
@@ -193,7 +194,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         """
         # Apply the offset and range to normalize about zero
         x_norm = normalize_with_angles(self.dynamics_model, x)
-        theta_hat_norm = normalize_with_angles(self.dynamics_model, theta_hat, angle_dims = self.dynamics_model.parameter_angle_dims)
+        theta_hat_norm = normalize_theta_with_angles(self.dynamics_model, theta_hat)
 
         # Compute the CLBF layer-by-layer, computing the Jacobian alongside
 
@@ -516,6 +517,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         # Constants
         bs = x.shape[0]
         V_Theta = pc.extreme(self.dynamics_model.Theta)
+        n_params = self.dynamics_model.n_params
 
         loss = []
 
@@ -529,7 +531,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         V_corners = []
         for v_Theta_np in V_Theta:
             v_Theta = torch.Tensor(v_Theta_np.T)
-            v_Theta = v_Theta.reshape((1, self.dynamics_model.n_dims))
+            v_Theta = v_Theta.reshape((1, n_params))
             v_Theta = v_Theta.repeat((bs, 1))
             V_corners.append(self.V(x, v_Theta))
 
@@ -689,7 +691,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             self, self.logger, self.current_epoch
         )
 
-    @pl.core.decorators.auto_move_data
+    #@pl.core.decorators.auto_move_data
     def simulator_fn(
         self,
         x_init: torch.Tensor,

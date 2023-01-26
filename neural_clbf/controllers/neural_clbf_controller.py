@@ -555,7 +555,7 @@ class NeuralCLBFController(pl.LightningModule, CLFController):
             self, self.logger, self.current_epoch
         )
 
-    @pl.core.decorators.auto_move_data
+    #@pl.core.decorators.auto_move_data
     def simulator_fn(
         self,
         x_init: torch.Tensor,

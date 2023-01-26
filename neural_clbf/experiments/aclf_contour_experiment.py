@@ -38,6 +38,8 @@ class AdaptiveCLFContourExperiment(Experiment):
         default_state: Optional[torch.Tensor] = None,
         default_param_estimate: Optional[torch.Tensor] = None,
         plot_unsafe_region: bool = True,
+        plot_linearized_V: bool = False,
+        plot_relaxation: bool = False,
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
         state dimensions.
@@ -74,7 +76,10 @@ class AdaptiveCLFContourExperiment(Experiment):
         self.theta_axis_label = theta_axis_label
         self.default_state = default_state
         self.default_param_estimate = default_param_estimate
+        # Extra plotting flags
         self.plot_unsafe_region = plot_unsafe_region
+        self.plot_linearized_V = plot_linearized_V
+        self.plot_relaxation = plot_relaxation
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -164,9 +169,9 @@ class AdaptiveCLFContourExperiment(Experiment):
                 V = controller_under_test.V(x, theta_hat)
 
                 # Get the goal, safe, or unsafe classification
-                is_goal = controller_under_test.dynamics_model.goal_mask(x).all()
-                is_safe = controller_under_test.dynamics_model.safe_mask(x).all()
-                is_unsafe = controller_under_test.dynamics_model.unsafe_mask(x).all()
+                is_goal = controller_under_test.dynamics_model.goal_mask(x, theta_hat).all()
+                is_safe = controller_under_test.dynamics_model.safe_mask(x, theta_hat).all()
+                is_unsafe = controller_under_test.dynamics_model.unsafe_mask(x, theta_hat).all()
 
                 # Get the QP relaxation
                 _, r = controller_under_test.solve_CLF_QP(x, theta_hat)
@@ -232,14 +237,15 @@ class AdaptiveCLFContourExperiment(Experiment):
         plt.colorbar(contours, ax=ax, orientation="vertical")
 
         # Plot the linearized CLF
-        ax.tricontour(
-            results_df[self.x_axis_label],
-            results_df[self.theta_axis_label],
-            results_df["Linearized V"],
-            cmap=sns.color_palette("winter", as_cmap=True),
-            levels=[0.1],
-            linestyles="--",
-        )
+        if self.plot_linearized_V:
+            ax.tricontour(
+                results_df[self.x_axis_label],
+                results_df[self.theta_axis_label],
+                results_df["Linearized V"],
+                cmap=sns.color_palette("winter", as_cmap=True),
+                levels=[0.1],
+                linestyles="--",
+            )
         ax.tricontour(
             results_df[self.x_axis_label],
             results_df[self.theta_axis_label],
@@ -250,7 +256,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         )
 
         # Also overlay the relaxation region
-        if results_df["QP relaxation"].max() > 1e-5:
+        if (results_df["QP relaxation"].max() > 1e-5) and self.plot_relaxation:
             ax.plot(
                 [], [], c=(1.0, 1.0, 1.0, 0.3), label="Certificate Conditions Violated"
             )

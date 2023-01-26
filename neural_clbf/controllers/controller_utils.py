@@ -1,6 +1,10 @@
 import torch
 
 from neural_clbf.systems import ControlAffineSystem
+import polytope as pc
+import numpy as np
+
+from typing import List
 
 
 def normalize(
@@ -27,7 +31,7 @@ def normalize(
 
 
 def normalize_with_angles(
-    dynamics_model: ControlAffineSystem, x: torch.Tensor, k: float = 1.0, angle_dims = None
+    dynamics_model: ControlAffineSystem, x: torch.Tensor, k: float = 1.0, angle_dims: List[int] = None
 ) -> torch.Tensor:
     """Normalize the input using the stored center point and range, and replace all
     angles with the sine and cosine of the angles
@@ -50,3 +54,62 @@ def normalize_with_angles(
         x = torch.cat((x, torch.cos(angles)), dim=-1)
 
     return x
+
+
+def normalize_theta(
+    dynamics_model: ControlAffineSystem, theta: torch.Tensor, k: float = 1.0
+) -> torch.Tensor:
+    """
+    Description
+        Normalize the unknown parameter input to [-k, k]
+
+    args:
+        dynamics_model: the dynamics model matching the provided states
+        theta: bs x self.dynamics_model.n_params the points to normalize
+        k: normalize non-angle dimensions to [-k, k]
+    """
+    # Constants
+    Theta = dynamics_model.Theta
+
+    # Get minimum and maximum possible values for theta
+    V_Theta = pc.extreme(Theta)
+    theta_max = torch.Tensor(np.max(V_Theta, axis=0))
+    theta_min = torch.Tensor(np.min(V_Theta, axis=0))
+
+    theta_center = (theta_max + theta_min) / 2.0
+    theta_range = (theta_max - theta_min) / 2.0
+    # Scale to get the input between (-k, k), centered at 0
+    theta_range = theta_range / k
+    # We shouldn't scale or offset any angle dimensions
+    theta_center[dynamics_model.parameter_angle_dims] = 0.0
+    theta_range[dynamics_model.parameter_angle_dims] = 1.0
+
+    # Do the normalization
+    return (theta - theta_center.type_as(theta)) / theta_range.type_as(theta)
+
+def normalize_theta_with_angles(
+    dynamics_model: ControlAffineSystem, theta: torch.Tensor, k: float = 1.0, angle_dims: List[int] = None
+) -> torch.Tensor:
+    """
+    Description
+        Normalize the input set of parameter vectors using the stored center point and range, and replace all
+        angles with the sine and cosine of the angles
+
+    args:
+        dynamics_model: the dynamics model matching the provided states
+        x: bs x self.dynamics_model.n_dims the points to normalize
+        k: normalize non-angle dimensions to [-k, k]
+    """
+    # Scale and offset based on the center and range
+    theta = normalize_theta(dynamics_model, theta, k)
+
+    # Replace all angles with their sine, and append cosine
+    if angle_dims is None:
+        angle_dims = dynamics_model.parameter_angle_dims
+
+    if len(angle_dims) > 0:
+        theta_angles = theta[:, angle_dims]
+        theta[:, angle_dims] = torch.sin(theta_angles)
+        theta = torch.cat((theta, torch.cos(theta_angles)), dim=-1)
+
+    return theta

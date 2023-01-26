@@ -350,6 +350,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         # Constants
         n_controls = self.n_controls
         n_dims = self.n_dims
+        wall_pos = self.nominal_scenario["wall_position"]
         S_w, S_u, S_x0 = self.get_mpc_matrices(N_mpc, dt=dt)
 
         U_T_A = np.kron(U.A, np.eye(N_mpc))
@@ -374,6 +375,8 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
             obj += cp.norm(u_T)
 
             constraints = [U_T.A @ u_T <= U_T.b]
+            constraints += [S_u @ u_T + np.dot(S_x0, batch_x) >= wall_pos]
+            constraints += [S_u @ u_T + np.dot(S_x0, batch_x) <= wall_pos + 2]
 
             # Solve for the P with largest volume
             prob = cp.Problem(

@@ -43,6 +43,7 @@ class ControlAffineParameterAffineSystem(ABC):
         use_linearized_controller: bool = True,
         scenarios: Optional[ScenarioList] = None,
         theta: torch.Tensor = None,
+        device: str = "cpu",
     ):
         """
         Initialize a system.
@@ -85,6 +86,8 @@ class ControlAffineParameterAffineSystem(ABC):
         # Compute the linearized controller
         if use_linearized_controller:
             self.compute_linearized_controller(scenarios)
+
+        self.device = device
 
     @torch.enable_grad()
     def compute_A_matrix(self, theta: torch.Tensor, scenario: Optional[Scenario]) -> np.ndarray:
@@ -137,8 +140,14 @@ class ControlAffineParameterAffineSystem(ABC):
         self, scenario: Optional[Scenario] = None
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the continuous time linear dynamics matrices, dx/dt = Ax + Bu"""
-        A = self.compute_A_matrix(torch.Tensor(self.theta).reshape((1,self.n_params)), scenario)
-        B = self.compute_B_matrix(torch.Tensor(self.theta).reshape((1,self.n_params)), scenario)
+        A = self.compute_A_matrix(
+            torch.Tensor(self.theta).reshape((1, self.n_params)).to(self.device),
+            scenario,
+        )
+        B = self.compute_B_matrix(
+            torch.Tensor(self.theta).reshape((1, self.n_params)).to(self.device),
+            scenario,
+        )
 
         return A, B
 
@@ -264,11 +273,13 @@ class ControlAffineParameterAffineSystem(ABC):
         return out_of_bounds_mask
 
     @abstractmethod
-    def safe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def safe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating safe regions for this system
 
         args:
             x: a tensor of (batch_size, self.n_dims) points in the state space
+            theta: a tensor of (batch_size, self.n_params) points in the state space which exactly map to the states of the system
+                    (i.e., theta[1, :] is the parameters of the system at state x[1, :])
         returns:
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
@@ -276,18 +287,20 @@ class ControlAffineParameterAffineSystem(ABC):
         pass
 
     @abstractmethod
-    def unsafe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def unsafe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating unsafe regions for this system
 
         args:
             x: a tensor of (batch_size, self.n_dims) points in the state space
+            theta: a tensor of (batch_size, self.n_params) points in the state space which exactly map to the states of the system
+                    (i.e., theta[1, :] is the parameters of the system at state x[1, :])
         returns:
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
         pass
 
-    def failure(self, x: torch.Tensor) -> torch.Tensor:
+    def failure(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating failure. This usually matches with the
         unsafe region
 
@@ -297,9 +310,9 @@ class ControlAffineParameterAffineSystem(ABC):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        return self.unsafe_mask(x)
+        return self.unsafe_mask(x, theta)
 
-    def boundary_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def boundary_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating regions that are neither safe nor unsafe
 
         args:
@@ -310,12 +323,12 @@ class ControlAffineParameterAffineSystem(ABC):
         """
         return torch.logical_not(
             torch.logical_or(
-                self.safe_mask(x),
-                self.unsafe_mask(x),
+                self.safe_mask(x, theta),
+                self.unsafe_mask(x, theta),
             )
         )
 
-    def goal_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def goal_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating goal regions for this system
 
         args:
@@ -330,67 +343,80 @@ class ControlAffineParameterAffineSystem(ABC):
 
     @property
     def goal_point(self):
-        return torch.zeros((1, self.n_dims))
+        return torch.zeros((1, self.n_dims)).to(self.device)
 
     @property
     def u_eq(self):
-        return torch.zeros((1, self.n_controls))
+        return torch.zeros((1, self.n_controls)).to(self.device)
 
     def sample_state_space(self, num_samples: int) -> torch.Tensor:
         """Sample uniformly from the state space"""
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
-        x = torch.Tensor(num_samples, self.n_dims).uniform_(0.0, 1.0)
+        x = torch.Tensor(num_samples, self.n_dims).uniform_(0.0, 1.0).to(self.device)
         for i in range(self.n_dims):
             x[:, i] = x[:, i] * (x_max[i] - x_min[i]) + x_min[i]
 
         return x
 
+    def sample_Theta_space(self, num_samples: int) -> torch.Tensor:
+        """Sample uniformly from the Theta space"""
+
+        theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
+        return torch.Tensor(theta_samples_np.T).to(self.device)
+
+
+
     def sample_with_mask(
         self,
         num_samples: int,
-        mask_fn: Callable[[torch.Tensor], torch.Tensor],
+        mask_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         max_tries: int = 5000,
-    ) -> torch.Tensor:
+    ) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample num_samples so that mask_fn is True for all samples. Makes a
         best-effort attempt, but gives up after max_tries, so may return some points
         for which the mask is False, so watch out!
         """
         # Get a uniform sampling
-        samples = self.sample_state_space(num_samples)
+        x_samples = self.sample_state_space(num_samples)
+        theta_samples = self.sample_Theta_space(num_samples)
+
+        samples = torch.cat((x_samples, theta_samples), dim=1)
 
         # While the mask is violated, get violators and replace them
         # (give up after so many tries)
         for _ in range(max_tries):
-            violations = torch.logical_not(mask_fn(samples))
+            violations = torch.logical_not(mask_fn(x_samples, theta_samples))
             if not violations.any():
                 break
 
             new_samples = int(violations.sum().item())
-            samples[violations] = self.sample_state_space(new_samples)
+            x_samples[violations] = self.sample_state_space(new_samples)
+            theta_samples[violations] = self.sample_Theta_space(new_samples)
+            samples[violations] = torch.cat((x_samples[violations], theta_samples[violations]), dim=1)
 
-        return samples
+        return samples, x_samples, theta_samples
 
-    def sample_safe(self, num_samples: int, max_tries: int = 5000) -> torch.Tensor:
+    def sample_safe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the safe space. May return some points that are not
         safe, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.safe_mask, max_tries)
 
-    def sample_unsafe(self, num_samples: int, max_tries: int = 5000) -> torch.Tensor:
+    def sample_unsafe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the unsafe space. May return some points that are not
         unsafe, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.unsafe_mask, max_tries)
 
-    def sample_goal(self, num_samples: int, max_tries: int = 5000) -> torch.Tensor:
+    def sample_goal(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the goal. May return some points that are not in the
         goal, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.goal_mask, max_tries)
 
-    def sample_boundary(self, num_samples: int, max_tries: int = 5000) -> torch.Tensor:
+    def sample_boundary(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the state space between the safe and unsafe regions.
         May return some points that are not in this region safe, so watch out (only a
         best-effort sampling).
@@ -427,9 +453,17 @@ class ControlAffineParameterAffineSystem(ABC):
         if params is None:
             params = self.nominal_scenario
 
-        theta_reshape = theta.reshape( (theta.shape[0],theta.shape[1], 1) )
+        theta_reshape = theta.reshape((theta.shape[0], theta.shape[1], 1))
 
-        return self._f(x, params) + torch.bmm(self._F(x, params), theta_reshape), self.input_gain_matrix(x, theta_reshape, params)
+        # f_like = torch.zeros((batch_size, self.n_dims, 1)).to(x.device)
+        # f_like = self._f(x, params) + torch.bmm(self._F(x, params), theta_reshape)
+
+        g_like = torch.zeros((batch_size, self.n_dims, self.n_controls)).to(x.device)
+        g_like = self.input_gain_matrix(x, theta_reshape, params)
+
+        F_x_params = self._F(x, params)
+
+        return self._f(x, params) + torch.bmm(F_x_params, theta_reshape), self.input_gain_matrix(x, theta_reshape, params)
 
     def closed_loop_dynamics(
         self, x: torch.Tensor, u: torch.Tensor, theta: torch.Tensor, params: Optional[Scenario] = None
@@ -681,7 +715,8 @@ class ControlAffineParameterAffineSystem(ABC):
         for param_index in range(self.n_params):
 
             theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
-            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))
+            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))\
+                .to(self.device)
             G_i[:, :, :] = G[:, :, :, param_index]
             # Update g
             g_like = g_like + torch.mul(theta_i, G_i)
