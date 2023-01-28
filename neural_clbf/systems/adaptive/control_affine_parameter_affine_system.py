@@ -434,7 +434,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
         args:
             x: bs x self.n_dims tensor of state
-            theta: bs x self.n_params x 1 tensor of parameter data
+            theta: bs x self.n_params tensor of parameter data
             params: a dictionary giving the parameter values for the system. If None,
                     default to the nominal parameters used at initialization
         returns:

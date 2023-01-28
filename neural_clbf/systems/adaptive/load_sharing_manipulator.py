@@ -123,7 +123,9 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         valid = True
 
-        valid = valid and ("obstacle_center" in s)
+        valid = valid and ("obstacle_center_x" in s)
+        valid = valid and ("obstacle_center_y" in s)
+        valid = valid and ("obstacle_center_z" in s)
         valid = valid and ("obstacle_width" in s)
 
         return valid
@@ -190,7 +192,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"]).to(self.device)
+        obst_center_x = self.nominal_scenario["obstacle_center_x"]
+        obst_center_y = self.nominal_scenario["obstacle_center_y"]
+        obst_center_z = self.nominal_scenario["obstacle_center_z"]
+        obst_center = torch.Tensor(
+            [obst_center_x, obst_center_y, obst_center_z]
+        ).to(self.device)
         obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
@@ -214,7 +221,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        obst_center = torch.Tensor(self.nominal_scenario["obstacle_center"]).to(self.device)
+        obst_center_x = self.nominal_scenario["obstacle_center_x"]
+        obst_center_y = self.nominal_scenario["obstacle_center_y"]
+        obst_center_z = self.nominal_scenario["obstacle_center_z"]
+        obst_center = torch.Tensor(
+            [obst_center_x, obst_center_y, obst_center_z]
+        ).to(self.device)
         obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
@@ -270,7 +282,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         upper_limit, lower_limit = self.state_limits
 
         # Create polytope for sampling
-        obst_center = np.array(self.nominal_scenario["obstacle_center"])
+        obst_center_x = self.nominal_scenario["obstacle_center_x"]
+        obst_center_y = self.nominal_scenario["obstacle_center_y"]
+        obst_center_z = self.nominal_scenario["obstacle_center_z"]
+        obst_center = np.array(
+            [obst_center_x, obst_center_y, obst_center_z]
+        )
         obst_width = self.nominal_scenario["obstacle_width"]
 
         state_space_obst_center = np.zeros(6)
@@ -292,6 +309,43 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
 
         return xtheta_unsafe, x_unsafe, theta_unsafe
+
+    # def sample_goal(self, num_samples: int, max_tries: int= 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    #     """Sample a batch of unsafe states from the system
+    #
+    #     args:
+    #         num_samples: the number of samples to return
+    #         max_tries: the maximum number of tries to sample a point before giving up
+    #     returns:
+    #         a tuple (x, u, theta) of tensors of size (num_samples, n_dims), (num_samples, n_controls),
+    #         and (num_samples, n_params) respectively.
+    #     """
+    #     # Constants
+    #     batch_size = num_samples
+    #     upper_limit, lower_limit = self.state_limits
+    #
+    #     # Create polytope for sampling
+    #
+    #
+    #     state_space_obst_center = np.zeros(6)
+    #     state_space_obst_center[:3] = obst_center
+    #
+    #     state_space_obst_width = upper_limit.cpu().numpy()
+    #     state_space_obst_width[:3] = obst_width
+    #
+    #     P_unsafe = pc.box2poly(
+    #         np.array([state_space_obst_center - state_space_obst_width, state_space_obst_center + state_space_obst_width]).T
+    #     )
+    #
+    #     # Sample States
+    #     x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
+    #     x_unsafe = torch.Tensor(x_unsafe_np.T).to(self.device)
+    #
+    #     theta_unsafe = self.sample_Theta_space(num_samples)
+    #
+    #     xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
+    #
+    #     return xtheta_unsafe, x_unsafe, theta_unsafe
 
     def _f(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
         """

@@ -380,19 +380,21 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         # Create Plot Of Input
         # ====================
 
-        # Plot the lyapunov function if applicable
-        u_fig, u_ax = plt.subplots(1, 1)
+        u_fig, u_axs = plt.subplots( controller_under_test.dynamics_model.n_controls, 1)
+        n_controls = controller_under_test.dynamics_model.n_controls
         if "u" in results_df:
+
             for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
                 sim_mask = results_df["Simulation"] == sim_index
-                u_ax.plot(
-                    results_df[sim_mask]["t"].to_numpy(),
-                    results_df[sim_mask]["u"].to_numpy(),
-                    linestyle="-",
-                    # marker="+",
-                    markersize=5,
-                    color=sns.color_palette()[plot_idx],
-                )
+                for control_idx in range(controller_under_test.dynamics_model.n_controls):
+                    u_axs[control_idx].plot(
+                        results_df[sim_mask]["t"].to_numpy(),
+                        [u[control_idx] for u in results_df[sim_mask]["u"]],
+                        linestyle="-",
+                        # marker="+",
+                        markersize=5,
+                        color=sns.color_palette()[plot_idx],
+                    )
             # sns.lineplot(
             #     ax=V_ax,
             #     x="t",
@@ -401,13 +403,14 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             #     hue="Simulation",
             #     data=results_df,
             # )
-            u_ax.set_ylabel("$u(t)$")
-            u_ax.set_xlabel("t")
-            # Remove the legend -- too much clutter
-            u_ax.legend([], [], frameon=False)
+            for control_idx in range(n_controls):
+                u_axs[control_idx].set_ylabel("$u(t)$")
+                u_axs[control_idx].set_xlabel("t")
+                # Remove the legend -- too much clutter
+                u_axs[control_idx].legend([], [], frameon=False)
 
-            # Plot a reference line at V = 0
-            u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
+            # # Plot a reference line at V = 0
+            # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
         # Create output
         fig_handle = ("Rollout (state space)", fig)

@@ -427,6 +427,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         bs = x.shape[0]
         n_controls = self.dynamics_model.n_controls
         n_params = self.dynamics_model.n_params
+        V_Theta = pc.extreme(self.dynamics_model.Theta)
 
         # The CLBF decrease condition requires that V is decreasing everywhere where
         # V <= safe_level. We'll encourage this in three ways:
@@ -437,11 +438,21 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
 
         # First figure out where this condition needs to hold
         eps = 0.1
-        V = self.V(x, theta_hat)
+        V_x_thetahat = self.V(x, theta_hat)
         if self.barrier:
             condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
         else:
             condition_active = torch.tensor(1.0)
+
+        # Create a value of V for each corner in theta
+        V_Theta_list = []
+        for v_Theta in V_Theta:
+            theta0 = torch.Tensor(v_Theta)
+            theta_corner = theta0.repeat((bs, 1))
+
+            V_Theta_list.append(
+                self.V(x, theta_corner)
+            )
 
         # Get the control input and relaxation from solving the QP, and aggregate
         # the relaxation across scenarios
@@ -458,25 +469,32 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         clbf_descent_acc_lin = torch.tensor(0.0).type_as(x)
         # Get the current value of the CLBF and its Lie derivatives
         Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
-        for i, s in enumerate(self.scenarios):
-            # Use the dynamics to compute the derivative of V
-            sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
-            for theta_dim in range(n_params):
-                sum_LG_V = sum_LG_V + torch.bmm(theta[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
-            Vdot = Lf_Va[:, i, :].unsqueeze(1) + \
-                   torch.bmm(LF_Va[:, i, :].unsqueeze(1), theta.reshape((theta.shape[0], theta.shape[1], 1))) + \
-                   LFGammadVa_Va[:, i, :].unsqueeze(1) + \
-                   torch.bmm(
-                        Lg_V[:, i, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
-                        u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
-                    )
-            Vdot = Vdot.reshape(V.shape)
-            violation = F.relu(eps + Vdot + self.clf_lambda * V)
-            violation = violation * condition_active
-            clbf_descent_term_lin = clbf_descent_term_lin + violation.mean()
-            clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
-                violation.nelement() * self.n_scenarios
-            )
+        for v_Theta in V_Theta:
+            theta0 = torch.Tensor(v_Theta)
+            theta_corner = theta0.repeat((bs, 1))
+
+            for i, s in enumerate(self.scenarios):
+                # Use the dynamics to compute the derivative of V at each corner of V_Theta
+                Vdot = self.Vdot_for_scenario(i, x, theta_corner, u_qp)
+
+                # sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
+                # for theta_dim in range(n_params):
+                #     sum_LG_V = sum_LG_V + torch.bmm(theta[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
+                # Vdot = Lf_Va[:, i, :].unsqueeze(1) + \
+                #        torch.bmm(LF_Va[:, i, :].unsqueeze(1), theta.reshape((theta.shape[0], theta.shape[1], 1))) + \
+                #        LFGammadVa_Va[:, i, :].unsqueeze(1) + \
+                #        torch.bmm(
+                #             Lg_V[:, i, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
+                #             u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
+                #         )
+
+                Vdot = Vdot.reshape(V_x_thetahat.shape)
+                violation = F.relu(eps + Vdot + self.clf_lambda * V_x_thetahat)
+                violation = violation * condition_active
+                clbf_descent_term_lin = clbf_descent_term_lin + violation.mean()
+                clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
+                    violation.nelement() * self.n_scenarios
+                )
 
         loss.append(("CLBF descent term (linearized)", clbf_descent_term_lin))
         if accuracy:
@@ -489,10 +507,10 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         for s in self.scenarios:
             xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
             x_next = x + self.dynamics_model.dt * xdot
-            theta_hat_next = theta_hat # TODO: Define theta estimator!
+            theta_hat_next = theta_hat + self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
             V_next = self.V(x_next, theta_hat_next)
             violation = F.relu(
-                eps + (V_next - V) / self.controller_period + self.clf_lambda * V
+                eps + (V_next - V_x_thetahat) / self.controller_period + self.clf_lambda * V_x_thetahat
             )
             violation = violation * condition_active
 

@@ -22,7 +22,7 @@ from neural_clbf.systems.adaptive import LoadSharingManipulator
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
-    RolloutStateSpaceExperiment,
+    RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment
 )
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
@@ -59,13 +59,19 @@ def create_training_hyperparams()-> Dict:
 
     device = "mps" if torch.backends.mps.is_available() else "cpu"
 
+    nominal_scenario = {
+        "obstacle_center_x": 1.0,
+        "obstacle_center_y": -1.0,
+        "obstacle_center_z": 1.0,
+        "obstacle_width": 1.0,
+    }
+
     hyperparams_for_evaluation = {
         "batch_size": 64,
         "controller_period": 0.05,
         "start_x": start_x,
         "simulation_dt": 0.01,
-        "nominal_scenario_obstacle_center": [1.0, 1.0, -1.0],
-        "nominal_scenario_obstacle_width": 1.0,
+        "nominal_scenario": nominal_scenario,
         "Theta_lb": [0.5, 0.0, -0.5],
         "Theta_ub": [1.0, 0.5, 0.5],
         "clf_lambda": 1.0,
@@ -74,6 +80,7 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         "max_epochs": 6,
+        "n_fixed_samples": 10000,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
@@ -99,12 +106,8 @@ def main(args):
     device = torch.device(t_hyper["device"])
 
     # Define the scenarios
-    nominal_scenario = {
-        "obstacle_center": t_hyper["nominal_scenario_obstacle_center"],
-        "obstacle_width": t_hyper["nominal_scenario_obstacle_width"],
-    }
     scenarios = [
-        nominal_scenario,
+        t_hyper["nominal_scenario"],
         # {"m": 1.25, "L": 1.0, "b": 0.01},  # uncomment to add robustness
         # {"m": 1.0, "L": 1.25, "b": 0.01},
         # {"m": 1.25, "L": 1.25, "b": 0.01},
@@ -114,11 +117,10 @@ def main(args):
     lb = t_hyper["Theta_lb"]
     ub = t_hyper["Theta_ub"]
     Theta = pc.box2poly(np.array([lb, ub]).T)
-    print(Theta)
 
     # Define the dynamics model
     dynamics_model = LoadSharingManipulator(
-        nominal_scenario,
+        t_hyper["nominal_scenario"],
         Theta,
         dt=simulation_dt,
         controller_dt=controller_period,
@@ -139,7 +141,7 @@ def main(args):
         initial_conditions,
         trajectories_per_episode=1,
         trajectory_length=1,
-        fixed_samples=10000,
+        fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
         batch_size=64,
@@ -158,19 +160,19 @@ def main(args):
         theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
-    # rollout_experiment = RolloutStateSpaceExperiment(
-    #     "Rollout",
-    #     start_x,
-    #     InvertedPendulum.THETA,
-    #     "$\\theta$",
-    #     InvertedPendulum.THETA_DOT,
-    #     "$\\dot{\\theta}$",
-    #     scenarios=scenarios,
-    #     n_sims_per_start=1,
-    #     t_sim=5.0,
-    # )
-    #experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
-    experiment_suite = ExperimentSuite([V_contour_experiment])
+    rollout_experiment = RolloutStateParameterSpaceExperiment(
+        "Rollout",
+        t_hyper["start_x"],
+        LoadSharingManipulator.P_X,
+        "$r_1$",
+        LoadSharingManipulator.P_X_DES,
+        "$\\theta_1 (r_1^{(d)})$",
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=5.0,
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
+    #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
     aclbf_controller = NeuralaCLBFController(
