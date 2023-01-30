@@ -22,7 +22,8 @@ from neural_clbf.systems.adaptive import LoadSharingManipulator
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
-    RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment
+    RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment,
+    RolloutStateParameterSpaceExperimentMultiple,
 )
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
@@ -79,11 +80,13 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 6,
+        "max_epochs": 46,
         "n_fixed_samples": 10000,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
+        # Rollout Experiment Parameters
+        "rollout_experiment_horizon": 15.0,
         # Random Seed Info
         "pt_manual_seed": 30,
         "np_manual_seed": 51,
@@ -169,9 +172,20 @@ def main(args):
         "$\\theta_1 (r_1^{(d)})$",
         scenarios=scenarios,
         n_sims_per_start=1,
-        t_sim=5.0,
+        t_sim=t_hyper["rollout_experiment_horizon"],
     )
-    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
+    rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
+        "Rollout",
+        t_hyper["start_x"],
+        [LoadSharingManipulator.P_X, LoadSharingManipulator.V_X, LoadSharingManipulator.P_Y],
+        ["$r_1$", "$v_1$", "$r_2$"],
+        [LoadSharingManipulator.P_X_DES, LoadSharingManipulator.P_X_DES, LoadSharingManipulator.P_Y],
+        ["$\\theta_1 (r_1^{(d)})$", "$\\theta_1 (r_1^{(d)})$", "$\\theta_1 (r_2^{(d)})$"],
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=t_hyper["rollout_experiment_horizon"],
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller

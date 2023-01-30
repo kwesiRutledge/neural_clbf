@@ -114,6 +114,11 @@ class ACLFRolloutTimingExperiment(Experiment):
         n_theta = controller_under_test.dynamics_model.n_params
         Theta = controller_under_test.dynamics_model.Theta
 
+        control_ub, control_lb = controller_under_test.dynamics_model.control_limits
+        U = pc.box2poly(
+            np.array([ [control_lb[i], control_ub[i]] for i in range(n_controls) ])
+        )
+
         x_sim_start = torch.zeros(n_sims, n_dims).type_as(self.start_x)
         for i in range(0, self.start_x.shape[0]):
             for j in range(0, self.n_sims_per_start):
@@ -184,7 +189,7 @@ class ACLFRolloutTimingExperiment(Experiment):
                 u_mpc_current = controller_under_test.dynamics_model.basic_mpc1(
                     x_current,
                     0.01,
-                    pc.box2poly([[-1.0, 1.0]]),
+                    U,
                     N_mpc=5
                 )
                 end_time = time.time()
@@ -229,6 +234,8 @@ class ACLFRolloutTimingExperiment(Experiment):
                 log_packet[self.plot_theta_label] = theta_hat_value
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
+                for control_dim_idx in range(controller_under_test.dynamics_model.n_controls):
+                    log_packet["u"+str(control_dim_idx)] = u_current[sim_index, control_dim_idx].cpu().detach().numpy()
                 log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
                 log_packet["clbf_compute_time"] = clbf_time_current_tstep
                 log_packet["mpc_compute_time"] = mpc_time_current_tstep
@@ -408,16 +415,16 @@ class ACLFRolloutTimingExperiment(Experiment):
 
         # Create output
         fig_handle1 = ("Rollout (state space)", fig)
+        fig_handles = [fig_handle1]
 
         # Create Plot Of Input
         # ====================
 
         # Plot the lyapunov function if applicable
-        u_fig, u_ax = plt.subplots(1, 1)
-        if "u" in results_df:
-            self.create_input_plot(u_ax, results_df)
 
-        fig_handle2 = ("Rollout (input)", u_fig)
+        if "u" in results_df:
+            u_fig_handle = self.create_input_plot(controller_under_test, results_df)
+            fig_handles.append(u_fig_handle)
 
         # Create Plot Of Online Planning Times
         # ====================================
@@ -427,14 +434,15 @@ class ACLFRolloutTimingExperiment(Experiment):
             self.create_direct_planning_time_plot(pt_ax, results_df)
 
         fig_handle3 = ("Comparison (mpc v. clbf online)", pt_fig)
+        fig_handles.append(fig_handle3)
 
         if display_plots:
             plt.show()
             return []
         else:
-            return [fig_handle1, fig_handle2, fig_handle3]
+            return fig_handles
 
-    def create_input_plot(self, u_ax: plt.axis, results_df: pd.DataFrame) -> plt.figure:
+    def create_input_plot(self, controller_under_test: "Controller", results_df: pd.DataFrame) -> plt.figure:
         """
         create_input_plot
         Description
@@ -442,31 +450,29 @@ class ACLFRolloutTimingExperiment(Experiment):
             results_df and saves them to a plot.
             The handle for that plot is returned.
         """
+        # Constants
+        n_controls = controller_under_test.dynamics_model.n_controls
+        u_fig, u_axs = plt.subplots(n_controls, 1)
+
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
-            u_ax.plot(
-                results_df[sim_mask]["t"].to_numpy(),
-                results_df[sim_mask]["u"].to_numpy(),
-                linestyle="-",
-                # marker="+",
-                markersize=5,
-                color=sns.color_palette()[plot_idx],
-            )
-        # sns.lineplot(
-        #     ax=V_ax,
-        #     x="t",
-        #     y="V",
-        #     style="Parameters",
-        #     hue="Simulation",
-        #     data=results_df,
-        # )
-        u_ax.set_ylabel("$u(t)$")
-        u_ax.set_xlabel("t")
-        # Remove the legend -- too much clutter
-        u_ax.legend([], [], frameon=False)
+            for control_idx in range(n_controls):
+                u_axs[control_idx].plot(
+                    results_df[sim_mask]["t"].to_numpy(),
+                    [u[control_idx] for u in results_df[sim_mask]["u"]],
+                    linestyle="-",
+                    # marker="+",
+                    markersize=5,
+                    color=sns.color_palette()[plot_idx],
+                )
 
-        # Plot a reference line at V = 0
-        u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
+        for control_idx in range(n_controls):
+            u_axs[control_idx].set_ylabel(f"$u_{control_idx}(t)$")
+            u_axs[control_idx].set_xlabel("t")
+            # Remove the legend -- too much clutter
+            u_axs[control_idx].legend([], [], frameon=False)
+
+        return ("Rollouts (input)", u_fig)
 
     def create_direct_planning_time_plot(self, pt_ax: plt.Axes, results_df: pd.DataFrame, N_mpc: int=5):
         """

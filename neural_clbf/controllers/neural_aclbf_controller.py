@@ -507,7 +507,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         for s in self.scenarios:
             xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
             x_next = x + self.dynamics_model.dt * xdot
-            theta_hat_next = theta_hat + self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
+            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
             V_next = self.V(x_next, theta_hat_next)
             violation = F.relu(
                 eps + (V_next - V_x_thetahat) / self.controller_period + self.clf_lambda * V_x_thetahat

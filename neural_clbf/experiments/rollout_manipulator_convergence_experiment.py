@@ -1,4 +1,8 @@
-"""Simulate a rollout and plot in state space"""
+"""
+rollout_manipulator_convergence_experiment.py
+Description
+    Simulate a rollout and plot in state space
+"""
 import random
 import time
 from typing import cast, List, Tuple, Optional, TYPE_CHECKING
@@ -13,12 +17,14 @@ import tqdm
 from neural_clbf.experiments import Experiment
 from neural_clbf.systems.utils import ScenarioList
 
+import numpy as np
+
 if TYPE_CHECKING:
     from neural_clbf.controllers import Controller, NeuralObsBFController  # noqa
     from neural_clbf.systems import ObservableSystem  # noqa
 
 
-class RolloutStateParameterSpaceExperiment(Experiment):
+class RolloutManipulatorConvergenceExperiment(Experiment):
     """An experiment for plotting rollout performance of controllers.
 
     Plots trajectories projected onto a 2D plane.
@@ -28,12 +34,8 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         self,
         name: str,
         start_x: torch.Tensor,
-        plot_x_index: int,
-        plot_x_label: str,
-        plot_theta_index: int,
-        plot_theta_label: str,
-        other_index: Optional[List[int]] = None,
-        other_label: Optional[List[str]] = None,
+        plot_x_indices: List[int],
+        plot_x_labels: List[str],
         scenarios: Optional[ScenarioList] = None,
         n_sims_per_start: int = 5,
         t_sim: float = 5.0,
@@ -44,31 +46,23 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             name: the name of this experiment
             plot_x_index: the index of the state dimension to plot on the x axis,
             plot_x_label: the label of the state dimension to plot on the x axis,
-            plot_y_index: the index of the state dimension to plot on the y axis,
-            plot_theta_label: the label of the state dimension to plot on the y axis,
-            other_index: the indices of the state dimensions to save
-            other_label: the labels of the state dimensions to save
             scenarios: a list of parameter scenarios to sample from. If None, use the
                        nominal parameters of the controller's dynamical system
             n_sims_per_start: the number of simulations to run (with random parameters),
                               per row in start_x
             t_sim: the amount of time to simulate for
         """
-        super(RolloutStateParameterSpaceExperiment, self).__init__(name)
+        super(RolloutManipulatorConvergenceExperiment, self).__init__(name)
 
         # Save parameters
         self.start_x = start_x
-        self.plot_x_index = plot_x_index
-        self.plot_x_label = plot_x_label
-        self.plot_theta_index = plot_theta_index
-        self.plot_theta_label = plot_theta_label
+        self.plot_x_indices = plot_x_indices
+        self.plot_x_labels = plot_x_labels
         self.scenarios = scenarios
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
-        self.other_index = [] if other_index is None else other_index
-        self.other_label = [] if other_label is None else other_label
 
-        if self.plot_x_label == "x":
+        if "x" in self.plot_x_labels:
             raise "There could be a problem using the plot_x_label value x; try using a different value"
 
     @torch.no_grad()
@@ -158,7 +152,7 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         u_current = torch.zeros(x_sim_start.shape[0], n_controls, device=device)
         controller_update_freq = int(controller_under_test.controller_period / delta_t)
         prog_bar_range = tqdm.trange(
-            0, num_timesteps, desc="Controller Rollout", leave=True
+            0, num_timesteps, desc="Convergence Analysis (Rollouts)", leave=True
         )
         for tstep in prog_bar_range:
             # Get the control input at the current state if it's time
@@ -203,18 +197,19 @@ class RolloutStateParameterSpaceExperiment(Experiment):
                 log_packet["Parameters"] = param_string[:-2]
 
                 # Pick out the states to log and save them
-                x_value = x_current[sim_index, self.plot_x_index].cpu().numpy().item()
-                theta_hat_value = theta_hat_current[sim_index, self.plot_theta_index].cpu().numpy().item()
-                log_packet[self.plot_x_label] = x_value
-                log_packet[self.plot_theta_label] = theta_hat_value
+                for x_idx in range(len(self.plot_x_indices)):
+                    plot_x_index = self.plot_x_indices[x_idx]
+                    plot_x_label = self.plot_x_labels[x_idx]
+
+                    x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
+                    log_packet[plot_x_label] = x_value
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
+                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
                 log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
-
-                for i, save_index in enumerate(self.other_index):
-                    value = x_current[sim_index, save_index].cpu().numpy().item()
-                    log_packet[self.other_label[i]] = value
+                theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
+                log_packet["theta_error_norm"] = torch.norm(theta_error)
 
                 # Log the barrier function if applicable
                 if h is not None:
@@ -269,26 +264,28 @@ class RolloutStateParameterSpaceExperiment(Experiment):
 
         # Figure out how many plots we need (one for the rollout, one for h if logged,
         # and one for V if logged)
-        num_plots = 1
+        num_plots = 2
         if "h" in results_df:
             num_plots += 1
         if "V" in results_df:
             num_plots += 1
 
         # Plot the state trajectories
-        fig, ax = plt.subplots(1, num_plots)
+        fig = plt.figure()
+        rollout_ax = fig.add_subplot(101 + 10*num_plots, projection='3d')
         fig.set_size_inches(9 * num_plots, 6)
+        error_ax = fig.add_subplot(102 + 10*num_plots)
 
         # Assign plots to axes
-        if num_plots == 1:
-            rollout_ax = ax
-        else:
-            rollout_ax = ax[0]
+        # if num_plots == 1:
+        #     rollout_ax = ax
+        # else:
+        #     rollout_ax = ax[0]
 
         if "h" in results_df:
-            h_ax = ax[1]
+            h_ax = fig.add_subplot(103 + 10*num_plots)
         if "V" in results_df:
-            V_ax = ax[num_plots - 1]
+            V_ax = fig.add_subplot(100 + 10*num_plots + num_plots) #ax[num_plots - 1]
 
         # Plot the rollout
         # sns.lineplot(
@@ -301,22 +298,52 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         # )
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
+            # rollout_ax.plot(
+            #     results_df[sim_mask][self.plot_x_labels[0]].to_numpy(),
+            #     results_df[sim_mask][self.plot_x_labels[1]].to_numpy(),
+            #     zs = results_df[sim_mask][self.plot_x_labels[2]].to_numpy(),
+            #     linestyle="-",
+            #     # marker="+",
+            #     markersize=5,
+            #     color=sns.color_palette()[plot_idx],
+            # )
             rollout_ax.plot(
-                results_df[sim_mask][self.plot_x_label].to_numpy(),
-                results_df[sim_mask][self.plot_theta_label].to_numpy(),
+                results_df[sim_mask][self.plot_x_labels[0]].to_numpy(),
+                results_df[sim_mask][self.plot_x_labels[1]].to_numpy(),
+                results_df[sim_mask][self.plot_x_labels[2]].to_numpy(),
                 linestyle="-",
                 # marker="+",
                 markersize=5,
                 color=sns.color_palette()[plot_idx],
             )
-            rollout_ax.set_xlabel(self.plot_x_label)
-            rollout_ax.set_ylabel(self.plot_theta_label)
+            rollout_ax.set_xlabel(self.plot_x_labels[0])
+            rollout_ax.set_ylabel(self.plot_x_labels[1])
+            rollout_ax.set_zlabel(self.plot_x_labels[2])
+
+            # Plot initial conditions
+            rollout_ax.scatter(
+                results_df[sim_mask][self.plot_x_labels[0]].to_numpy()[0],
+                results_df[sim_mask][self.plot_x_labels[1]].to_numpy()[0],
+                results_df[sim_mask][self.plot_x_labels[2]].to_numpy()[0],
+            )
+
+            # Plot Target Points
+            rollout_ax.scatter(
+                results_df[sim_mask]["theta"].to_numpy()[0][0],
+                results_df[sim_mask]["theta"].to_numpy()[1][0],
+                results_df[sim_mask]["theta"].to_numpy()[2][0],
+                marker="s",
+                s=20,
+                color=sns.color_palette()[plot_idx],
+            )
 
         # Remove the legend -- too much clutter
         rollout_ax.legend([], [], frameon=False)
 
         # Plot the environment
         controller_under_test.dynamics_model.plot_environment(rollout_ax)
+
+        self.plot_error(results_df, error_ax)
 
         # Plot the barrier function if applicable
         if "h" in results_df:
@@ -382,46 +409,41 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             # Plot a reference line at V = 0
             V_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
-        # Create Plot Of Input
-        # ====================
 
-        u_fig, u_axs = plt.subplots( controller_under_test.dynamics_model.n_controls, 1)
-        n_controls = controller_under_test.dynamics_model.n_controls
-        if "u" in results_df:
-
-            for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-                sim_mask = results_df["Simulation"] == sim_index
-                for control_idx in range(controller_under_test.dynamics_model.n_controls):
-                    u_axs[control_idx].plot(
-                        results_df[sim_mask]["t"].to_numpy(),
-                        [u[control_idx] for u in results_df[sim_mask]["u"]],
-                        linestyle="-",
-                        # marker="+",
-                        markersize=5,
-                        color=sns.color_palette()[plot_idx],
-                    )
-            # sns.lineplot(
-            #     ax=V_ax,
-            #     x="t",
-            #     y="V",
-            #     style="Parameters",
-            #     hue="Simulation",
-            #     data=results_df,
-            # )
-            for control_idx in range(n_controls):
-                u_axs[control_idx].set_ylabel("$u(t)$")
-                u_axs[control_idx].set_xlabel("t")
-                # Remove the legend -- too much clutter
-                u_axs[control_idx].legend([], [], frameon=False)
-
-            # # Plot a reference line at V = 0
-            # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
         # Create output
-        fig_handle = ("Rollout (state space)", fig)
+        fig_handle = ("Rollout (state space - convergence)", fig)
 
         if display_plots:
             plt.show()
             return []
         else:
-            return [fig_handle, ("Rollout (input)", u_fig)]
+            return [fig_handle]
+
+    def plot_error(self, results_df: pd.DataFrame, error_ax: plt.axis):
+        """
+
+        """
+        # Constants
+
+        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+            sim_mask = results_df["Simulation"] == sim_index
+            # rollout_ax.plot(
+            #     results_df[sim_mask][self.plot_x_labels[0]].to_numpy(),
+            #     results_df[sim_mask][self.plot_x_labels[1]].to_numpy(),
+            #     zs = results_df[sim_mask][self.plot_x_labels[2]].to_numpy(),
+            #     linestyle="-",
+            #     # marker="+",
+            #     markersize=5,
+            #     color=sns.color_palette()[plot_idx],
+            # )
+            error_ax.plot(
+                results_df[sim_mask]["t"].to_numpy(),
+                results_df[sim_mask]["theta_error_norm"].to_numpy(),
+                linestyle="-",
+                # marker="+",
+                markersize=5,
+                color=sns.color_palette()[plot_idx],
+            )
+            error_ax.set_xlabel("$t$")
+            error_ax.set_ylabel("$\| r(t) - r_{des}(t) \|$")

@@ -30,6 +30,8 @@ from neural_clbf.systems.adaptive.control_affine_parameter_affine_system import 
     ControlAffineParameterAffineSystem
 )
 
+import cvxpy as cp
+
 class LoadSharingManipulator(ControlAffineParameterAffineSystem):
     """
     Represents a manipulator imparting forces along with a human (linear controller)
@@ -176,7 +178,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 10 * torch.ones(LoadSharingManipulator.N_CONTROLS)
+        upper_limit = 250.0 * torch.ones(LoadSharingManipulator.N_CONTROLS)
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
@@ -456,7 +458,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         return G
 
     def u_nominal(
-        self, x: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, theta_hat: torch.Tensor, params: Optional[Scenario] = None
     ) -> torch.Tensor:
         """
         Compute the nominal control for the nominal parameters, using LQR unless
@@ -464,17 +466,28 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         args:
             x: bs x self.n_dims tensor of state
+            theta_hat: bs x self.n_params tensor of state
             params: the model parameters used
         returns:
             u_nominal: bs x self.n_controls tensor of controls
         """
+        # Constants
+        batch_size = x.shape[0]
+        n_dims = self.n_dims
+        m = self.m
+        g = 9.8
+
         # Compute nominal control from feedback + equilibrium control
         K = self.K.type_as(x)
-        goal = self.goal_point.squeeze().type_as(x)
-        u_nominal = -(K @ (x - goal).T).T
+        estimated_goal = torch.zeros((batch_size, n_dims)).type_as(x)
+        estimated_goal[:, :3] = theta_hat
+        estimated_goal[:, 3:]
+
+        u_nominal = -(K @ (x - estimated_goal).T).T
 
         # Adjust for the equilibrium setpoint
         u = u_nominal + self.u_eq.type_as(x)
+        u[:, 1] = u[:, 1] + m*g
 
         # Clamp given the control limits
         upper_u_lim, lower_u_lim = self.control_limits
@@ -496,3 +509,142 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             ax: the axis on which to plot
         """
         pass
+
+    def basic_mpc1(self, x: torch.Tensor, dt: float, U: pc.Polytope = None, N_mpc: int = 5) -> torch.Tensor:
+        """
+        basic_mpc1
+        Description:
+            From the set of batch states x, this function computes the batch of inputs
+            that solve the basic linearized MPC.
+        """
+        # Constants
+        n_controls = self.n_controls
+        n_dims = self.n_dims
+
+        obstacle_loc = np.array([
+            self.nominal_scenario["obstacle_center_x"],
+            self.nominal_scenario["obstacle_center_y"],
+            self.nominal_scenario["obstacle_center_z"],
+        ])
+        obstacle_width = self.nominal_scenario["obstacle_width"]
+
+        obstacle = pc.box2poly(
+            [[obstacle_loc[0] - 0.5 * obstacle_width, obstacle_loc[0] + obstacle_width*0.5],
+            [obstacle_loc[1] - 0.5 * obstacle_width, obstacle_loc[1] + obstacle_width * 0.5],
+            [obstacle_loc[2] - 0.5 * obstacle_width, obstacle_loc[2] + obstacle_width * 0.5]],
+        )
+
+        M = 1e10
+
+        S_w, S_u, S_x0 = self.get_mpc_matrices(N_mpc, dt=dt)
+
+        U_T_A = np.kron(U.A, np.eye(N_mpc))
+        U_T_b = np.kron(U.b, np.ones(N_mpc))
+        U_T = pc.Polytope(U_T_A, U_T_b)
+
+        # Solve the MPC problem for each element of the batch
+        batch_size = x.shape[0]
+        u = torch.zeros(batch_size, n_controls).type_as(x)
+        goal_x = np.array([[0.0]])
+        for batch_idx in range(batch_size):
+            batch_x = x[batch_idx, :n_dims].cpu().detach().numpy()
+
+            # Create input for this batch
+            u_T = cp.Variable((n_controls * N_mpc,))
+
+            # Define objective as being the distance from state at t_0 + N_MPC to
+            # the goal.
+            M_T = np.zeros((n_dims, n_dims * (N_mpc)))
+            M_T[:, -n_dims:] = np.eye(n_dims)
+            obj = cp.norm(M_T @ (S_u @ u_T + np.dot(S_x0, batch_x)) - goal_x)
+            obj += cp.norm(u_T)
+
+            constraints = [U_T.A @ u_T <= U_T.b]
+
+            #Add obstacle avoidance constraints
+            bin_vecs = []
+            for k in range(1,N_mpc):
+                obstacle_binary_vec = cp.Variable((len(obstacle.A),), integer=True)
+                bin_vecs.append(obstacle_binary_vec)
+
+                Rx_k = np.zeros((n_dims-3, n_dims * (N_mpc)))
+                Rx_k[:, k*(n_dims):k*(n_dims)+3] = np.eye(n_dims-3)
+
+                constraints += [0 <= obstacle_binary_vec] + [obstacle_binary_vec <= 1]
+                constraints += [sum(obstacle_binary_vec) == 1]
+                for A_row_index in range(len(obstacle.A)):
+                    A_row_i = obstacle.A[A_row_index]
+                    b_i = obstacle.b[A_row_index]
+
+                    constraints += [ A_row_i @ Rx_k @ (S_u @ u_T + np.dot(S_x0, batch_x)) + \
+                                     M * (1 - obstacle_binary_vec[A_row_index]) >= b_i ]
+
+            # Solve for the P with largest volume
+            prob = cp.Problem(
+                cp.Minimize(obj), constraints
+            )
+            prob.solve()
+            # Skip if no solution
+            if prob.status != "optimal":
+                continue
+
+            # Otherwise, collect optimal input value
+            u_T_opt = u_T.value
+
+            u[batch_idx, :] = torch.Tensor(u_T_opt[:n_controls])
+            # self.dynamics_model.u_nominal(
+            #     x_shifted.reshape(1, -1), track_zero_angle=False  # type: ignore
+            # ).squeeze()
+
+        return u
+
+    def get_mpc_matrices(self, T=-1, dt: float=0.01):
+        """
+        get_mpc_matrices
+        Description:
+            Get the mpc_matrices for the discrete-time dynamical system described by self.
+        Assumes:
+            Assumes T is an integer input
+        Usage:
+            S_w, S_u, S_x0 = ad0.get_mpc_matrices(T)
+        """
+
+        # Input Processing
+        if T < 0:
+            raise DomainError("T should be a positive integer; received " + str(T))
+
+        # Constants
+        theta_center = np.mean(pc.extreme(self.Theta))
+        A = np.array([[(1 + theta_center)*dt]])
+        B = np.array([[np.exp((1+theta_center)*dt)-1]])
+
+        n_x = self.n_dims
+        n_u = self.n_controls
+        n_w = 1
+
+        # Create the MPC Matrices (S_w)
+        E = np.eye(n_x)
+        S_w = np.zeros((T * n_x, T * n_w))
+        Bw_prefactor = np.zeros((T * n_x, T * n_x))
+        for j in range(T):
+            for i in range(j, T):
+                Bw_prefactor[i * n_x:(i + 1) * n_x, j * n_x:(j + 1) * n_x] = np.linalg.matrix_power(A, i - j)
+
+        S_w = np.dot(Bw_prefactor, np.kron(np.eye(T), E))
+
+        # Create the MPC Matrices (S_u)
+        S_u = np.zeros((T * n_x, T * n_u))
+        for j in range(T):
+            for i in range(j, T):
+                S_u[i * n_x:(i + 1) * n_x, j * n_u:(j + 1) * n_u] = np.dot(np.linalg.matrix_power(A, i - j), B)
+
+        # Create the MPC Matrices (S_x0)
+        S_x0 = np.zeros((T * n_x, n_x))
+        for j in range(T):
+            S_x0[j * n_x:(j + 1) * n_x, :] = np.linalg.matrix_power(A, j + 1)
+
+        # # Create the MPC Matrices (S_K)
+        # S_K = np.kron(np.ones((T, 1)), K)
+        # S_K = np.dot(Bw_prefactor, S_K)
+
+        return S_w, S_u, S_x0

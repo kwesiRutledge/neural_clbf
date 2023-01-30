@@ -1,4 +1,8 @@
-"""Simulate a rollout and plot in state space"""
+"""
+rollout_state_parameter_space_experiment_multiple_slices
+Description
+    Simulate a rollout and plot in state space
+"""
 import random
 import time
 from typing import cast, List, Tuple, Optional, TYPE_CHECKING
@@ -18,7 +22,7 @@ if TYPE_CHECKING:
     from neural_clbf.systems import ObservableSystem  # noqa
 
 
-class RolloutStateParameterSpaceExperiment(Experiment):
+class RolloutStateParameterSpaceExperimentMultiple(Experiment):
     """An experiment for plotting rollout performance of controllers.
 
     Plots trajectories projected onto a 2D plane.
@@ -28,10 +32,10 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         self,
         name: str,
         start_x: torch.Tensor,
-        plot_x_index: int,
-        plot_x_label: str,
-        plot_theta_index: int,
-        plot_theta_label: str,
+        plot_x_indices: List[int],
+        plot_x_labels: List[str],
+        plot_theta_indices: List[int],
+        plot_theta_labels: List[str],
         other_index: Optional[List[int]] = None,
         other_label: Optional[List[str]] = None,
         scenarios: Optional[ScenarioList] = None,
@@ -42,10 +46,10 @@ class RolloutStateParameterSpaceExperiment(Experiment):
 
         args:
             name: the name of this experiment
-            plot_x_index: the index of the state dimension to plot on the x axis,
-            plot_x_label: the label of the state dimension to plot on the x axis,
-            plot_y_index: the index of the state dimension to plot on the y axis,
-            plot_theta_label: the label of the state dimension to plot on the y axis,
+            plot_x_indices: the index of the state dimension to plot on the x axis,
+            plot_x_labels: the label of the state dimension to plot on the x axis,
+            plot_y_indices: the index of the state dimension to plot on the y axis,
+            plot_theta_labels: the label of the state dimension to plot on the y axis,
             other_index: the indices of the state dimensions to save
             other_label: the labels of the state dimensions to save
             scenarios: a list of parameter scenarios to sample from. If None, use the
@@ -54,22 +58,34 @@ class RolloutStateParameterSpaceExperiment(Experiment):
                               per row in start_x
             t_sim: the amount of time to simulate for
         """
-        super(RolloutStateParameterSpaceExperiment, self).__init__(name)
+        super(RolloutStateParameterSpaceExperimentMultiple, self).__init__(name)
 
         # Save parameters
         self.start_x = start_x
-        self.plot_x_index = plot_x_index
-        self.plot_x_label = plot_x_label
-        self.plot_theta_index = plot_theta_index
-        self.plot_theta_label = plot_theta_label
+        self.plot_x_indices = plot_x_indices
+        self.plot_x_labels = plot_x_labels
+        self.plot_theta_indices = plot_theta_indices
+        self.plot_theta_labels = plot_theta_labels
         self.scenarios = scenarios
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
         self.other_index = [] if other_index is None else other_index
         self.other_label = [] if other_label is None else other_label
 
-        if self.plot_x_label == "x":
+        if "x" in self.plot_x_labels:
             raise "There could be a problem using the plot_x_label value x; try using a different value"
+
+        # Check inputs
+        n_indices = len(plot_x_indices)
+        if n_indices != len(plot_x_labels):
+            raise f"There should be the same number of plot_x_indices ({n_indices}) as plot_x_labels ({len(plot_x_labels)}"
+
+        if n_indices != len(plot_theta_indices):
+            raise f"There should be the same number of plot_x_indices ({n_indices}) as plot_theta_indices ({len(plot_theta_indices)}"
+
+        if n_indices != len(plot_theta_labels):
+            raise f"There should be the same number of plot_theta_indices ({len(plot_theta_indices)}) as plot_theta_labels ({len(plot_theta_labels)}"
+
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -164,7 +180,7 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             # Get the control input at the current state if it's time
             if tstep % controller_update_freq == 0:
                 start_time = time.time()
-                u_current = controller_under_test.u(x_current, theta_hat_current)
+                u_current, r_current = controller_under_test.solve_CLF_QP(x_current, theta_hat_current)
                 end_time = time.time()
                 controller_calls += 1
                 controller_time += end_time - start_time
@@ -203,13 +219,21 @@ class RolloutStateParameterSpaceExperiment(Experiment):
                 log_packet["Parameters"] = param_string[:-2]
 
                 # Pick out the states to log and save them
-                x_value = x_current[sim_index, self.plot_x_index].cpu().numpy().item()
-                theta_hat_value = theta_hat_current[sim_index, self.plot_theta_index].cpu().numpy().item()
-                log_packet[self.plot_x_label] = x_value
-                log_packet[self.plot_theta_label] = theta_hat_value
+                for x_idx in range(len(self.plot_x_labels)):
+                    plot_x_index = self.plot_x_indices[x_idx]
+                    plot_x_label = self.plot_x_labels[x_idx]
+                    plot_theta_index = self.plot_theta_indices[x_idx]
+                    plot_theta_label = self.plot_theta_labels[x_idx]
+
+                    x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
+                    theta_hat_value = theta_hat_current[sim_index, plot_theta_index].cpu().numpy().item()
+                    log_packet[plot_x_label] = x_value
+                    log_packet[plot_theta_label] = theta_hat_value
+
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
                 log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                log_packet["r"] = r_current[sim_index, :, :].cpu().detach().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
 
                 for i, save_index in enumerate(self.other_index):
@@ -264,6 +288,84 @@ class RolloutStateParameterSpaceExperiment(Experiment):
                  object.
         """
 
+        fig_handles = []
+        for x_label_index in range(len(self.plot_x_indices)):
+            x_index = self.plot_x_indices[x_label_index]
+            x_label = self.plot_x_labels[x_label_index]
+            theta_index = self.plot_theta_indices[x_label_index]
+            theta_label = self.plot_theta_labels[x_label_index]
+
+            fig_handle_i = self.plot_x_theta_slice(
+                controller_under_test,
+                results_df,
+                x_index,
+                x_label,
+                theta_index,
+                theta_label,
+            )
+
+            fig_handles.append(fig_handle_i)
+
+
+        # Create Plot Of Input
+        # ====================
+
+        u_fig, u_axs = plt.subplots( controller_under_test.dynamics_model.n_controls, 1)
+        n_controls = controller_under_test.dynamics_model.n_controls
+        if "u" in results_df:
+
+            for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+                sim_mask = results_df["Simulation"] == sim_index
+                for control_idx in range(controller_under_test.dynamics_model.n_controls):
+                    u_axs[control_idx].plot(
+                        results_df[sim_mask]["t"].to_numpy(),
+                        [u[control_idx] for u in results_df[sim_mask]["u"]],
+                        linestyle="-",
+                        # marker="+",
+                        markersize=5,
+                        color=sns.color_palette()[plot_idx],
+                    )
+            # sns.lineplot(
+            #     ax=V_ax,
+            #     x="t",
+            #     y="V",
+            #     style="Parameters",
+            #     hue="Simulation",
+            #     data=results_df,
+            # )
+            for control_idx in range(n_controls):
+                u_axs[control_idx].set_ylabel("$u(t)$")
+                u_axs[control_idx].set_xlabel("t")
+                # Remove the legend -- too much clutter
+                u_axs[control_idx].legend([], [], frameon=False)
+
+            # # Plot a reference line at V = 0
+            # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
+
+        # Create output
+        fig_handles.append(
+            ("Rollout (input)", u_fig)
+        )
+
+        if display_plots:
+            plt.show()
+            return []
+        else:
+            return fig_handles
+
+    def plot_x_theta_slice(
+            self,
+            controller_under_test: "Controller",
+            results_df: pd.DataFrame,
+            plot_x_index: int,
+            plot_x_label: str,
+            plot_theta_index: int,
+            plot_theta_label: str,
+        ) -> Tuple[str, plt.figure]:
+
+        # Constants
+
+
         # Set the color scheme
         sns.set_theme(context="talk", style="white")
 
@@ -302,15 +404,15 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
             rollout_ax.plot(
-                results_df[sim_mask][self.plot_x_label].to_numpy(),
-                results_df[sim_mask][self.plot_theta_label].to_numpy(),
+                results_df[sim_mask][plot_x_label].to_numpy(),
+                results_df[sim_mask][plot_theta_label].to_numpy(),
                 linestyle="-",
                 # marker="+",
                 markersize=5,
                 color=sns.color_palette()[plot_idx],
             )
-            rollout_ax.set_xlabel(self.plot_x_label)
-            rollout_ax.set_ylabel(self.plot_theta_label)
+            rollout_ax.set_xlabel(plot_x_label)
+            rollout_ax.set_ylabel(plot_theta_label)
 
         # Remove the legend -- too much clutter
         rollout_ax.legend([], [], frameon=False)
@@ -382,46 +484,4 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             # Plot a reference line at V = 0
             V_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
-        # Create Plot Of Input
-        # ====================
-
-        u_fig, u_axs = plt.subplots( controller_under_test.dynamics_model.n_controls, 1)
-        n_controls = controller_under_test.dynamics_model.n_controls
-        if "u" in results_df:
-
-            for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-                sim_mask = results_df["Simulation"] == sim_index
-                for control_idx in range(controller_under_test.dynamics_model.n_controls):
-                    u_axs[control_idx].plot(
-                        results_df[sim_mask]["t"].to_numpy(),
-                        [u[control_idx] for u in results_df[sim_mask]["u"]],
-                        linestyle="-",
-                        # marker="+",
-                        markersize=5,
-                        color=sns.color_palette()[plot_idx],
-                    )
-            # sns.lineplot(
-            #     ax=V_ax,
-            #     x="t",
-            #     y="V",
-            #     style="Parameters",
-            #     hue="Simulation",
-            #     data=results_df,
-            # )
-            for control_idx in range(n_controls):
-                u_axs[control_idx].set_ylabel("$u(t)$")
-                u_axs[control_idx].set_xlabel("t")
-                # Remove the legend -- too much clutter
-                u_axs[control_idx].legend([], [], frameon=False)
-
-            # # Plot a reference line at V = 0
-            # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
-
-        # Create output
-        fig_handle = ("Rollout (state space)", fig)
-
-        if display_plots:
-            plt.show()
-            return []
-        else:
-            return [fig_handle, ("Rollout (input)", u_fig)]
+        return (f"Rollout x_{plot_x_index}, theta_{plot_theta_index}", fig)
