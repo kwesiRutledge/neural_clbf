@@ -131,3 +131,11 @@ neural_clbf/systems/aerobench
 
 # Matlab files
 *.asv
+
+# Temporary Testing files
+neural_clbf/systems/adaptive/tests/*.png
+neural_clbf/systems/tests/*.png
+
+# Experiments
+neural_clbf/evaluation/datafiles/load_sharing/*.png
+neural_clbf/evaluation/datafiles/scalar_demo_capa2/*.png
