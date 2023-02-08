@@ -1,8 +1,11 @@
 """
-load_sharing_manipulator.py
+tumbling_target2.py
 Description:
     Define an instance of class ControlAffineParameterAffineSystem for the system of
-    a manipulator attempting to move a specified load
+    a spacecraft attempting to land in a specific region of a target vehicle that is tumbling
+    with an unknwon rate of rotation in T seconds.
+    This is a modified version of the original system where I change the units of certain states
+    to make the numerical issues go away.
 """
 from abc import (
     ABC,
@@ -32,19 +35,18 @@ from neural_clbf.systems.adaptive.control_affine_parameter_affine_system import 
 
 import cvxpy as cp
 
-class LoadSharingManipulator(ControlAffineParameterAffineSystem):
+class TumblingTarget2(ControlAffineParameterAffineSystem):
     """
-    Represents a manipulator imparting forces along with a human (linear controller)
-    with the goal of reaching a point in space desired by the human.
+    Represents a spacecraft attempting to land in a specific region of a target vehicle that is tumbling
+    with an unknwon rate of rotation in T seconds.
 
-    The system has state defined in the 3D cartesian frame only in terms of the translational
-    coordinates.
+    The system has state defined in the dynamical form written in:
+    - "A Spacecraft Benchmark Problem for Hybrid Control and Estimation" [IEEEXplore: https://ieeexplore-ieee-org.libproxy.mit.edu/stamp/stamp.jsp?tp=&arnumber=7798765]
 
-        x = [ p_x , p_y , p_z, v_x, v_y, v_z]
+        x = [ p_x , p_y , p_z, phi_d, v_x, v_y, v_z]
 
-    where p_x, p_y, and p_z are the x-, y-, and z- position of the manipulator's end effector in
-    free space, v_x, v_y, and v_z are the x-, y- and z- velocities of the manipulator's end effector
-    in free space.
+    where p_x, p_y, and p_z are the x-, y-, and z- position of the Chaser (spacecraft trying to dock with target) in
+    free space, v_x, v_y, and v_z are the x-, y- and z- velocities of the Chaser in free space.
 
     The control inputs are:
 
@@ -54,17 +56,18 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
     """
 
     # Number of states, controls and parameters
-    N_DIMS = 6
+    N_DIMS = 7
     N_CONTROLS = 3
-    N_PARAMETERS = 3
+    N_PARAMETERS = 1
 
     # State Indices
     P_X = 0
     P_Y = 1
     P_Z = 2
-    V_X = 3
-    V_Y = 4
-    V_Z = 5
+    PHI_D = 3  # Orientation of the Target
+    V_X = 4
+    V_Y = 5
+    V_Z = 6
 
     # Control indices
     F_X = 0
@@ -72,9 +75,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
     F_Z = 2
 
     # Parameter indices
-    P_X_DES = 0
-    P_Y_DES = 1
-    P_Z_DES = 2
+    OMEGA_0 = 0
 
     def __init__(
         self,
@@ -104,11 +105,15 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             ValueError if nominal_scenario are not valid for this system
         """
         # Define parameters
-        self.m = 10.0 # kg
+        self.m = 500.0 # kg . Mass of Chaser
 
-        self.K_x = float(-1.0)
-        self.K_y = float(-1.0)
-        self.K_z = float(-1.0)
+        self.mu = 3.986e14
+        self.a = 353e3  # 353 km altitude in low Earth orbit
+        self.n = np.sqrt(self.mu/np.power(self.a, 3))
+
+        self.T_docking = 100.0
+
+        self.docking_dist = 1.0
 
         self.device = device
 
@@ -134,11 +139,11 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
     @property
     def n_dims(self) -> int:
-        return LoadSharingManipulator.N_DIMS
+        return TumblingTarget2.N_DIMS
 
     @property
     def angle_dims(self) -> List[int]:
-        return []
+        return [TumblingTarget2.PHI_D]
 
     @property
     def parameter_angle_dims(self) -> List[int]:
@@ -146,11 +151,11 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
     @property
     def n_controls(self) -> int:
-        return LoadSharingManipulator.N_CONTROLS
+        return TumblingTarget2.N_CONTROLS
 
     @property
     def n_params(self) -> int:
-        return LoadSharingManipulator.N_PARAMETERS
+        return TumblingTarget2.N_PARAMETERS
 
     @property
     def state_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -160,12 +165,13 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         # Define Upper and lower values
         upper_limit = torch.ones(self.n_dims).to(self.device)
-        upper_limit[LoadSharingManipulator.P_X] = 1.0
-        upper_limit[LoadSharingManipulator.P_Y] = 1.0
-        upper_limit[LoadSharingManipulator.P_Z] = 1.0
-        upper_limit[LoadSharingManipulator.V_X] = 1.0
-        upper_limit[LoadSharingManipulator.V_Y] = 1.0
-        upper_limit[LoadSharingManipulator.V_Z] = 1.0
+        upper_limit[TumblingTarget2.P_X] = 10.0
+        upper_limit[TumblingTarget2.P_Y] = 10.0
+        upper_limit[TumblingTarget2.P_Z] = 10.0
+        upper_limit[TumblingTarget2.PHI_D] = 10.0
+        upper_limit[TumblingTarget2.V_X] = 10.0
+        upper_limit[TumblingTarget2.V_Y] = 10.0
+        upper_limit[TumblingTarget2.V_Z] = 10.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -178,7 +184,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 250.0 * torch.ones(LoadSharingManipulator.N_CONTROLS)
+        upper_limit = 1.0 * torch.ones(TumblingTarget2.N_CONTROLS)
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
@@ -251,18 +257,48 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             point is in this region.
         """
         # Include a sensible default
-        goal_tolerance = 0.1
+        goal_tolerance = .3
         batch_size = x.shape[0]
 
         # Algorithm
+
         r = torch.zeros(batch_size, 3).to(self.device) #get position from state
         r[:, :] = x[:, :3]
 
-        return (r - theta).norm(dim=-1) <= goal_tolerance
+        goal_states = self.goal_point(theta)
+        goal_r = goal_states[:, :3]
 
-    @property
-    def goal_point(self):
-        goal = torch.zeros((1, self.n_dims)).to(self.device)
+        return (r - goal_r).norm(dim=-1) <= goal_tolerance
+
+    def goal_point(self, theta: torch.Tensor = None) -> torch.Tensor:
+        """
+        goal_point
+        Description
+            Return the goal point for each of the thetas in theta Tensor.
+            Returns zero if there are none.
+        args:
+            theta: a tensor of (batch_size, self.n_params) points in the parameter space
+        returns:
+            a tensor of (batch_size, self.n_dims) points in the state space corresponding to
+            goal points.
+        """
+        # Defaults
+        if theta is None:
+            theta = torch.zeros(1, self.n_params).to(self.device)
+
+        # Constants
+        batch_size = theta.shape[0]
+        docking_dist = self.docking_dist
+        T_docking = self.T_docking
+
+        # Algorithm
+        omega0 = theta
+
+        # Create goal points
+        goal = torch.zeros((batch_size, self.n_dims)).to(self.device)
+        goal[:, 0] = docking_dist * torch.cos(omega0 * T_docking).squeeze()
+        goal[:, 1] = docking_dist * torch.sin(omega0 * T_docking).squeeze()
+
         return goal
 
     @property
@@ -292,7 +328,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         )
         obst_width = self.nominal_scenario["obstacle_width"]
 
-        state_space_obst_center = np.zeros(6)
+        state_space_obst_center = np.zeros(self.n_dims)
         state_space_obst_center[:3] = obst_center
 
         state_space_obst_width = upper_limit.cpu().numpy()
@@ -364,27 +400,27 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         batch_size = x.shape[0]
         f = torch.zeros((batch_size, self.n_dims, 1)).to(self.device)
 
-        K_x = self.K_x
-        K_y = self.K_y
-        K_z = self.K_z
         m = self.m
+        n = self.n
 
         g = 10.0 # m/s^2
 
         # Algorithm
-        p_x = x[:, LoadSharingManipulator.P_X]
-        p_y = x[:, LoadSharingManipulator.P_Y]
-        p_z = x[:, LoadSharingManipulator.P_Z]
-        v_x = x[:, LoadSharingManipulator.V_X]
-        v_y = x[:, LoadSharingManipulator.V_Y]
-        v_z = x[:, LoadSharingManipulator.V_Z]
+        p_x = x[:, TumblingTarget2.P_X]
+        p_y = x[:, TumblingTarget2.P_Y]
+        p_z = x[:, TumblingTarget2.P_Z]
+        phi_target = x[:, TumblingTarget2.PHI_D]
+        v_x = x[:, TumblingTarget2.V_X]
+        v_y = x[:, TumblingTarget2.V_Y]
+        v_z = x[:, TumblingTarget2.V_Z]
 
-        f[:, LoadSharingManipulator.P_X, 0] = v_x
-        f[:, LoadSharingManipulator.P_Y, 0] = v_y
-        f[:, LoadSharingManipulator.P_Z, 0] = v_z
-        f[:, LoadSharingManipulator.V_X, 0] = (1/m) * K_x * p_x
-        f[:, LoadSharingManipulator.V_Y, 0] = (1 / m) * K_y * p_y - g
-        f[:, LoadSharingManipulator.V_Z, 0] = (1 / m) * K_z * p_z
+        f[:, TumblingTarget2.P_X, 0] = v_x
+        f[:, TumblingTarget2.P_Y, 0] = v_y
+        f[:, TumblingTarget2.P_Z, 0] = v_z
+        # f[:, TumblingTarget2.PHI_D, 0] = 0.0
+        f[:, TumblingTarget2.V_X, 0] = 3 * (n ** 2) * p_x + 2 * n * v_y
+        f[:, TumblingTarget2.V_Y, 0] = -2 * n * v_x
+        f[:, TumblingTarget2.V_Z, 0] = -(n ** 2) * p_z
 
         return f
 
@@ -403,15 +439,10 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         batch_size = x.shape[0]
         F = torch.zeros((batch_size, self.n_dims, self.n_params)).to(self.device)
 
-        K_x = self.K_x
-        K_y = self.K_y
-        K_z = self.K_z
         m = self.m
 
         # Algorithm
-        F[:, LoadSharingManipulator.V_X, LoadSharingManipulator.P_X_DES] = - K_x / m
-        F[:, LoadSharingManipulator.V_Y, LoadSharingManipulator.P_Y_DES] = - K_y / m
-        F[:, LoadSharingManipulator.V_Z, LoadSharingManipulator.P_Z_DES] = - K_z / m
+        F[:, TumblingTarget2.PHI_D, TumblingTarget2.OMEGA_0] = 1.0
 
         return F
 
@@ -434,9 +465,9 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         m = self.m
 
         # Algorithm
-        g[:, LoadSharingManipulator.V_X, LoadSharingManipulator.F_X] = (1 / m)
-        g[:, LoadSharingManipulator.V_Y, LoadSharingManipulator.F_Y] = (1 / m)
-        g[:, LoadSharingManipulator.V_Z, LoadSharingManipulator.F_Z] = (1 / m)
+        g[:, TumblingTarget2.V_X, TumblingTarget2.F_X] = 1.0
+        g[:, TumblingTarget2.V_Y, TumblingTarget2.F_Y] = 1.0
+        g[:, TumblingTarget2.V_Z, TumblingTarget2.F_Z] = 1.0
 
         return g
 
@@ -475,19 +506,20 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         batch_size = x.shape[0]
         n_dims = self.n_dims
         m = self.m
-        g = 9.8
+        # g = 9.8
+        average_omega_0 = np.mean(pc.extreme(self.Theta))
 
         # Compute nominal control from feedback + equilibrium control
         K = self.K.type_as(x)
         estimated_goal = torch.zeros((batch_size, n_dims)).type_as(x)
-        estimated_goal[:, :3] = theta_hat
-        # estimated_goal[:, 3:] = theta_hat
+        # estimated_goal[:, :3] = theta_hat
+        # estimated_goal[:, 3:]
 
         u_nominal = -(K @ (x - estimated_goal).T).T
 
         # Adjust for the equilibrium setpoint
         u = u_nominal + self.u_eq.type_as(x)
-        u[:, 1] = u[:, 1] + m*g
+        # u[:, 1] = u[:, 1] + m*g
 
         # Clamp given the control limits
         upper_u_lim, lower_u_lim = self.control_limits
@@ -648,3 +680,43 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # S_K = np.dot(Bw_prefactor, S_K)
 
         return S_w, S_u, S_x0
+
+    def compute_linearized_controller(self, scenarios: Optional[ScenarioList] = None):
+        """
+        Computes the linearized controller K and lyapunov matrix P.
+        """
+        # We need to compute the LQR closed-loop linear dynamics for each scenario
+        Acl_list = []
+        # Default to the nominal scenario if none are provided
+        if scenarios is None:
+            scenarios = [self.nominal_scenario]
+
+        # For each scenario, get the LQR gain and closed-loop linearization
+        for s in scenarios:
+            # Compute the LQR gain matrix for the nominal parameters
+            Act, Bct = self.linearized_ct_dynamics_matrices(s)
+            A, B = self.linearized_dt_dynamics_matrices(s)
+
+            # Define cost matrices as identity
+            Q = np.eye(self.n_dims)
+            R = np.eye(self.n_controls)
+
+            # Get feedback matrix
+            # K_np = lqr(A, B, Q, R)
+            K_np = np.hstack(
+                (-0.01*np.eye(3), np.zeros((3,1)), -0.1*np.eye(3))
+            )
+            self.K = torch.tensor(K_np)
+
+            Acl_list.append(Act - Bct @ K_np)
+
+        # If more than one scenario is provided...
+        # get the Lyapunov matrix by robustly solving Lyapunov inequalities
+        if len(scenarios) > 1:
+            self.P = torch.tensor(robust_continuous_lyap(Acl_list, Q))
+        else:
+            # Otherwise, just use the standard Lyapunov equation
+            self.P = 0.01 * torch.eye(self.n_dims)
+
+            # Our A matrix is not controllable (one state is autonomously evolving without user input)
+            #self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))

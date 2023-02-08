@@ -16,6 +16,7 @@ from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
 from neural_clbf.experiments import ExperimentSuite
 
 import polytope as pc
+import numpy as np
 
 
 class NeuralaCLBFController(pl.LightningModule, aCLFController):
@@ -141,7 +142,8 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         n_param_angles = len(self.dynamics_model.parameter_angle_dims)
         self.n_params_extended = self.dynamics_model.n_params + n_param_angles
 
-        # Compute and save the center and range of the Theta variables?
+        # Compute and save the center and range of the unknown parameter set
+        self.theta_center, self.theta_range = self.calculate_center_and_range(self.dynamics_model.Theta)
 
         # Define the CLBF network, which we denote V
         self.clbf_hidden_layers = clbf_hidden_layers
@@ -201,6 +203,8 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         # We need to initialize the Jacobian to reflect the normalization that's already
         # been done to x
         bs = x_norm.shape[0]
+        n_dims = self.dynamics_model.n_dims
+
         # JVx = torch.zeros(
         #     (bs, self.n_dims_extended, self.dynamics_model.n_dims)
         # ).type_as(x)
@@ -235,8 +239,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             JVxth[:, dim, dim] = 1.0 / self.x_range[dim].type_as(x)
 
         for dim in range(self.dynamics_model.n_params):
-            dim_mod = dim-self.n_dims_extended
-            JVxth[:, dim, dim] = 1.0 / self.x_range[dim_mod].type_as(theta_hat)
+            JVxth[:, dim+self.n_dims_extended, dim+n_dims] = 1.0 / self.theta_range[dim].type_as(theta_hat)
 
         # And adjust the Jacobian for the angle dimensions
         for offset, sin_idx in enumerate(self.dynamics_model.angle_dims):
@@ -267,6 +270,13 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             elif isinstance(layer, nn.ReLU):
                 JVxth = torch.matmul(torch.diag_embed(torch.sign(V)), JVxth)
 
+            smallJV_idcs = torch.norm(JVxth, dim=1) <= 1e-6
+            if (torch.sum(smallJV_idcs) > 0) & (isinstance(layer, nn.Tanh)):
+                print("Small JV_idcs: ", torch.sum(smallJV_idcs))
+                print("Last Tanh weight: ", torch.diag_embed(1 - V**2))
+
+
+
         # Compute the final activation
         JVxth = torch.bmm(V.unsqueeze(1), JVxth)
         V = 0.5 * (V * V).sum(dim=1)
@@ -274,7 +284,10 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         if self.add_nominal:
             # Get the nominal Lyapunov function
             P = self.dynamics_model.P.type_as(x)
-            x0 = self.dynamics_model.goal_point.type_as(x)
+            theta0 = torch.Tensor(
+                np.mean(pc.extreme(self.dynamics_model.Theta), axis=0)
+            )
+            x0 = self.dynamics_model.goal_point(theta0).type_as(x)
 
             xtheta0 = torch.zeros(x0.shape)
             xtheta0[:, :self.dynamics_model.n_dims] = x0
@@ -300,13 +313,13 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             # JVth_nominal = F.linear(theta_hat, P_th) + \
             #               2 * F.linear(x, P[:, self.dynamics_model.n_dims, self.dynamics_model.n_dims:])
             # JVth_nominal = JVth_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
-            P = P.reshape(1, self.dynamics_model.n_dims+self.dynamics_model.n_params, self.dynamics_model.n_dims+self.dynamics_model.n_params)
-            V_nominal = 0.5 * F.bilinear(xtheta - xtheta0, xtheta - xtheta0, P)
+            P = P.reshape(1, self.dynamics_model.n_dims, self.dynamics_model.n_dims)
+            V_nominal = 0.5 * F.bilinear(x - x0, x - x0, P)
 
             # Reshape again to calculate the gradient
-            P = P.reshpae(self.dynamics_model.n_dims+self.dynamics_model.n_params, self.dynamics_model.n_dims+self.dynamics_model.n_params)
-            JVxth_nominal = F.linear(xtheta - xtheta0, P)
-            JVxth_nominal = JVxth_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims+self.dynamics_model.n_params)
+            P = P.reshpae(self.dynamics_model.n_dims, self.dynamics_model.n_dims)
+            JVxth_nominal = F.linear(x - x0, P)
+            JVxth_nominal = JVxth_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
 
             if self.normalize_V_nominal:
                 V_nominal /= self.V_nominal_mean
@@ -367,8 +380,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         V = self.V(x, theta_hat)
 
         #   1.) CLBF should be minimized on the goal point
-        goal_as_batch = self.dynamics_model.goal_point.type_as(x)
-        goal_as_batch = goal_as_batch.reshape(1, self.dynamics_model.n_dims) # Transform goal_point as a batch of one element
+        goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
         V_goal_pt = self.V(goal_as_batch, theta_hat[0, :])
         goal_term = 1e1 * V_goal_pt.mean()
         loss.append(("CLBF goal term", goal_term))
@@ -468,7 +480,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         clbf_descent_term_lin = torch.tensor(0.0).type_as(x)
         clbf_descent_acc_lin = torch.tensor(0.0).type_as(x)
         # Get the current value of the CLBF and its Lie derivatives
-        Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
+        # Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
         for v_Theta in V_Theta:
             theta0 = torch.Tensor(v_Theta)
             theta_corner = theta0.repeat((bs, 1))
@@ -476,6 +488,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             for i, s in enumerate(self.scenarios):
                 # Use the dynamics to compute the derivative of V at each corner of V_Theta
                 Vdot = self.Vdot_for_scenario(i, x, theta_corner, u_qp)
+                # print("Vdot = ", Vdot)
 
                 # sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
                 # for theta_dim in range(n_params):
@@ -555,7 +568,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
 
         # Get the nominal Lyapunov function
         P = self.dynamics_model.P.type_as(x)
-        x0 = self.dynamics_model.goal_point.type_as(x)
+        x0 = self.dynamics_model.goal_point(theta_hat).type_as(x)
         # Reshape to use pytorch's bilinear function
         P = P.reshape(1, self.dynamics_model.n_dims, self.dynamics_model.n_dims)
         V_nominal = 0.5 * F.bilinear(x - x0, x - x0, P).squeeze()
@@ -767,3 +780,37 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         self.opt_idx_dict = {0: "clbf"}
 
         return [clbf_opt]
+
+    def calculate_center_and_range(self, P:pc.polytope):
+        """
+        calculate_center_and_range
+        Description
+
+        Usage
+            mean1, range1 = self.calculate_center_and_range(Theta)
+
+        Output
+            mean1:
+            range1
+        """
+
+        # Constants
+        V_P = pc.extreme(P)
+
+        # Algorithm
+        lower_bounds, upper_bounds = [], []
+        for dim_index in range(P.dim):
+            # Compute min or max
+            min_val_i = torch.min(
+                torch.Tensor([v[dim_index] for v in V_P])
+            )
+            max_val_i = torch.max(
+                torch.Tensor([v[dim_index] for v in V_P])
+            )
+
+            lower_bounds.append(min_val_i)
+            upper_bounds.append(max_val_i)
+
+        mean1 = (torch.Tensor(lower_bounds) + torch.Tensor(upper_bounds))/2.0
+        range1 = (torch.Tensor(upper_bounds) - torch.Tensor(lower_bounds))/2.0
+        return mean1, range1

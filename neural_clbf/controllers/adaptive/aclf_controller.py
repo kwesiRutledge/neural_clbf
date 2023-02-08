@@ -191,11 +191,9 @@ class aCLFController(Controller):
         """
         # Create batches of x-theta pairs
         x_theta = torch.cat([x, theta_hat], dim=1)
-        print("x_theta = ", x_theta)
 
         # First, get the Lyapunov function value and gradient at this state
         P = self.dynamics_model.P.type_as(x_theta)
-        print("P =", P)
         # Reshape to use pytorch's bilinear function
         P = P.reshape(
             1,
@@ -258,7 +256,7 @@ class aCLFController(Controller):
 
 
         # Get the Jacobian of V for each entry in the batch
-        _, gradV_x, gradV_theta = self.V_with_jacobian(x, theta_hat)
+        V, gradV_x, gradV_theta = self.V_with_jacobian(x, theta_hat)
 
         # We need to compute Lie derivatives for each scenario
         batch_size = x.shape[0]
@@ -314,7 +312,7 @@ class aCLFController(Controller):
                 Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.mT)
 
                 LGammadVG_V_current = torch.zeros((batch_size, 1, self.dynamics_model.n_controls))
-                LGammadVG_V_current = LGammadVG_V[:, i, :].unsqueeze(1)
+                LGammadVG_V_current[:, :, :] = LGammadVG_V[:, i, :].unsqueeze(1)
 
                 Gamma_gradVtheta_i = Gamma_gradVtheta[:, mode_index, 0].reshape((batch_size, 1, 1))
                 coeff = torch.kron(
@@ -325,6 +323,17 @@ class aCLFController(Controller):
                 GammadVG_i = torch.bmm(coeff, G_p)
                 LGammadVG_V[:, i, :] = (LGammadVG_V_current + torch.matmul(gradV_x, GammadVG_i)).squeeze(1)
 
+        eps = 1e-6
+        for b_idx in range(Lg_V.shape[0]):
+            if torch.norm(Lg_V[b_idx, :, :]) < eps:
+                print("Lg_V is zero")
+                print("x", x[b_idx, :])
+                print("theta_hat", theta_hat[b_idx, :])
+                print("dVdx", gradV_x[b_idx, :, :])
+                print("dVdtheta", gradV_theta.mT[b_idx, :, :])
+                print("V", V[b_idx])
+                print("Lf_V ", Lf_V[b_idx, :, :])
+
         # return the Lie derivatives
         return Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V
 
@@ -333,6 +342,7 @@ class aCLFController(Controller):
         Vdot_for_scenario
         Description
             This function computes the modified version of V-dot which aCLFs use to guarantee convergence.
+        Input
         Input
             scenario_idx: an integer indicating which scenario to calculate Vdot for
             x: a bs x self.dynamics_model.n_dims tensor containing the states in the current batch
@@ -652,11 +662,15 @@ class aCLFController(Controller):
 
                 params.append(Lf_V_corner[:, s_idx, :])
 
+                #print("Lf_V = ", Lf_V_corner[:, s_idx, :])
+
             # Save all entries for Lg_V
             for v_Theta_idx in range(n_V_Theta):
                 Lg_V_corner = Thetas_Lg_V[v_Theta_idx]
 
                 params.append(Lg_V_corner[:, s_idx, :])
+
+                #print("Lg_V = ", Lg_V_corner[:, s_idx, :])
 
             # Save all entries for LF_V
             for v_Theta_idx in range(n_V_Theta):
@@ -806,14 +820,14 @@ class aCLFController(Controller):
         Galpha_scenario = torch.zeros((bs, n_dims, n_params))
         G = self.dynamics_model._G(x, scenario)
         for th_idx in range(n_params):
-            G_th = G[:, :, :, th_idx].reshape((bs, n_dims, n_params))
+            G_th = G[:, :, :, th_idx].reshape((bs, n_dims, n_controls))
             Galpha_scenario[:, :, th_idx] = torch.bmm(G_th, u.reshape((bs, n_controls, 1))).squeeze()
 
         LGalpha_V_scenario = torch.zeros((bs, 1, self.dynamics_model.n_params))
         LGalpha_V_scenario[:, :, :] = torch.bmm(dVdx, Galpha_scenario)
 
         tau = torch.zeros((bs, self.dynamics_model.n_params)).type_as(x)
-        tau[:, :] = (LF_V_scenario + LGalpha_V_scenario).squeeze()
+        tau[:, :] = (LF_V_scenario + LGalpha_V_scenario).squeeze(dim=2)
 
         return tau
 
@@ -846,6 +860,6 @@ class aCLFController(Controller):
         )
 
         thetadot = torch.zeros((batch_size, n_params))
-        thetadot[:, :] = Gamma_tau.squeeze()
+        thetadot[:, :] = Gamma_tau.squeeze(dim=2)
 
         return thetadot

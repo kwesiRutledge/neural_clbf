@@ -105,7 +105,7 @@ class ControlAffineParameterAffineSystem(ABC):
             theta = self.theta
 
         # Linearize the system about the x = 0, u = 0
-        x0 = self.goal_point
+        x0 = self.goal_point(theta)
         u0 = self.u_eq
         dynamics = lambda x: self.closed_loop_dynamics(x, u0, theta, scenario).squeeze()
         A = jacobian(dynamics, x0).squeeze().cpu().numpy()
@@ -128,7 +128,7 @@ class ControlAffineParameterAffineSystem(ABC):
         # Constants
 
         # Linearize the system about the x = 0, u = 0
-        x0 = self.goal_point
+        x0 = self.goal_point(theta)
         g_like = self.input_gain_matrix(x0, theta, scenario)
 
         B = g_like.squeeze().cpu().numpy()
@@ -196,6 +196,7 @@ class ControlAffineParameterAffineSystem(ABC):
         else:
             # Otherwise, just use the standard Lyapunov equation
             self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
+            print("P = ", self.P)
 
     @abstractmethod
     def validate_scenario(self, s: Scenario) -> bool:
@@ -339,11 +340,27 @@ class ControlAffineParameterAffineSystem(ABC):
         """
         # Include a sensible default
         goal_tolerance = 0.1
-        return (x - self.goal_point).norm(dim=-1) <= goal_tolerance
+        return (x - self.goal_point(theta)).norm(dim=-1) <= goal_tolerance
 
-    @property
-    def goal_point(self):
-        return torch.zeros((1, self.n_dims)).to(self.device)
+    def goal_point(self, theta: torch.Tensor = None) -> torch.Tensor:
+        """
+        goal_point
+        Description
+            Return the goal point for each of the thetas in theta Tensor.
+            Returns zero if there are none.
+        args:
+            theta: a tensor of (batch_size, self.n_params) points in the parameter space
+        returns:
+            a tensor of (batch_size, self.n_dims) points in the state space corresponding to
+            goal points.
+        """
+        # constants
+        if theta is None:
+            batch_size = 1
+        else:
+            batch_size = theta.shape[0]
+
+        return torch.zeros((batch_size, self.n_dims)).to(self.device)
 
     @property
     def u_eq(self):
@@ -365,8 +382,6 @@ class ControlAffineParameterAffineSystem(ABC):
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
         return torch.Tensor(theta_samples_np.T).to(self.device)
-
-
 
     def sample_with_mask(
         self,
@@ -738,8 +753,8 @@ class ControlAffineParameterAffineSystem(ABC):
         """
         # Compute nominal control from feedback + equilibrium control
         K = self.K.type_as(x)
-        goal = self.goal_point.squeeze().type_as(x)
-        u_nominal = -(K @ (x - goal).T).T
+        goals = self.goal_point(theta_hat).type_as(x)
+        u_nominal = -(K @ (x - goals).T).T
 
         # Adjust for the equilibrium setpoint
         u = u_nominal + self.u_eq.type_as(x)

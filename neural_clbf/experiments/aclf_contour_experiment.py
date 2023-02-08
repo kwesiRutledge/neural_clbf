@@ -179,7 +179,7 @@ class AdaptiveCLFContourExperiment(Experiment):
 
                 # Get the linearized CLF value
                 P = controller_under_test.dynamics_model.P.type_as(x)
-                x0 = controller_under_test.dynamics_model.goal_point.type_as(x)
+                x0 = controller_under_test.dynamics_model.goal_point(theta_hat).type_as(x)
                 P = P.reshape(
                     1,
                     controller_under_test.dynamics_model.n_dims,
