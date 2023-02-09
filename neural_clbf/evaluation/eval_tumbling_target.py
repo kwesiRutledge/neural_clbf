@@ -140,20 +140,21 @@ def plot_controlled_load_sharing():
     scalar_capa2_log_file_dir = "../training/adaptive/logs/tumbling_target/"
     # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
-    version_to_load = 64
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_a9612de/version_" + str(version_to_load) + "/hyperparams.pt"
+    version_to_load = 11
+    commit_name = "commit_41749ec"
+    hyperparam_log_file = scalar_capa2_log_file_dir + commit_name + "/version_" + str(version_to_load) + "/hyperparams.pt"
 
-    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_a9612de/version_" + str(version_to_load) + "/Vnn.pt")
+    saved_Vnn = torch.load(scalar_capa2_log_file_dir + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt")
     saved_hyperparams = torch.load(hyperparam_log_file)
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
-    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_a9612de/version_" + str(version_to_load) + "/controller.pt")
+    aclbf_controller = torch.load(scalar_capa2_log_file_dir + commit_name + "/version_" + str(version_to_load) + "/controller.pt")
     aclbf_controller.experiment_suite = experiment_suite
 
     # Update parameters
     for experiment_idx in range(1, 1 + 1):
-        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = 50.0 * torch.tensor(
+        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = 10.0 * torch.tensor(
         [
             [8.0, 5.0, 0.5, -0.1, 0.5, 0.5, 0.5],
             [5.0, 5.0, 0.0, 0.1, 0.0, 0.0, 0.0],

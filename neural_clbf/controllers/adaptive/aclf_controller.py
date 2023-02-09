@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Union, List
+from typing import Tuple, Optional, Union, List, Callable
 
 import cvxpy as cp
 from cvxpylayers.torch import CvxpyLayer
@@ -32,7 +32,7 @@ class aCLFController(Controller):
         clf_lambda: float = 1.0,
         clf_relaxation_penalty: float = 50.0,
         controller_period: float = 0.01,
-        Gamma: np.array = None,
+        Gamma_factor: float = None,
     ):
         """Initialize the controller.
 
@@ -63,9 +63,10 @@ class aCLFController(Controller):
         self.safe_level: Union[torch.Tensor, float]
         self.unsafe_level: Union[torch.Tensor, float]
         self.clf_relaxation_penalty = clf_relaxation_penalty
-        self.Gamma = Gamma
-        if self.Gamma is None:
-            self.Gamma = torch.eye(self.dynamics_model.n_params)
+        self.Gamma_factor = Gamma_factor
+        if self.Gamma_factor is None:
+            self.Gamma_factor = 1.0
+        self.Gamma = torch.eye(self.dynamics_model.n_params) * self.Gamma_factor
 
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set

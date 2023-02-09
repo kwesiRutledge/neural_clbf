@@ -68,7 +68,7 @@ def create_training_hyperparams()-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 64,
+        "batch_size": 128,
         "controller_period": 0.05,
         "start_x": start_x,
         "simulation_dt": 0.01,
@@ -76,11 +76,14 @@ def create_training_hyperparams()-> Dict:
         "Theta_lb": [-0.01],
         "Theta_ub": [0.03],
         "clf_lambda": 1.0,
+        "Gamma_factor": 0.1,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
         "max_epochs": 6,
+        "trajectories_per_episode": 1,
+        "trajectory_length": 100,
         "n_fixed_samples": 10000,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
@@ -143,8 +146,8 @@ def main(args):
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
-        trajectories_per_episode=1,
-        trajectory_length=1,
+        trajectories_per_episode=t_hyper["trajectories_per_episode"],
+        trajectory_length=t_hyper["trajectory_length"],
         fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
@@ -205,6 +208,7 @@ def main(args):
         num_init_epochs=5,
         epochs_per_episode=100,
         barrier=False,
+        Gamma_factor=t_hyper["Gamma_factor"],
     )
     aclbf_controller.to(device)
 

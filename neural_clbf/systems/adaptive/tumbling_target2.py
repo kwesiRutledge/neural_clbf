@@ -165,13 +165,13 @@ class TumblingTarget2(ControlAffineParameterAffineSystem):
         """
         # Define Upper and lower values
         upper_limit = torch.ones(self.n_dims).to(self.device)
-        upper_limit[TumblingTarget2.P_X] = 10.0
-        upper_limit[TumblingTarget2.P_Y] = 10.0
-        upper_limit[TumblingTarget2.P_Z] = 10.0
+        upper_limit[TumblingTarget2.P_X] = 25.0
+        upper_limit[TumblingTarget2.P_Y] = 25.0
+        upper_limit[TumblingTarget2.P_Z] = 25.0
         upper_limit[TumblingTarget2.PHI_D] = 10.0
-        upper_limit[TumblingTarget2.V_X] = 10.0
-        upper_limit[TumblingTarget2.V_Y] = 10.0
-        upper_limit[TumblingTarget2.V_Z] = 10.0
+        upper_limit[TumblingTarget2.V_X] = 25.0
+        upper_limit[TumblingTarget2.V_Y] = 25.0
+        upper_limit[TumblingTarget2.V_Z] = 25.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -184,7 +184,7 @@ class TumblingTarget2(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 1.0 * torch.ones(TumblingTarget2.N_CONTROLS)
+        upper_limit = 10.0 * torch.ones(TumblingTarget2.N_CONTROLS)
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
@@ -595,12 +595,12 @@ class TumblingTarget2(ControlAffineParameterAffineSystem):
 
             #Add obstacle avoidance constraints
             bin_vecs = []
-            for k in range(1,N_mpc):
+            for k in range(1, N_mpc):
                 obstacle_binary_vec = cp.Variable((len(obstacle.A),), integer=True)
                 bin_vecs.append(obstacle_binary_vec)
 
-                Rx_k = np.zeros((n_dims-3, n_dims * (N_mpc)))
-                Rx_k[:, k*(n_dims):k*(n_dims)+3] = np.eye(n_dims-3)
+                Rx_k = np.zeros((3, n_dims * (N_mpc)))
+                Rx_k[:, k*(n_dims):k*(n_dims)+3] = np.eye(3)
 
                 constraints += [0 <= obstacle_binary_vec] + [obstacle_binary_vec <= 1]
                 constraints += [sum(obstacle_binary_vec) == 1]

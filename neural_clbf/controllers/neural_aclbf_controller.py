@@ -1,5 +1,5 @@
 import itertools
-from typing import Tuple, List, Optional
+from typing import Tuple, List, Optional, Callable
 from collections import OrderedDict
 import random
 
@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
-from neural_clbf.systems.utils import ScenarioList
+from neural_clbf.systems.utils import ScenarioList, Scenario
 from neural_clbf.controllers.adaptive.aclf_controller import aCLFController
 from neural_clbf.controllers.controller_utils import normalize_with_angles, normalize_theta_with_angles
 from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
@@ -58,6 +58,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         add_nominal: bool = False,
         normalize_V_nominal: bool = False,
         saved_Vnn: torch.nn.Sequential = None,
+        Gamma_factor: float = None,
     ):
         """Initialize the controller.
 
@@ -91,6 +92,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             clf_lambda=clf_lambda,
             clf_relaxation_penalty=clf_relaxation_penalty,
             controller_period=controller_period,
+            Gamma_factor=Gamma_factor,
         )
 
         self.save_hyperparameters()
@@ -736,7 +738,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             param_min = min([s[param_name] for s in self.scenarios])
             random_scenario[param_name] = random.uniform(param_min, param_max)
 
-        return self.dynamics_model.simulate(
+        return self.simulate(
             x_init,
             num_steps,
             self.u,
@@ -744,6 +746,110 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
             controller_period=self.controller_period,
             params=random_scenario,
         )
+
+    def simulate(
+        self,
+        x_init: torch.Tensor,
+        theta: torch.Tensor,
+        num_steps: int,
+        controller: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        controller_period: Optional[float] = None,
+        guard: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+        params: Optional[Scenario] = None,
+    ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+        """
+        Simulate the targeted dynamical system for the specified number of steps using the given controller
+
+        args:
+            x_init - bs x n_dims tensor of initial conditions
+            theta - bs x n_params tensor of parameters
+            num_steps - a positive integer
+            controller - a mapping from state to control action
+            controller_period - the period determining how often the controller is run
+                                (in seconds). If none, defaults to self.dt
+            guard - a function that takes a bs x n_dims tensor and returns a length bs
+                    mask that's True for any trajectories that should be reset to x_init
+            params - a dictionary giving the parameter values for the system. If None,
+                     default to the nominal parameters used at initialization
+        returns
+            x_sim - bs x num_steps x self.n_dims tensor of simulated trajectories. If an error
+                    occurs on any trajectory, the simulation of all trajectories will stop and
+                    the second dimension will be less than num_steps
+            th_sim -    bs x num_steps x self.n_params tensor of randomly chosen parameters
+                        for each trajectory. Parameters should not change.
+            th_h_sim -  bs x num_steps x self.n_params tensor of estimated parameters.
+                        Estimate may change.
+        usage
+            x_sim, th_sim, th_h_sim = simulate(x, theta, N_sim, silly_control, 0.01)
+        """
+        # Create a tensor to hold the simulation results
+        batch_size = x_init.shape[0]
+
+        dynamical_model = self.dynamics_model
+        n_dims = dynamical_model.n_dims
+        n_params = dynamical_model.n_params
+        n_controls = dynamical_model.n_controls
+
+        # P = self.P
+        # P = P.reshape(
+        #     self.n_dims + self.n_params,
+        #     self.n_dims + self.n_params
+        # )
+
+        # Set up Simulator Variables
+        x_sim = torch.zeros(batch_size, num_steps, n_dims).type_as(x_init)
+        x_sim[:, 0, :] = x_init
+
+        th_sim = torch.zeros(batch_size, num_steps, n_params).type_as(theta)
+        th_sim[:, 0, :] = theta
+
+        th_h_sim = torch.zeros(batch_size, num_steps, n_params).type_as(theta)
+        th_h_samples = dynamical_model.get_N_samples_from_polytope(dynamical_model.Theta, batch_size)
+        th_h_sim[:, 0, :] = torch.Tensor(th_h_samples.T).type_as(theta)
+
+        u = torch.zeros(x_init.shape[0], n_controls).type_as(x_init)
+
+        # Compute controller update frequency
+        if controller_period is None:
+            controller_period = self.dt
+        controller_update_freq = int(controller_period / self.dt)
+
+        # Run the simulation until it's over or an error occurs
+        t_sim_final = 0
+        for tstep in range(1, num_steps):
+            try:
+                # Get the current state, theta and theta_hat
+                x_current = x_sim[:, tstep - 1, :]
+                theta_current = th_sim[:, tstep - 1, :]
+                theta_hat_current = th_h_sim[:, tstep - 1, :]
+
+                # Get the control input at the current state if it's time
+                if tstep == 1 or tstep % controller_update_freq == 0:
+                    u = controller(x_current, theta_hat_current)
+
+                # Simulate forward using the dynamics
+                xdot = dynamical_model.closed_loop_dynamics(x_current, u, theta, params)
+                x_sim[:, tstep, :] = x_current + self.dt * xdot
+                th_sim[:, tstep, :] = theta_current
+
+                # Compute theta hat evolution
+                th_h_dot = self.closed_loop_estimator_dynamics(x, theta_hat_current, u)
+                th_h_sim[:, tstep, :] = theta_hat_current + self.dt * th_h_dot
+
+                # If the guard is activated for any trajectory, reset that trajectory
+                # to a random state
+                if guard is not None:
+                    guard_activations = guard(x_sim[:, tstep, :])
+                    n_to_resample = int(guard_activations.sum().item())
+                    x_new = dynamical_model.sample_state_space(n_to_resample).type_as(x_sim)
+                    x_sim[guard_activations, tstep, :] = x_new
+
+                # Update the final simulation time if the step was successful
+                t_sim_final = tstep
+            except ValueError:
+                break
+
+        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :]
 
     def on_validation_epoch_end(self):
         """This function is called at the end of every validation epoch"""

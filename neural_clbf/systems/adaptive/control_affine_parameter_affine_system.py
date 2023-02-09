@@ -9,6 +9,7 @@ from typing import Callable, Tuple, Optional, List
 from matplotlib.axes import Axes
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.autograd.functional import jacobian
 
 from neural_clbf.systems.utils import (
@@ -196,7 +197,6 @@ class ControlAffineParameterAffineSystem(ABC):
         else:
             # Otherwise, just use the standard Lyapunov equation
             self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
-            print("P = ", self.P)
 
     @abstractmethod
     def validate_scenario(self, s: Scenario) -> bool:
@@ -544,7 +544,7 @@ class ControlAffineParameterAffineSystem(ABC):
         x_init: torch.Tensor,
         theta: torch.Tensor,
         num_steps: int,
-        controller: Callable[[torch.Tensor], torch.Tensor],
+        controller: Callable[[torch.Tensor,torch.Tensor], torch.Tensor],
         controller_period: Optional[float] = None,
         guard: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         params: Optional[Scenario] = None,
@@ -577,6 +577,16 @@ class ControlAffineParameterAffineSystem(ABC):
         # Create a tensor to hold the simulation results
         batch_size = x_init.shape[0]
 
+        n_dims = self.n_dims
+        n_params = self.n_params
+
+        # P = self.P
+        # P = P.reshape(
+        #     self.n_dims + self.n_params,
+        #     self.n_dims + self.n_params
+        # )
+
+        # Set up Simulator Variables
         x_sim = torch.zeros(batch_size, num_steps, self.n_dims).type_as(x_init)
         x_sim[:, 0, :] = x_init
 
@@ -605,13 +615,16 @@ class ControlAffineParameterAffineSystem(ABC):
 
                 # Get the control input at the current state if it's time
                 if tstep == 1 or tstep % controller_update_freq == 0:
-                    u = controller(x_current)
+                    u = controller(x_current, theta_hat_current)
 
                 # Simulate forward using the dynamics
                 xdot = self.closed_loop_dynamics(x_current, u, theta, params)
                 x_sim[:, tstep, :] = x_current + self.dt * xdot
                 th_sim[:, tstep, :] = theta_current
-                th_h_sim[:, tstep, :] = theta_hat_current
+
+                # Compute theta hat evolution
+                th_h_dot = torch.zeros(theta_hat_current.shape).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
+                th_h_sim[:, tstep, :] = theta_hat_current + self.dt * th_h_dot
 
                 # If the guard is activated for any trajectory, reset that trajectory
                 # to a random state
@@ -806,3 +819,23 @@ class ControlAffineParameterAffineSystem(ABC):
                 comb_rand_var[:, sample_index])
 
         return np.dot(V.T, comb_rand_var)
+
+    def compute_simple_aCLF_estimator_dynamics(self, x:torch.Tensor, theta_hat:torch.Tensor, params:Scenario):
+        """
+
+        """
+        # Constants
+        batch_size = x.shape[0]
+
+        n_dims = self.n_dims
+        n_params = self.n_params
+
+        # Compute Jacobian
+        JthV = F.linear(theta_hat_current, P[n_dims:n_dims + n_params, n_dims:n_dims + n_params]) + \
+               2 * F.linear(x, P[:n_dims, n_dims:n_dims + n_params])
+        JthV = JthV.reshape(x_theta.shape[0], 1, n_params)
+
+        # Get Lie Derivatives of stuff
+        raise("Not yet implemented!") # TODO: Implement this function!
+
+        Gamma = torch.eye(n_dims).to(device)
