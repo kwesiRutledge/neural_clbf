@@ -81,10 +81,10 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 6,
-        "trajectories_per_episode": 1,
+        "max_epochs": 16,
+        "trajectories_per_episode": 100,
         "trajectory_length": 100,
-        "n_fixed_samples": 10000,
+        "n_fixed_samples": 50000,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": TumblingTarget.P_X,
