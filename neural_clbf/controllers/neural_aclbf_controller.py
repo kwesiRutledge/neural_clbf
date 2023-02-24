@@ -233,6 +233,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         #     cos_idx = self.dynamics_model.n_dims + offset
         #     JVth[:, sin_idx, sin_idx] = theta_hat_norm[:, cos_idx]
         #     JVth[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx]
+
         JVxth = torch.zeros(
             (bs, self.n_dims_extended+self.n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params)
         )
@@ -258,6 +259,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         # Now step through each layer in V
         x_theta_norm = torch.zeros((bs, self.n_dims_extended+self.n_params_extended)).type_as(x)
         # x_theta_norm = torch.cat([x_norm, theta_hat_norm], dim=1)
+
         x_theta_norm[:, :self.n_dims_extended] = x_norm
         x_theta_norm[:, self.n_dims_extended:] = theta_hat_norm
         V = x_theta_norm
@@ -365,6 +367,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
 
         args:
             x: the points at which to evaluate the loss,
+            theta_hat: the set of theta estimate points at which to evaluate the loss,
             goal_mask: the points in x marked as part of the goal
             safe_mask: the points in x marked safe
             unsafe_mask: the points in x marked unsafe
@@ -383,7 +386,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
 
         #   1.) CLBF should be minimized on the goal point
         goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
-        V_goal_pt = self.V(goal_as_batch, theta_hat[0, :])
+        V_goal_pt = self.V(goal_as_batch, theta)
         goal_term = 1e1 * V_goal_pt.mean()
         loss.append(("CLBF goal term", goal_term))
 

@@ -67,6 +67,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         use_linearized_controller: bool = True,
         scenarios: Optional[ScenarioList] = None,
         theta: torch.Tensor = None,
+        device: str = "cpu",
     ):
         """
         Initialize a system.
@@ -85,6 +86,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
             ValueError if nominal_scenario are not valid for this system
         """
         # Define parameters
+        self.device = device
 
         # Then initialize
         super().__init__(nominal_scenario, Theta, dt, controller_dt)
@@ -151,7 +153,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         return (upper_limit, lower_limit)
 
-    def safe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def safe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating safe regions for this system
 
         args:
@@ -171,7 +173,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         return safe_mask
 
-    def unsafe_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def unsafe_mask(self, x: torch.Tensor, theta:torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating unsafe regions for this system
 
         args:
@@ -191,7 +193,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         return unsafe_mask
 
-    def goal_mask(self, x: torch.Tensor) -> torch.Tensor:
+    def goal_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating goal regions for this system
 
         args:
@@ -203,11 +205,19 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         # Include a sensible default
         goal_tolerance = 0.1
 
-        return (x - self.goal_point).norm(dim=-1) <= goal_tolerance
+        return (x - self.goal_point(theta)).norm(dim=-1) <= goal_tolerance
 
-    @property
-    def goal_point(self):
-        goal = torch.zeros((1, self.n_dims))
+    def goal_point(self, theta: torch.Tensor):
+        """
+        goal_point
+        Description:
+            Return the goal point for this system
+        """
+        # Constants
+        bs = theta.shape[0]
+
+        # Algorithm
+        goal = torch.zeros((bs, self.n_dims))
         goal[0, 0] = 0.0
         return goal
 
@@ -313,7 +323,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Compute nominal control from feedback + equilibrium control
         K = self.K.type_as(x)
-        goal = self.goal_point.squeeze().type_as(x)
+        goal = self.goal_point(theta_hat).type_as(x)
         u_nominal = -(K @ (x - goal).T).T
 
         # Adjust for the equilibrium setpoint

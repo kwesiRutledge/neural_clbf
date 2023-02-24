@@ -822,13 +822,13 @@ class aCLFController(Controller):
         G = self.dynamics_model._G(x, scenario)
         for th_idx in range(n_params):
             G_th = G[:, :, :, th_idx].reshape((bs, n_dims, n_controls))
-            Galpha_scenario[:, :, th_idx] = torch.bmm(G_th, u.reshape((bs, n_controls, 1))).squeeze()
+            Galpha_scenario[:, :, th_idx] = torch.bmm(G_th, u.reshape((bs, n_controls, 1))).squeeze(dim=2)
 
         LGalpha_V_scenario = torch.zeros((bs, 1, self.dynamics_model.n_params))
         LGalpha_V_scenario[:, :, :] = torch.bmm(dVdx, Galpha_scenario)
 
         tau = torch.zeros((bs, self.dynamics_model.n_params)).type_as(x)
-        tau[:, :] = (LF_V_scenario + LGalpha_V_scenario).squeeze(dim=2)
+        tau[:, :] = (LF_V_scenario + LGalpha_V_scenario).squeeze(dim=1)
 
         return tau
 

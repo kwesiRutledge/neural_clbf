@@ -44,6 +44,9 @@ def create_hyperparam_struct()-> Dict:
         ]
     )
 
+    #device = "mps" if torch.backends.mps.is_available() else "cpu"
+    device = "cpu"
+
     hyperparams_for_evaluation = {
         "batch_size": 64,
         "controller_period": 0.05,
@@ -53,16 +56,19 @@ def create_hyperparam_struct()-> Dict:
         "Theta_lb": -2.5,
         "Theta_ub": -1.5,
         "clf_lambda": 1.0,
+        # Training Parameters
+        "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
-        "max_epochs": 10,
+        "max_epochs": 11,
+        # Device
+        "device": device
     }
 
     return hyperparams_for_evaluation
 
 def main(args):
-    device = torch.device("mps")
 
     # Random Seed
     pt_manual_seed = 30
@@ -70,24 +76,26 @@ def main(args):
     np_manual_seed = pt_manual_seed
     np.random.seed(np_manual_seed)
 
-    hyperparams_for_evaluation = create_hyperparam_struct()
+    hyperparams = create_hyperparam_struct()
 
-    batch_size = hyperparams_for_evaluation["batch_size"]
-    controller_period = hyperparams_for_evaluation["controller_period"]
+    device = torch.device(hyperparams["device"])
 
-    start_x = hyperparams_for_evaluation["start_x"]
-    simulation_dt = hyperparams_for_evaluation["simulation_dt"]
+    batch_size = hyperparams["batch_size"]
+    controller_period = hyperparams["controller_period"]
+
+    start_x = hyperparams["start_x"]
+    simulation_dt = hyperparams["simulation_dt"]
 
     # Define the scenarios
-    wall_pos = hyperparams_for_evaluation["nominal_scenario_wall_pos"]
+    wall_pos = hyperparams["nominal_scenario_wall_pos"]
     nominal_scenario = {"wall_position": wall_pos}
     scenarios = [
         nominal_scenario,
     ]
 
     # Define the range of possible uncertain parameters
-    lb = [hyperparams_for_evaluation["Theta_lb"]]
-    ub = [hyperparams_for_evaluation["Theta_ub"]]
+    lb = [hyperparams["Theta_lb"]]
+    ub = [hyperparams["Theta_ub"]]
     Theta = pc.box2poly(np.array([lb, ub]).T)
 
     # Define the dynamics model
@@ -112,6 +120,7 @@ def main(args):
         max_points=100000,
         val_split=0.1,
         batch_size=batch_size,
+        quotas=hyperparams["sample_quotas"],
         # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
@@ -141,23 +150,24 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    clbf_controller = NeuralaCLBFController(
+    aclbf_controller = NeuralaCLBFController(
         dynamics_model,
         scenarios,
         data_module,
         experiment_suite=experiment_suite,
-        clbf_hidden_layers=hyperparams_for_evaluation["clbf_hidden_layers"],
-        clbf_hidden_size=hyperparams_for_evaluation["clbf_hidden_size"],
-        clf_lambda=hyperparams_for_evaluation["clf_lambda"],
+        clbf_hidden_layers=hyperparams["clbf_hidden_layers"],
+        clbf_hidden_size=hyperparams["clbf_hidden_size"],
+        clf_lambda=hyperparams["clf_lambda"],
         safe_level=0.5,
         controller_period=controller_period,
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
         epochs_per_episode=100,
         barrier=False,
+        Gamma_factor=0.1,
     )
 
-    clbf_controller.to(device)
+    aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -168,12 +178,12 @@ def main(args):
         args,
         logger=tb_logger,
         reload_dataloaders_every_epoch=True,
-        max_epochs=hyperparams_for_evaluation["max_epochs"],
+        max_epochs=hyperparams["max_epochs"],
     )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
-    trainer.fit(clbf_controller)
+    trainer.fit(aclbf_controller)
 
     # End of Training Sequence
     # ========================
@@ -184,32 +194,32 @@ def main(args):
 
     # Saving Data
     torch.save(
-        clbf_controller.V_nn,
+        aclbf_controller.V_nn,
         tb_logger.save_dir + "/" + tb_logger.name +
         "/version_" + str(tb_logger.version) + "/Vnn.pt"
     )
 
-    for layer in clbf_controller.V_nn:
+    for layer in aclbf_controller.V_nn:
         print(layer)
         if isinstance(layer, torch.nn.Linear):
             print(layer.weight)
 
     # Record Hyperparameters in small pytorch format
     torch.save(
-        hyperparams_for_evaluation,
+        hyperparams,
         tb_logger.save_dir + "/" + tb_logger.name +
         "/version_" + str(tb_logger.version) + "/hyperparams.pt"
     )
 
     # Save model
     torch.save(
-        clbf_controller.state_dict(),
+        aclbf_controller.state_dict(),
         tb_logger.save_dir + "/" + tb_logger.name +
         "/version_" + str(tb_logger.version) + "/state_dict.pt"
     )
 
     torch.save(
-        clbf_controller,
+        aclbf_controller,
         tb_logger.save_dir + "/" + tb_logger.name +
         "/version_" + str(tb_logger.version) + "/controller.pt"
     )
