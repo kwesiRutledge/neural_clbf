@@ -86,10 +86,13 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     )
 
     # Define the experiment suite
+    lb_Vcontour = lb[hyperparams["contour_exp_theta_index"]]
+    ub_Vcontour = ub[hyperparams["contour_exp_theta_index"]]
+    theta_range_Vcontour = ub_Vcontour - lb_Vcontour
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
         x_domain=[(-2.0, 2.0)],  # plotting domain
-        theta_domain=[(-2.0,2.0)],
+        theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=LoadSharingManipulator.P_X,
         theta_axis_index=LoadSharingManipulator.P_X_DES,
@@ -98,7 +101,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         plot_unsafe_region=False,
     )
     rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
-        "Rollout",
+        "Rollout (Multiple Slices)",
         hyperparams["start_x"],
         [LoadSharingManipulator.P_X, LoadSharingManipulator.V_X, LoadSharingManipulator.P_Y],
         ["$r_1$", "$v_1$", "$r_2$"],
@@ -109,16 +112,16 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         t_sim=hyperparams["rollout_experiment_horizon"],
     )
     rollout_experiment3 = RolloutManipulatorConvergenceExperiment(
-        "Rollout",
+        "Rollout Manipulator Convergence",
         hyperparams["start_x"],
         [LoadSharingManipulator.P_X, LoadSharingManipulator.V_X, LoadSharingManipulator.P_Y],
         ["$r_1$", "$r_2$", "$r_3$"],
         scenarios=scenarios,
         n_sims_per_start=1,
-        t_sim=hyperparams["rollout_experiment_horizon"],
+        t_sim=3*hyperparams["rollout_experiment_horizon"],
     )
     rollout_experiment4 = ACLFRolloutTimingExperiment(
-        "Rollout",
+        "aCLF Rollout Timing",
         start_x,
         LoadSharingManipulator.P_X,
         "$x$",
@@ -140,15 +143,16 @@ def plot_controlled_load_sharing():
     scalar_capa2_log_file_dir = "../training/adaptive/logs/load_sharing_manipulator/"
     # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
-    version_to_load = 24
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_" + str(version_to_load) + "/hyperparams.pt"
+    commit_name = '1592648'
+    version_to_load = 14
+    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/hyperparams.pt"
 
-    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_bd8ad31/version_" + str(version_to_load) + "/Vnn.pt")
+    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt")
     saved_hyperparams = torch.load(hyperparam_log_file)
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
-    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_bd8ad31/version_" + str(version_to_load) + "/controller.pt")
+    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/controller.pt")
     aclbf_controller.experiment_suite = experiment_suite
 
     # Update parameters
@@ -171,7 +175,7 @@ def plot_controlled_load_sharing():
         aclbf_controller, display_plots=False
     )
 
-    fig_titles = ["V-contour", "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories", "x-convergence", "bad-estimator-traj", "u-trajectories-again" ,"pt-comparison-cloud1"]
+    fig_titles = ["V-contour", "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories", "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1"]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)

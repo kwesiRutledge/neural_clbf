@@ -384,38 +384,10 @@ class RolloutStateParameterSpaceExperiment(Experiment):
 
         # Create Plot Of Input
         # ====================
-
-        u_fig, u_axs = plt.subplots( controller_under_test.dynamics_model.n_controls, 1)
-        n_controls = controller_under_test.dynamics_model.n_controls
-        if "u" in results_df:
-
-            for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-                sim_mask = results_df["Simulation"] == sim_index
-                for control_idx in range(controller_under_test.dynamics_model.n_controls):
-                    u_axs[control_idx].plot(
-                        results_df[sim_mask]["t"].to_numpy(),
-                        [u[control_idx] for u in results_df[sim_mask]["u"]],
-                        linestyle="-",
-                        # marker="+",
-                        markersize=5,
-                        color=sns.color_palette()[plot_idx],
-                    )
-            # sns.lineplot(
-            #     ax=V_ax,
-            #     x="t",
-            #     y="V",
-            #     style="Parameters",
-            #     hue="Simulation",
-            #     data=results_df,
-            # )
-            for control_idx in range(n_controls):
-                u_axs[control_idx].set_ylabel("$u(t)$")
-                u_axs[control_idx].set_xlabel("t")
-                # Remove the legend -- too much clutter
-                u_axs[control_idx].legend([], [], frameon=False)
-
-            # # Plot a reference line at V = 0
-            # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
+        name_and_fig_input_plot = self.plot_input_trajectories(
+            controller_under_test,
+            results_df,
+        )
 
         # Create output
         fig_handle = ("Rollout (state space)", fig)
@@ -424,4 +396,51 @@ class RolloutStateParameterSpaceExperiment(Experiment):
             plt.show()
             return []
         else:
-            return [fig_handle, ("Rollout (input)", u_fig)]
+            return [fig_handle, name_and_fig_input_plot]
+
+    def plot_input_trajectories(self, controller, results_df) -> List[Tuple[str, plt.Figure]]:
+        # Constants
+        n_controls = controller.dynamics_model.n_controls
+
+        # Input Processing
+        if not ("u" in results_df):
+            return []
+
+        # Create figure and axes
+        u_fig, u_axs = plt.subplots(n_controls, 1)
+
+        if n_controls == 1:
+            u_axs = [u_axs]
+
+        # Create Plots
+
+        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+            sim_mask = results_df["Simulation"] == sim_index
+            for control_idx in range(controller.dynamics_model.n_controls):
+                u_axs[control_idx].plot(
+                    results_df[sim_mask]["t"].to_numpy(),
+                    [u[control_idx] for u in results_df[sim_mask]["u"]],
+                    linestyle="-",
+                    # marker="+",
+                    markersize=5,
+                    color=sns.color_palette()[plot_idx],
+                )
+        # sns.lineplot(
+        #     ax=V_ax,
+        #     x="t",
+        #     y="V",
+        #     style="Parameters",
+        #     hue="Simulation",
+        #     data=results_df,
+        # )
+        for control_idx in range(n_controls):
+            u_axs[control_idx].set_ylabel("$u(t)$")
+            u_axs[control_idx].set_xlabel("t")
+            # Remove the legend -- too much clutter
+            u_axs[control_idx].legend([], [], frameon=False)
+
+        # # Plot a reference line at V = 0
+        # u_ax.plot([0, results_df.t.max()], [0, 0], color="k")
+
+        # Create outputs
+        return ("Rollout (input)", u_fig)

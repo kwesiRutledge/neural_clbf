@@ -34,10 +34,6 @@ import time
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-batch_size = 64
-controller_period = 0.05
-
-
 simulation_dt = 0.01
 
 def create_training_hyperparams()-> Dict:
@@ -58,29 +54,32 @@ def create_training_hyperparams()-> Dict:
         ]
     )
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    #device = "mps" if torch.backends.mps.is_available() else "cpu"
+    device = "cpu"
 
     nominal_scenario = {
-        "obstacle_center_x": 1.0,
-        "obstacle_center_y": -1.0,
-        "obstacle_center_z": 1.0,
-        "obstacle_width": 1.0,
+        "obstacle_center_x": 0.25,
+        "obstacle_center_y": 0.25,
+        "obstacle_center_z": 0.25,
+        "obstacle_width": 0.4,
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 64,
+        "batch_size": 128,
         "controller_period": 0.05,
         "start_x": start_x,
         "simulation_dt": 0.01,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [0.5, 0.0, -0.5],
-        "Theta_ub": [1.0, 0.5, 0.5],
+        "Theta_lb": [-0.25, 0.25, 0.2],
+        "Theta_ub": [0.0, 0.35, 0.25],
         "clf_lambda": 1.0,
+        "Gamma_factor": 0.01,
+        "safe_level": 10.0,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 46,
+        "max_epochs": 16,
         "n_fixed_samples": 10000,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
@@ -126,7 +125,7 @@ def main(args):
         t_hyper["nominal_scenario"],
         Theta,
         dt=simulation_dt,
-        controller_dt=controller_period,
+        controller_dt=t_hyper["controller_period"],
         scenarios=scenarios,
     )
 
@@ -152,10 +151,13 @@ def main(args):
     )
 
     # Define the experiment suite
+    lb_Vcontour = lb[t_hyper["contour_exp_theta_index"]]
+    ub_Vcontour = ub[t_hyper["contour_exp_theta_index"]]
+    theta_range_Vcontour = ub_Vcontour - lb_Vcontour
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
         x_domain=[(-2.0, 2.0)],
-        theta_domain=[(-2.0, 2.0)],
+        theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=LoadSharingManipulator.P_X,
         theta_axis_index=t_hyper["contour_exp_theta_index"],
@@ -175,7 +177,7 @@ def main(args):
         t_sim=t_hyper["rollout_experiment_horizon"],
     )
     rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
-        "Rollout",
+        "Rollout (Multiple Slices)",
         t_hyper["start_x"],
         [LoadSharingManipulator.P_X, LoadSharingManipulator.V_X, LoadSharingManipulator.P_Y],
         ["$r_1$", "$v_1$", "$r_2$"],
@@ -197,14 +199,15 @@ def main(args):
         clbf_hidden_layers=2,
         clbf_hidden_size=64,
         clf_lambda=1.0,
-        safe_level=1.0,
-        controller_period=controller_period,
+        safe_level=t_hyper["safe_level"],
+        controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
         epochs_per_episode=100,
         barrier=False,
+        Gamma_factor=t_hyper["Gamma_factor"],
     )
-    aclbf_controller.to(device)
+    #aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -228,6 +231,7 @@ def main(args):
     tb_logger.log_metrics({"pytorch random seed": t_hyper["pt_manual_seed"]})
     tb_logger.log_metrics({"numpy random seed": t_hyper["np_manual_seed"]})
     tb_logger.log_metrics({"training time": training_time_end - training_time_start})
+    tb_logger.log_metrics({"gamma factor": t_hyper["Gamma_factor"]})
 
     # Saving Data
     torch.save(

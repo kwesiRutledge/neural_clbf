@@ -411,6 +411,13 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
                 markersize=5,
                 color=sns.color_palette()[plot_idx],
             )
+            # Plot initial conditions
+            rollout_ax.scatter(
+                results_df[sim_mask][plot_x_label].to_numpy()[0],
+                results_df[sim_mask][plot_theta_label].to_numpy()[0],
+            )
+            # Plot target parameter
+
             rollout_ax.set_xlabel(plot_x_label)
             rollout_ax.set_ylabel(plot_theta_label)
 

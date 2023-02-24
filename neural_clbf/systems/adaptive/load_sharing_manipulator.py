@@ -168,6 +168,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         upper_limit[LoadSharingManipulator.V_Z] = 1.0
 
         lower_limit = -1.0 * upper_limit
+        lower_limit[LoadSharingManipulator.P_Z] = 0.0
 
         return (upper_limit, lower_limit)
 
@@ -260,9 +261,18 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return (r - theta).norm(dim=-1) <= goal_tolerance
 
-    @property
-    def goal_point(self):
-        goal = torch.zeros((1, self.n_dims)).to(self.device)
+    def goal_point(self, theta: torch.Tensor) -> torch.Tensor:
+        # Defaults
+        if theta is None:
+            theta = torch.zeros(1, self.n_params).to(self.device)
+
+        # Constants
+        batch_size = theta.shape[0]
+
+        # Algorithm
+        goal = torch.zeros(batch_size, self.n_dims).to(self.device)
+        goal[:, :3] = theta
+
         return goal
 
     @property
