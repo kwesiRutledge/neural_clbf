@@ -513,7 +513,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
     def plot_environment(self, ax: Axes) -> None:
         """
         Add a plot of the environment to the given figure. Defaults to do nothing
-        unless overidden.
+        unless overridden.
 
         args:
             ax: the axis on which to plot
