@@ -11,7 +11,7 @@ flake8
 brunette
 
 # Learning libraries
-torch == 1.12.1
+torch == 1.9.1
 pytorch-lightning == 1.3.4
 torchmetrics == 0.5.1
 

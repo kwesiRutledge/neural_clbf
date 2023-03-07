@@ -255,7 +255,6 @@ def main(args):
         "/version_" + str(tb_logger.version) + "/controller.pt"
     )
 
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser = pl.Trainer.add_argparse_args(parser)

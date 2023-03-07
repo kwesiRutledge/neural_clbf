@@ -541,3 +541,13 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             # Otherwise, just use the standard Lyapunov equation
             #self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
             self.P = torch.eye(self.n_dims)
+
+    def plot(self, x: torch.Tensor, slider_side_length: float = 0.09):
+        # Input Checking
+        assert x.shape[0] == 1, "x must have shape (1, n_dims)"
+        assert x.shape[1] == self.n_dims, "x must have shape (1, n_dims)"
+        # We can only visualize one state at a time.
+
+        # Algorithm
+        s_sl = slider_side_length
+

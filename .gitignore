@@ -143,3 +143,6 @@ neural_clbf/evaluation/datafiles/tumbling_target/*.png
 
 # Mac Temporary Files
 *.DS_Store
+
+# Supercloud related files
+extras/login_to_supercloud.sh
