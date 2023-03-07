@@ -5,6 +5,7 @@ from .load_sharing_manipulator import LoadSharingManipulator
 from .scalar_demo_capa2_system import ScalarCAPA2Demo
 from .tumbling_target import TumblingTarget
 from .tumbling_target2 import TumblingTarget2
+from .pusher_slider_force_input import PusherSliderStickingForceInput
 
 __all__ = [
     "ControlAffineParameterAffineSystem",
@@ -12,6 +13,7 @@ __all__ = [
     "ScalarCAPA2Demo",
     "TumblingTarget",
     "TumblingTarget2",
+    "PusherSliderStickingForceInput",
 ]
 
 # try:
