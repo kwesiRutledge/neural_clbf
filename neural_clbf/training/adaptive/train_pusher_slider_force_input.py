@@ -55,6 +55,10 @@ def create_training_hyperparams()-> Dict:
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
     device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
 
     nominal_scenario = {
         "obstacle_center_x": 0.0,
@@ -71,7 +75,7 @@ def create_training_hyperparams()-> Dict:
         "Theta_lb": [-0.03, -0.03],
         "Theta_ub": [0.03, 0.03],
         "clf_lambda": 1.0,
-        "Gamma_factor": 0.1,
+        "Gamma_factor": 0.01,
         "safe_level": 10.0,
         # layer specifications
         "clbf_hidden_size": 64,
@@ -129,8 +133,8 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-1.0, -0.8),       # s_x
-        (-1.0, -0.8),        # s_y
+        (-0.7, -0.8),       # s_x
+        (-0.8, -0.8),        # s_y
         (0.0, np.pi / 2),   # s_theta
     ]
     data_module = EpisodicDataModuleAdaptive(
@@ -151,7 +155,7 @@ def main(args):
     theta_range_Vcontour = ub_Vcontour - lb_Vcontour
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(-2.0, 2.0)],
+        x_domain=[(-1.0, 1.0)],
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=PusherSliderStickingForceInput.S_X,
@@ -193,7 +197,7 @@ def main(args):
         experiment_suite=experiment_suite,
         clbf_hidden_layers=2,
         clbf_hidden_size=64,
-        clf_lambda=1.0,
+        clf_lambda=t_hyper["clf_lambda"],
         safe_level=t_hyper["safe_level"],
         controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=1e2,

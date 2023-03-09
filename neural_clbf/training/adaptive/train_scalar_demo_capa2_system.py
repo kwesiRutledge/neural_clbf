@@ -46,6 +46,10 @@ def create_hyperparam_struct()-> Dict:
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
     device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
 
     hyperparams_for_evaluation = {
         "batch_size": 64,
