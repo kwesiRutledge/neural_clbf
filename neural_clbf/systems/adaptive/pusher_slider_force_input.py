@@ -23,6 +23,8 @@ from neural_clbf.systems.utils import (
 import polytope as pc
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
     """
     Represents a point finger attempting to push a sliding square with a force input.
@@ -503,6 +505,23 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         """
         pass
 
+    """
+    friction_cone_extremes
+    Description:
+        This function returns two unit vectors defining the boundary of the friction cone.
+        The friction cone vectors are written in the frame of reference at the contact point
+        with:
+        - positive x being along the edge of the slider and 
+        - positive y being perpendicular and into the slider.
+    """
+    def friction_cone_extremes(self)->(np.array,np.array):
+        # Constants
+        mu = self.ps_cof
+
+        # Create output
+        return np.array([mu, 1.0]), np.array([-mu, 1.0])
+
+
     def compute_linearized_controller(self, scenarios: Optional[ScenarioList] = None):
         """
         Computes the linearized controller K and lyapunov matrix P.
@@ -513,24 +532,27 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         if scenarios is None:
             scenarios = [self.nominal_scenario]
 
-        # For each scenario, get the LQR gain and closed-loop linearization
-        for s in scenarios:
-            # Compute the LQR gain matrix for the nominal parameters
-            Act, Bct = self.linearized_ct_dynamics_matrices(s)
-            A, B = self.linearized_dt_dynamics_matrices(s)
-
-            # Define cost matrices as identity
-            Q = np.eye(self.n_dims)
-            R = np.eye(self.n_controls)
-
-            # Get feedback matrix
-            K_np = lqr(A, B, Q, R)
-            self.K = torch.tensor(K_np)
-
-            Acl_list.append(Act - Bct @ K_np)
-
-        print(len(scenarios))
-        print(scenarios)
+        # # For each scenario, get the LQR gain and closed-loop linearization
+        # for s in scenarios:
+        #     # Compute the LQR gain matrix for the nominal parameters
+        #     Act, Bct = self.linearized_ct_dynamics_matrices(s)
+        #     A, B = self.linearized_dt_dynamics_matrices(s)
+        #
+        #     print("A: ", A)
+        #     print("B: ", B)
+        #
+        #     # Define cost matrices as identity
+        #     Q = np.eye(self.n_dims)
+        #     R = np.eye(self.n_controls)
+        #
+        #     # Get feedback matrix
+        #     K_np = lqr(A, B, Q, R)
+        #     self.K = torch.tensor(K_np)
+        #
+        #     Acl_list.append(Act - Bct @ K_np)
+        #
+        # print(len(scenarios))
+        # print(scenarios)
 
         # If more than one scenario is provided...
         # get the Lyapunov matrix by robustly solving Lyapunov inequalities
@@ -542,12 +564,224 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             #self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
             self.P = torch.eye(self.n_dims)
 
-    def plot(self, x: torch.Tensor, slider_side_length: float = 0.09):
+    """
+    contact_point
+    Description:
+        This function returns the contact point of the slider with the pusher.
+    
+    Returns
+        contact_point: 1x2 tensor of the contact point in the world frame
+    """
+    def contact_point(self, x: torch.Tensor) -> torch.Tensor:
+        # Constants
+
+        # Get State
+        s_x = x[0, 0]
+        s_y = x[0, 1]
+        s_th = x[0, 2]
+
+        # Compute contact point
+        rot2 = torch.Tensor([[np.cos(s_th), -np.sin(s_th)], [np.sin(s_th), np.cos(s_th)]])
+        contact_point = torch.Tensor([[s_x], [s_y]]) + rot2 @ torch.Tensor([[-self.s_length/2], [0]])
+
+        return contact_point.T
+
+    """
+    plot
+    Description:
+        Plots the pusher-slider system in a 2d plot and returns the figure.
+    """
+    def plot(self, x: torch.Tensor, theta: torch.Tensor,
+             limits: Optional[List[List[float]]] = [[0.0, 0.3], [0.0, 0.3]],
+             hide_axes: bool = True,
+             equal_aspect: bool = True,
+             show_geometric_center: bool = False,
+             show_CoM: bool = True,
+             show_friction_cone_vectors: bool = True,
+             current_force: torch.Tensor = None) -> plt.Figure:
+
         # Input Checking
-        assert x.shape[0] == 1, "x must have shape (1, n_dims)"
-        assert x.shape[1] == self.n_dims, "x must have shape (1, n_dims)"
+        assert (x.shape == (1, 3)), f"x must have shape (1,{self.n_dims})."
+        assert (theta.shape == (1,2)), f"theta must have shape (1,{self.n_params})."
+
         # We can only visualize one state at a time.
 
-        # Algorithm
-        s_sl = slider_side_length
+        # Constants
+        s_length = self.s_length
+        s_width = self.s_width
+        p_radius = self.p_radius
 
+        # Get state
+        s_x = x[0, 0]
+        s_y = x[0, 1]
+        s_th = x[0, 2]
+
+        # Get parameters
+        CoM_x = theta[0, 0]
+        CoM_y = theta[0, 1]
+
+
+        # Setup Figure
+        # =========
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        if hide_axes:
+            ax.axis('off')
+
+        # Set Axes Limits
+        plt.xlim(limits[0])
+        plt.ylim(limits[1])
+
+        if equal_aspect:
+            plt.gca().set_aspect('equal', adjustable='box')
+
+        # Plot Objects
+        # ============
+
+        # Plot Slider
+        s_th_in_degrees = np.degrees(s_th)
+        alpha0 = np.arctan(s_length/s_width)  # Angle made by diagonal line going from rect lower left to upper right
+        half_diagonal_length = np.sqrt((s_length/2)**2 + (s_width/2)**2)
+
+        slider = plt.Rectangle(
+            (s_x-half_diagonal_length*np.cos(alpha0+s_th), s_y-half_diagonal_length*np.sin(alpha0+s_th) ),
+            s_width, s_length,
+            angle=s_th_in_degrees,
+            color='cyan')
+
+        ax.add_patch(slider)
+
+        cp = self.contact_point(x)
+
+        # Plot Slider's Geometric Center
+        if show_geometric_center:
+            plt.scatter(s_x, s_y, color='blue', s=10)
+
+        # Plot Slider's Center of Mass
+        if show_CoM:
+            th_in_contact_point_frame = s_th - torch.pi/2
+            rotation_matrix = torch.Tensor([
+                [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
+                [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
+            ])
+            CoM = cp.T + rotation_matrix @ torch.Tensor([[CoM_x], [CoM_y]])
+
+            plt.scatter(CoM[0, 0], CoM[1, 0], color='red', s=10)
+
+        # Plot Pusher
+        pusher = plt.Circle(
+            (cp[0, 0] - p_radius * np.cos(s_th), cp[0, 1] - p_radius * np.sin(s_th)),
+            p_radius,
+            color="#03DAC6")
+
+        ax.add_patch(pusher)
+
+        # Plot Friction Cone Vectors
+        if show_friction_cone_vectors:
+            # Get Friction Cone Vectors
+            friction_cone_vectors = self.friction_cone_extremes()
+
+            # Plot Friction Cone Vectors
+            for vec in friction_cone_vectors:
+                norm_vec = torch.Tensor(vec) / torch.norm(torch.Tensor(vec))
+                scaled_vec = (s_length/2.0) * norm_vec
+
+                th_in_contact_point_frame = s_th - torch.pi / 2
+                rotation_matrix = torch.Tensor([
+                    [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
+                    [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
+                ])
+                rotated_vec = rotation_matrix @ scaled_vec.T
+
+                plt.arrow(cp[0, 0], cp[0, 1],
+                          rotated_vec[0], rotated_vec[1],
+                          color="orange", width=0.001)
+
+        # Plot Current Force
+        if current_force is not None:
+            # Normalize and plot vector of force
+            norm_vec = torch.Tensor(current_force) / torch.norm(torch.Tensor(current_force))
+            scaled_vec = (s_length/2.0) * norm_vec
+
+            th_in_contact_point_frame = s_th - torch.pi / 2
+            rotation_matrix = torch.Tensor([
+                [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
+                [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
+            ])
+            rotated_vec = rotation_matrix @ scaled_vec.T
+
+            plt.arrow(cp[0, 0], cp[0, 1],
+                      rotated_vec[0], rotated_vec[1],
+                      color="green", width=0.001)
+
+        # # num_agents
+        # team_positions_at_t = np.zeros((2, num_agents))
+        # agent_circles = []
+        # for i in range(num_agents):
+        #     PWL = pwl_plans[i]
+        #     x_t = get_state_at_t(0.0, PWL)
+        #     team_positions_at_t[:, i] = x_t
+        #     # print(team_positions_at_t)
+        #     agent_circles.append(
+        #         plt.Circle((team_positions_at_t[0, i], team_positions_at_t[1, i]), size_list[i], color=colors[i])
+        #     )
+        #     ax.add_patch(agent_circles[-1])
+        #
+        # for i in range(len(pwl_plans)):
+        #     PWL = pwl_plans[i]
+        #     ax.plot([P[0][0] for P in PWL], [P[0][1] for P in PWL], '-', color=colors[i])
+        #
+        #     ax.plot(PWL[-1][0][0], PWL[-1][0][1], '*', color=colors[i])
+        #     # print(PWL[0][0][0])
+        #     # print(size_list[i])
+        #     # ax.plot(PWL[0][0][0], PWL[0][0][1], 'o', color = colors[i])
+        #
+        # # Plot the Team Plan
+        # if show_team_plan:
+        #     for P in team_plan:
+        #         ax.add_patch(
+        #             plt.Circle((P[0][0], P[0][1]), team_radius, color='m', alpha=0.2)
+        #         )
+        #
+        # # Plot the team plan over time
+        # P0 = team_plan[0]
+        # team_circle = plt.Circle((P0[0][0], P0[0][1]), team_radius, color='m', alpha=0.2)
+        # if show_moving_team_radius:
+        #     ax.add_patch(
+        #         team_circle
+        #     )
+        #
+        # # This function will modify each of the values of the functions above.
+        # def update(frame_number):
+        #     t = (frame_number / num_frames) * (max_t - min_t) + min_t
+        #     # print(t)
+        #     for i in range(num_agents):
+        #         plan_i = pwl_plans[i]
+        #         # print(plan_i)
+        #         x_t = get_state_at_t(t, plan_i)
+        #         team_positions_at_t[:, i] = x_t
+        #         agent_circles[i].set(
+        #             center=x_t,
+        #         )
+        #
+        #     # If we want to show the team circle moving, then update it here
+        #     if show_moving_team_radius:
+        #         team_center_t = get_state_at_t(t, team_plan)
+        #         team_circle.set(
+        #             center=team_center_t
+        #         )
+        #
+        # # Construct the animation, using the update function as the animation
+        # # director.
+        # animation = manimation.FuncAnimation(fig, update, np.arange(1, num_frames), interval=25)
+        # animation.save(filename=filename, fps=15)
+
+        # # Algorithm
+        # for t in np.linspace(min_t,max_t,num_frames):
+        #     fig_t = plot_single_frame_of_team_plan(
+        #         t, pwl_plans=pwl_plans, team_plan=team_plan, plot_tuples=plot_tuples, team_radius=team_radius, size_list=size_list, equal_aspect=equal_aspect, limits=limits, show_team_plan=True        )
+
+        #     writer.saving(fig_t,filename,20)
+        #     writer.grab_frame()
+
+        return fig, ax
