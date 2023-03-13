@@ -142,11 +142,11 @@ class ControlAffineParameterAffineSystem(ABC):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the continuous time linear dynamics matrices, dx/dt = Ax + Bu"""
         A = self.compute_A_matrix(
-            torch.Tensor(self.theta).reshape((1, self.n_params)).to(self.device),
+            torch.Tensor(self.theta).reshape((1, self.n_params)),
             scenario,
         )
         B = self.compute_B_matrix(
-            torch.Tensor(self.theta).reshape((1, self.n_params)).to(self.device),
+            torch.Tensor(self.theta).reshape((1, self.n_params)),
             scenario,
         )
 
@@ -360,18 +360,18 @@ class ControlAffineParameterAffineSystem(ABC):
         else:
             batch_size = theta.shape[0]
 
-        return torch.zeros((batch_size, self.n_dims)).to(self.device)
+        return torch.zeros((batch_size, self.n_dims))
 
     @property
     def u_eq(self):
-        return torch.zeros((1, self.n_controls)).to(self.device)
+        return torch.zeros((1, self.n_controls))
 
     def sample_state_space(self, num_samples: int) -> torch.Tensor:
         """Sample uniformly from the state space"""
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
-        x = torch.Tensor(num_samples, self.n_dims).uniform_(0.0, 1.0).to(self.device)
+        x = torch.Tensor(num_samples, self.n_dims).uniform_(0.0, 1.0)
         for i in range(self.n_dims):
             x[:, i] = x[:, i] * (x_max[i] - x_min[i]) + x_min[i]
 
@@ -381,7 +381,7 @@ class ControlAffineParameterAffineSystem(ABC):
         """Sample uniformly from the Theta space"""
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
-        return torch.Tensor(theta_samples_np.T).to(self.device)
+        return torch.Tensor(theta_samples_np.T)
 
     def sample_with_mask(
         self,
@@ -470,10 +470,10 @@ class ControlAffineParameterAffineSystem(ABC):
 
         theta_reshape = theta.reshape((theta.shape[0], theta.shape[1], 1))
 
-        # f_like = torch.zeros((batch_size, self.n_dims, 1)).to(x.device)
+        # f_like = torch.zeros((batch_size, self.n_dims, 1))
         # f_like = self._f(x, params) + torch.bmm(self._F(x, params), theta_reshape)
 
-        g_like = torch.zeros((batch_size, self.n_dims, self.n_controls)).to(x.device)
+        g_like = torch.zeros((batch_size, self.n_dims, self.n_controls))
         g_like = self.input_gain_matrix(x, theta_reshape, params)
 
         F_x_params = self._F(x, params)
@@ -743,8 +743,7 @@ class ControlAffineParameterAffineSystem(ABC):
         for param_index in range(self.n_params):
 
             theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
-            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))\
-                .to(self.device)
+            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))
             G_i[:, :, :] = G[:, :, :, param_index]
             # Update g
             g_like = g_like + torch.mul(theta_i, G_i)
@@ -838,4 +837,4 @@ class ControlAffineParameterAffineSystem(ABC):
         # Get Lie Derivatives of stuff
         raise("Not yet implemented!") # TODO: Implement this function!
 
-        Gamma = torch.eye(n_dims).to(device)
+        Gamma = torch.eye(n_dims)
