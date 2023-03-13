@@ -104,7 +104,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Start by sampling from initial conditions from the given region
         x_init = torch.Tensor(self.trajectories_per_episode, self.n_dims).uniform_(
             0.0, 1.0
-        ).to(self.device)
+        )
         for i in range(self.n_dims):
             min_val, max_val = self.initial_domain[i]
             x_init[:, i] = x_init[:, i] * (max_val - min_val) + min_val
@@ -112,7 +112,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Simulate each initial condition out for the specified number of steps
 
         theta_init = self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode)
-        theta_init = torch.Tensor(theta_init.T).to(self.device)
+        theta_init = torch.Tensor(theta_init.T)
         x_sim, theta_sim, theta_hat_sim = simulator(x_init, theta_init, self.trajectory_length)
 
         # Reshape the data into a single replay buffer
@@ -171,10 +171,10 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         )
         for sample_cluster in x_samples:
             print("sample_cluster.shape = ", sample_cluster.shape)
-
-        print("x_samples = ", torch.vstack(x_samples))
-        print("theta_samples = ", torch.vstack(theta_samples))
-        print("theta_hat_samples = ", torch.vstack(theta_hat_samples))
+        #
+        # print("x_samples = ", torch.vstack(x_samples))
+        # print("theta_samples = ", torch.vstack(theta_samples))
+        # print("theta_hat_samples = ", torch.vstack(theta_hat_samples))
 
 
         return torch.vstack(x_samples), torch.vstack(theta_samples), torch.vstack(theta_hat_samples)
