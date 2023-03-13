@@ -50,3 +50,17 @@ Occasionally, you may need to reinstall a package via pip from a specific versio
 ```bash
 pip install --user --no-cache-dir --force-reinstall -v packageName==versionNumber
 ```
+
+## Requesting Interactive Nodes with One GPU
+
+```bash
+LLsub -i -s 20 -g volta:1
+```
+
+## Running Code with gpu args
+
+It looks like we can guarantee that the python script uses devices using this
+
+```bash
+python train_scalar_demo_capa2_system.py --accelerator 'gpu' --devices 2
+```
