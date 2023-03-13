@@ -6,7 +6,7 @@ from copy import copy
 import matplotlib.pyplot as plt
 import tqdm
 import numpy as np
-import torch
+import torch, os
 
 from neural_clbf.systems.adaptive import LoadSharingManipulator
 
@@ -108,7 +108,9 @@ def test_loadsharingmanipulator_simulate_and_plot1():
     # Add legend
     ax.legend(list_of_lines, list_of_line_labels)
 
-    fig.savefig("lsm-s_and_plot1.png")
+    if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+        # Only save if we are running from inside tests directory
+        fig.savefig("figures/lsm-s_and_plot1.png")
 
     # Plot 3d
     #fig, ax = plt.subplots(1, 1)
@@ -131,7 +133,9 @@ def test_loadsharingmanipulator_simulate_and_plot1():
     # Add legend
     #ax2.legend(list_of_lines, list_of_line_labels)
 
-    fig2.savefig("lsm-s_and_plot2.png")
+    if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+        # Only save if we are running from inside tests directory
+        fig2.savefig("figures/lsm-s_and_plot2.png")
 
 if __name__ == "__main__":
     # Test initialization

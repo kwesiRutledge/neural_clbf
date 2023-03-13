@@ -8,7 +8,7 @@ from copy import copy
 import matplotlib.pyplot as plt
 import tqdm
 import numpy as np
-import torch
+import torch, os
 
 from neural_clbf.systems.adaptive import ScalarCAPA2Demo
 
@@ -106,7 +106,9 @@ def test_scalardemocapa2system_simulate_and_plot1():
     # Add legend
     ax.legend(list_of_lines, list_of_line_labels)
 
-    fig.savefig("demo-capa2-s_and_plot1.png")
+    if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+        # Only save if we are running from inside tests directory
+        fig.savefig("figures/demo-capa2-s_and_plot1.png")
 
 def test_scalardemocapa2system_basic_mpc1_1():
     """
