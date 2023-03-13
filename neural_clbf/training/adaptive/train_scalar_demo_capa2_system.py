@@ -31,6 +31,12 @@ import polytope as pc
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct()-> Dict:
+    # Device declaration
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    elif torch.backends.mps.is_available():
+        device = "mps"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -42,14 +48,9 @@ def create_hyperparam_struct()-> Dict:
             [-0.5],
             [-0.7]
         ]
-    )
+    ).to(device)
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
-    device = "cpu"
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
 
     hyperparams_for_evaluation = {
         "batch_size": 64,
@@ -67,7 +68,7 @@ def create_hyperparam_struct()-> Dict:
         "clbf_hidden_layers": 2,
         "max_epochs": 11,
         # Device
-        "device": device
+        "device": device,
     }
 
     return hyperparams_for_evaluation
@@ -109,6 +110,7 @@ def main(args):
         dt=simulation_dt,
         controller_dt=controller_period,
         scenarios=scenarios,
+        device=hyperparams["device"],
     )
 
     # Initialize the DataModule
@@ -125,6 +127,7 @@ def main(args):
         val_split=0.1,
         batch_size=batch_size,
         quotas=hyperparams["sample_quotas"],
+        device=hyperparams["device"],
         # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
@@ -170,8 +173,7 @@ def main(args):
         barrier=False,
         Gamma_factor=0.1,
     )
-
-    aclbf_controller.to(device)
+    # aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
