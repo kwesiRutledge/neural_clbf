@@ -134,12 +134,15 @@ neural_clbf/systems/aerobench
 
 # Temporary Testing files
 neural_clbf/systems/adaptive/tests/*.png
+neural_clbf/systems/adaptive/tests/figures/*.mp4
+neural_clbf/systems/adaptive/tests/figures/*.png
 neural_clbf/systems/tests/*.png
 
 # Experiments
 neural_clbf/evaluation/datafiles/load_sharing/*.png
 neural_clbf/evaluation/datafiles/scalar_demo_capa2/*.png
 neural_clbf/evaluation/datafiles/tumbling_target/*.png
+neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.png
 
 # Mac Temporary Files
 *.DS_Store

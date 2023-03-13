@@ -91,7 +91,9 @@ class TestStringMethods(unittest.TestCase):
         cp1 = ps.contact_point(x)
         plt.scatter(cp1[0, 0], cp1[0, 1], color="orange", s=10)
 
-        p2.savefig("pusherslider-test_plot2.png", dpi=300)
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p2.savefig("figures/pusherslider-test_plot2.png", dpi=300)
 
     """
     test_plot3
@@ -130,7 +132,9 @@ class TestStringMethods(unittest.TestCase):
         p3 = plt.figure()
         ps.plot(x, th, hide_axes=False, current_force=f)
 
-        p3.savefig("pusherslider-test_plot3.png", dpi=300)
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p3.savefig("figures/pusherslider-test_plot3.png", dpi=300)
 
     def test_animate1(self):
         # Constants
@@ -165,7 +169,7 @@ class TestStringMethods(unittest.TestCase):
 
         # Animate
         fig = plt.figure()
-        filename = "pusherslider-test_animate1.mp4"
+        filename = "figures/pusherslider-test_animate1.mp4"
         num_frames = N_traj
         max_t = T_sim
         min_t = 0.0
@@ -195,7 +199,8 @@ class TestStringMethods(unittest.TestCase):
 
         # Save as mp4. This requires mplayer or ffmpeg to be installed
         # plot.show()
-        animation.save(filename=filename, fps=15)
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd(): # Only plot if we're running this from inside tests directory.
+            animation.save(filename=filename, fps=15)
 
         # Algorithm
         # for t in np.linspace(min_t,max_t,num_frames):
@@ -244,12 +249,13 @@ class TestStringMethods(unittest.TestCase):
         f_trajectory = torch.kron(torch.ones((N_traj+1, 1)), f0)
 
         # Animate with function
-        ps.save_animated_trajectory(
-            x_trajectory=x_trajectory,
-            th=th,
-            f_trajectory=f_trajectory,
-            filename="pusherslider-test_animate2.mp4",
-        )
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            ps.save_animated_trajectory(
+                x_trajectory=x_trajectory,
+                th=th,
+                f_trajectory=f_trajectory,
+                filename="figures/pusherslider-test_animate2.mp4",
+            )
 
     def test_u_nominal1(self):
         """
@@ -304,7 +310,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
-            fig.savefig("images/pusherslider-test_u_nominal1.png", dpi=300)
+            fig.savefig("figures/pusherslider-test_u_nominal1.png", dpi=300)
             # green is the current force
 
     def test_u_nominal2(self):
@@ -361,7 +367,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
-            fig.savefig("images/pusherslider-test_u_nominal2.png", dpi=300)
+            fig.savefig("figures/pusherslider-test_u_nominal2.png", dpi=300)
             # green is the current force
 
     def test_u_nominal3(self):
@@ -418,7 +424,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
-            fig.savefig("images/pusherslider-test_u_nominal3.png", dpi=300)
+            fig.savefig("figures/pusherslider-test_u_nominal3.png", dpi=300)
             # green is the current force
 
 
