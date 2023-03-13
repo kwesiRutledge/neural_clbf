@@ -136,8 +136,8 @@ def test_aclfcontroller_V_with_jacobian1():
     JV = F.linear(x_theta, P)
     JV = JV.reshape(x_theta.shape[0], 1, dynamics_model.n_dims + dynamics_model.n_params)
 
-    print("V: ", V)
-    print("JV: ", JV)
+    # print("V: ", V)
+    # print("JV: ", JV)
 
     assert torch.all(V >= 0.0)
 
@@ -147,9 +147,9 @@ def get_scalar_system() -> [ControlAffineParameterAffineSystem, Scenario]:
     }
 
     th_dim = 1
-    lb = [0.5]
-    ub = [0.8]
-    Theta = pc.box2poly(np.array([lb, ub]).T)
+    lb = 0.5
+    ub = 0.8
+    Theta = pc.box2poly(np.array([[lb], [ub]]).T)
 
     scalar_system = ScalarCAPA2Demo(scenario0, Theta)
 
@@ -237,8 +237,8 @@ def test_aclfcontroller_V_lie_derivatives1():
         G = dynamics_model._G(x, s)
 
         # Multiply these with the Jacobian to get the Lie derivatives
-        print("gradV: ", JxV.shape)
-        print(torch.bmm(JxV, f))
+        # print("gradV: ", JxV.shape)
+        # print(torch.bmm(JxV, f))
         Lf_V[:, i, :] = torch.bmm(JxV, f).squeeze(1)
         LF_V[:, i, :] = torch.bmm(JxV, Fterm).squeeze(1)
         Lg_V[:, i, :] = torch.bmm(JxV, g).squeeze(1)
@@ -282,14 +282,73 @@ def test_aclfcontroller_init1():
     # Define Controller
     controller = aCLFController(scalar_system, [scenario0], suite0)
 
-def test_aclfcontroller_gradient1():
+# def test_aclfcontroller_gradient1():
+#     """
+#     Description:
+#         Attempts to create the gradient descent condition that the aclf_controller object will use.
+#         This should satisfy the aCLF gradient condition and not just the normal robust aCLF condition.
+#     """
+#
+#     1
+
+def test_aclfcontroller_V_oracle1():
     """
     Description:
-        Attempts to create the gradient descent condition that the aclf_controller object will use.
-        This should satisfy the aCLF gradient condition and not just the normal robust aCLF condition.
+        Tests the V_oracle method of the ACLF controller.
     """
 
-    1
+    print("test_aclfcontroller_V_oracle1")
+
+    # Constants
+    # =========
+
+    scalar_system, _ = get_scalar_system()
+    scalar_system.P = torch.Tensor([[1.0, 0.0], [0.0, 1.0]])
+
+    # Create the data
+    batch_size = 4
+    x = torch.zeros((batch_size, 1))
+    x[0, 0] = 0.5
+    x[1, 0] = 0.6
+    x[2, 0] = 0.7
+    x[3, 0] = 0.5
+
+    theta_hat = torch.zeros((batch_size, 1))
+    theta_hat[0, 0] = 0.5
+    theta_hat[1, 0] = 0.6
+    theta_hat[2, 0] = 0.7
+    theta_hat[3, 0] = 0.8
+
+    # Create true thetas
+    theta = torch.zeros((batch_size, 1))
+    theta[0, 0] = 0.5
+    theta[1, 0] = 0.6
+    theta[2, 0] = 0.7
+    theta[3, 0] = 0.5
+
+    # Create the ACLF controller
+    scenario0 = {
+        "wall_position": -2.0,
+    }
+    experiment0 = AdaptiveCLFContourExperiment(
+        "experiment0",
+        [(-2.0, 2.0), (0.4, 0.9)],
+    )
+    suite0 = ExperimentSuite([experiment0])
+    controller = aCLFController(scalar_system, [scenario0], suite0)
+
+    # Test the V_oracle method
+    Vo = controller.V_oracle(x, theta_hat, theta)
+    Va = controller.V(x, theta_hat)
+
+    assert torch.isclose(Vo[0], Va[0])
+    assert torch.isclose(Vo[1], Va[1])
+    assert torch.isclose(Vo[2], Va[2])
+    assert not torch.isclose(Vo[3], Va[0])
+
+
+    print("Vo", Vo)
+    print("Va", Va)
 
 if __name__ == "__main__":
     # Test gradient computation condition
@@ -304,3 +363,6 @@ if __name__ == "__main__":
 
     # Test lie derivatives
     test_aclfcontroller_V_lie_derivatives1()
+
+    # Test the V_oracle method
+    test_aclfcontroller_V_oracle1()

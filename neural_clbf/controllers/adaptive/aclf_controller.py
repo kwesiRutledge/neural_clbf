@@ -867,3 +867,41 @@ class aCLFController(Controller):
         thetadot[:, :] = Gamma_tau.squeeze(dim=2)
 
         return thetadot
+
+    def V_oracle(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            theta: torch.Tensor,
+    ):
+        """
+        V_oracle
+        Description:
+            Determines the value of the "oracle" CLF which is the clf defined over the
+            x, theta-hat, theta space.
+            This function should generally be decreasing.
+        args:
+            x: bs x self.dynamics_model.n_dims tensor of state
+            theta_hat: bs x self.dynamics_model.n_params tensor of parameter estimate
+            theta: bs x self.dynamics_model.n_params tensor of true parameter values
+        """
+        # Constants
+        bs = x.shape[0]
+        Gamma = self.Gamma
+
+        # Get Va
+        Va = self.V(x, theta_hat)
+
+        # Compute weighted theta_err term.
+        theta_err = theta - theta_hat
+        Gamma_copied = Gamma.repeat(bs, 1, 1)
+        theta_err_Gamma = torch.bmm(
+            theta_err.unsqueeze(1),
+            Gamma_copied
+        )
+        err_term = 0.5 * torch.bmm(
+            theta_err_Gamma,
+            theta_err.unsqueeze(2)
+        ).squeeze()
+
+        return Va + err_term

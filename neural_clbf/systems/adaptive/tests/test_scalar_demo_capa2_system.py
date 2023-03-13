@@ -76,7 +76,7 @@ def test_scalardemocapa2system_simulate_and_plot1():
     N_sim = 1000
 
     # Create silly controller
-    def silly_controller(x_in: torch.Tensor):
+    def silly_controller(x_in: torch.Tensor, theta_hat_in: torch.tensor):
         # Constants
         n_batch = x_in.shape[0]
         n_controls = 1

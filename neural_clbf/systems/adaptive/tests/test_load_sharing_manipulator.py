@@ -16,7 +16,9 @@ def test_loadsharingmanipulator_init():
     """Test initialization of AutoRally model"""
     # Test instantiation with valid parameters
     valid_params = {
-        "obstacle_center": 1.0,
+        "obstacle_center_x": 1.0,
+        "obstacle_center_y": 1.0,
+        "obstacle_center_z": 0.3,
         "obstacle_width": 1.0,
     }
     th_dim = 3
@@ -40,7 +42,9 @@ def test_loadsharingmanipulator_simulate_and_plot1():
 
     # Create Pusher Slider
     scenario0 = {
-        "obstacle_center": 1.0,
+        "obstacle_center_x": 1.0,
+        "obstacle_center_y": 1.0,
+        "obstacle_center_z": 0.3,
         "obstacle_width": 1.0,
     }
     th_dim = 3
@@ -70,7 +74,7 @@ def test_loadsharingmanipulator_simulate_and_plot1():
     N_sim = 1000
 
     # Create silly controller
-    def silly_controller(x_in: torch.Tensor):
+    def silly_controller(x_in: torch.Tensor, theta_in: torch.Tensor):
         # Constants
         n_batch = x_in.shape[0]
         n_controls = 3
@@ -83,14 +87,16 @@ def test_loadsharingmanipulator_simulate_and_plot1():
         return u
 
     # Simulate using the built-in function
-    x_sim = sys0.simulate(x, theta, N_sim, silly_controller, 0.01)
+    x_sim, th_sim, th_h_sim = sys0.simulate(x, theta, N_sim, silly_controller, 0.01)
 
     # Plot 1 (Projection onto 2d)
     fig, ax = plt.subplots(1, 1)
     list_of_lines = []
     list_of_line_labels = []
     for batch_i in range(batch_size):
-        temp_line, = plt.plot(
+        print(batch_i)
+        print("x_sim = ", x_sim)
+        temp_line = plt.plot(
             x_sim[batch_i, :, 0],
             x_sim[batch_i, :, 1]
         )

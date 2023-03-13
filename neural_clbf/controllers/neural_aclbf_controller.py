@@ -59,6 +59,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         normalize_V_nominal: bool = False,
         saved_Vnn: torch.nn.Sequential = None,
         Gamma_factor: float = None,
+        include_oracle_loss: bool = False,
     ):
         """Initialize the controller.
 
@@ -119,6 +120,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         self.add_nominal = add_nominal
         self.normalize_V_nominal = normalize_V_nominal
         self.V_nominal_mean = 1.0
+        self.include_oracle_loss = include_oracle_loss
 
         # Compute and save the center and range of the state variables
         x_max, x_min = dynamics_model.state_limits
@@ -387,7 +389,7 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         #   1.) CLBF should be minimized on the goal point
         goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
         V_goal_pt = self.V(goal_as_batch, theta)
-        goal_term = 1e1 * V_goal_pt.mean()
+        goal_term = 1e2 * V_goal_pt.mean()
         loss.append(("CLBF goal term", goal_term))
 
         # Only train these terms if we have a barrier requirement
@@ -446,12 +448,12 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         n_params = self.dynamics_model.n_params
         V_Theta = pc.extreme(self.dynamics_model.Theta)
 
-        # The CLBF decrease condition requires that V is decreasing everywhere where
+        # The aCLBF decrease condition requires that V is decreasing everywhere where
         # V <= safe_level. We'll encourage this in three ways:
         #
         #   1) Minimize the relaxation needed to make the QP feasible.
-        #   2) Compute the CLBF decrease at each point by linearizing
-        #   3) Compute the CLBF decrease at each point by simulating
+        #   2) Compute the aCLBF decrease at each point by linearizing
+        #   3) Compute the aCLBF decrease at each point by simulating
 
         # First figure out where this condition needs to hold
         eps = 0.1
@@ -540,6 +542,105 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         if accuracy:
             loss.append(("CLBF descent accuracy (simulated)", clbf_descent_acc_sim))
 
+        # Oracle Loss
+        if self.include_oracle_loss:
+            # Compute the shadow descent loss
+            eps = 1.0
+            oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
+            oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
+            for s in self.scenarios:
+                xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
+                x_next = x + self.dynamics_model.dt * xdot
+                theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
+                                                                                                          u_qp, s)
+                V_oracle = self.V_oracle(x, theta_hat, theta)
+                V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
+
+                violation = F.relu(
+                    eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+                )
+                violation = violation * condition_active
+
+                oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
+                oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
+                        violation.nelement() * self.n_scenarios
+                )
+
+            loss.append(("Oracle CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
+            if accuracy:
+                loss.append(("Oracle CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
+        else:
+            loss.append(("Oracle CLBF descent term (simulated)", torch.Tensor([0.0])))
+            if accuracy:
+                loss.append(("Oracle CLBF descent accuracy (simulated)", torch.Tensor([0.0])))
+
+
+        return loss
+
+    def oracle_descent_loss(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            theta: torch.Tensor,
+            goal_mask: torch.Tensor,
+            safe_mask: torch.Tensor,
+            unsafe_mask: torch.Tensor,
+            accuracy: bool = False,
+            requires_grad: bool = False,
+            ):
+        """
+        oracle_descent_loss
+        description:
+            Computes the loss of the controller when keeping in mind the true value of the
+            parameter. We can do this by computing the value of the "unknowable" clf defined
+            over the state-parameterestimate-parameter space (x,theta_hat, theta).
+        args:
+            x: bs x self.dynamical_model.n_dims tensor containing all current states of the system
+            theta_hat: bs x self.dynamical_model.n_params tensor containing all current estimate of the parameter
+            theta: bs x self.dynamical_model.n_params tensor containing all true values of the parameter
+        """
+        # Constants
+        bs = x.shape[0]
+        if self.barrier:
+            condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
+        else:
+            condition_active = torch.tensor(1.0)
+
+        # Initialize loss object
+        loss = []
+
+        # Get the control input and relaxation from solving the QP, and aggregate
+        # the relaxation across scenarios
+        u_qp, qp_relaxation = self.solve_CLF_QP(x, theta_hat, requires_grad=requires_grad)
+        qp_relaxation = torch.mean(qp_relaxation, dim=-1)
+
+        # Compute the shadow descent loss
+        eps = 1.0
+        oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
+        oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
+        for s in self.scenarios:
+            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
+            x_next = x + self.dynamics_model.dt * xdot
+            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
+                                                                                                      u_qp, s)
+            V_oracle = self.V_oracle(x, theta_hat, theta)
+            V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
+
+            violation = F.relu(
+                eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+            )
+            violation = violation * condition_active
+
+            oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
+            oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
+                    violation.nelement() * self.n_scenarios
+            )
+
+        loss.append(("CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
+        if accuracy:
+            loss.append(("CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
+
+        # Return loss
         return loss
 
     def initial_loss(self, x: torch.Tensor, theta_hat:torch.Tensor) -> List[Tuple[str, torch.Tensor]]:
@@ -607,6 +708,13 @@ class NeuralaCLBFController(pl.LightningModule, aCLFController):
         component_losses.update(
             self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
         )
+        # component_losses.update(
+        #     self.oracle_descent_loss(
+        #         x, theta_hat, theta,
+        #         goal_mask, safe_mask, unsafe_mask,
+        #         requires_grad=True,
+        #     )
+        # )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0).type_as(x)

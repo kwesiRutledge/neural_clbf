@@ -18,7 +18,7 @@ from .aclf_contour_experiment import AdaptiveCLFContourExperiment
 from .rollout_state_parameter_space_experiment import RolloutStateParameterSpaceExperiment
 from .rollout_timing_comparison_experiment import ACLFRolloutTimingExperiment
 from .rollout_state_parameter_space_experiment_multipleslices import RolloutStateParameterSpaceExperimentMultiple
-from .rollout_manipulator_convergence_experiment import RolloutManipulatorConvergenceExperiment
+from neural_clbf.experiments.adaptive.rollout_manipulator_convergence_experiment import RolloutManipulatorConvergenceExperiment
 
 __all__ = [
     "Experiment",

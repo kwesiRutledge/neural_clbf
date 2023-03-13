@@ -213,6 +213,7 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
         Gamma_factor=t_hyper["Gamma_factor"],
+        device=t_hyper["device"],
     )
     aclbf_controller.to(device)
 

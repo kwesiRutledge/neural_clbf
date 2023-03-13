@@ -26,6 +26,9 @@ from neural_clbf.experiments import (
     RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment,
     RolloutStateParameterSpaceExperimentMultiple,
 )
+from neural_clbf.experiments.adaptive import (
+    aCLFCountourExperiment_StateSlices
+)
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
 
@@ -58,7 +61,8 @@ def create_training_hyperparams()-> Dict:
     if torch.cuda.is_available():
         device = "cuda"
     elif torch.backends.mps.is_available():
-        device = "mps"
+        #device = "mps"
+        device = "cpu"
 
     nominal_scenario = {
         "obstacle_center_x": 0.0,
@@ -81,8 +85,11 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 61,
-        "n_fixed_samples": 10000,
+        "max_epochs": 11,
+        "trajectories_per_episode": 500,
+        "trajectory_length": 20,
+        "n_fixed_samples": 90000,
+        "include_oracle_loss": True,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": PusherSliderStickingForceInput.S_X,
@@ -140,8 +147,8 @@ def main(args):
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
-        trajectories_per_episode=1,
-        trajectory_length=1,
+        trajectories_per_episode=t_hyper["trajectories_per_episode"],
+        trajectory_length=t_hyper["trajectory_length"],
         fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
@@ -186,7 +193,18 @@ def main(args):
         n_sims_per_start=1,
         t_sim=t_hyper["rollout_experiment_horizon"],
     )
-    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2])
+    V_contour_experiment3 = aCLFCountourExperiment_StateSlices(
+        "V_Contour (state slices only)",
+        x_domain=[(-0.6, 0.6), (-0.6, 0.6)],  # plotting domain
+        n_grid=50,
+        x_axis_index=PusherSliderStickingForceInput.S_X,
+        y_axis_index=PusherSliderStickingForceInput.S_Y,
+        x_axis_label="$s_x$",
+        y_axis_label="$s_y$",
+        plot_unsafe_region=False,
+        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((PusherSliderStickingForceInput.N_PARAMETERS, 1))
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
@@ -205,8 +223,9 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
         Gamma_factor=t_hyper["Gamma_factor"],
+        include_oracle_loss=t_hyper["include_oracle_loss"],
     )
-    #aclbf_controller.to(device)
+    aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(

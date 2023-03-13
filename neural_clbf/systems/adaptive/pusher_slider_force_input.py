@@ -276,7 +276,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         """
         goal_point
         Description:
-            In this case, we force the goal state.
+            In this case, we force the goal state to be the same point [0.5,0.5,0]
+            for any theta input.
         """
         # Defaults
         if theta is None:
@@ -474,16 +475,64 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         m = self.s_mass
         g = 9.8
 
-        # Compute nominal control from feedback + equilibrium control
-        K = self.K.type_as(x)
-        estimated_goal = self.goal_point(theta_hat)
-        # estimated_goal[:, 3:] = theta_hat
+        # State
+        s_x = x[:, PusherSliderStickingForceInput.S_X]
+        s_y = x[:, PusherSliderStickingForceInput.S_Y]
+        s_th = x[:, PusherSliderStickingForceInput.S_THETA]
 
-        u_nominal = -(K @ (x - estimated_goal).T).T
+        # Create simple, case-based controller:
+        #   - if current difference vector between current position and goal position
+        #       has an angle within friction cone vector
+        #   - otherwise
+
+        f_l, f_u = self.friction_cone_extremes()
+        angle_upper, angle_lower = torch.atan2(f_u[1], f_u[0]), torch.atan2(f_l[1], f_l[0])
+
+        assert angle_upper > angle_lower, f"Expected angle_upper ({angle_upper}) to be larger than ({angle_lower}), but it wasn't!"
+
+        goal = self.goal_point(theta_hat)
+
+        des_direction = goal - x
+        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) + (torch.pi/2 - s_th)
+
+        # Handle each case depending on where the desired motion vector is pointing.
+        # 1. Vector points above upper friction cone vector
+        # 2. Vector points below lower friction cone vector
+        # 3. Vector points in the friction cone
+        u_nominal = torch.zeros((batch_size, PusherSliderStickingForceInput.N_CONTROLS)).to(self.device)
+
+        # 1. Vector points above upper friction cone vector
+        # Assign inputs that are above the friction cone.
+        des_angle_greater_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
+        des_angle_greater_mask.logical_and_(
+            des_angle > angle_upper,
+        )
+        u_nominal[des_angle_greater_mask, :] = f_l / torch.norm(f_l)
+
+        # 2. Vector points below lower friction cone vector
+        des_angle_less_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
+        des_angle_less_mask.logical_and_(
+            des_angle < angle_lower,
+        )
+        u_nominal[des_angle_less_mask, :] = f_u / torch.norm(f_u)
+
+        # 3. Vector points in the friction cone
+        des_angle_in_fc_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
+        des_angle_in_fc_mask.logical_and_(
+            torch.logical_not(des_angle_greater_mask),
+        )
+        des_angle_in_fc_mask.logical_and_(
+            torch.logical_not(des_angle_less_mask),
+        )
+        u_nominal[des_angle_in_fc_mask, PusherSliderStickingForceInput.F_X] = \
+            torch.cos(des_angle[des_angle_in_fc_mask])
+        u_nominal[des_angle_in_fc_mask, PusherSliderStickingForceInput.F_Y] = \
+            torch.sin(des_angle[des_angle_in_fc_mask])
+
+
 
         # Adjust for the equilibrium setpoint
         u = u_nominal + self.u_eq.type_as(x)
-        #u[:, 1] = u[:, 1] + m*g
 
         # Clamp given the control limits
         upper_u_lim, lower_u_lim = self.control_limits
@@ -514,13 +563,18 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         with:
         - positive x being along the edge of the slider and 
         - positive y being perpendicular and into the slider.
+    Args:
+    
+    Outputs:
+        f_u: A vector in the direction of the "upper" edge of the friction cone
+        f_l: A vector in the direction of the "lower" edge of the friction cone
     """
-    def friction_cone_extremes(self)->(np.array,np.array):
+    def friction_cone_extremes(self)->(torch.tensor, torch.tensor):
         # Constants
         mu = self.ps_cof
 
         # Create output
-        return np.array([mu, 1.0]), np.array([-mu, 1.0])
+        return torch.tensor([mu, 1.0]), torch.tensor([-mu, 1.0])
 
 
     def compute_linearized_controller(self, scenarios: Optional[ScenarioList] = None):
@@ -554,6 +608,9 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         #
         # print(len(scenarios))
         # print(scenarios)
+        # self.K = torch.tensor(
+        #     [[0.1]]
+        # )
 
         # If more than one scenario is provided...
         # get the Lyapunov matrix by robustly solving Lyapunov inequalities

@@ -50,9 +50,9 @@ class AdaptiveCLFContourExperiment(Experiment):
                     one for each state dimension.
             n_grid: the number of points in each direction at which to compute V
             x_axis_index: the index of the state variable to plot on the x axis
-            theta_axis_index: the index of the state variable to plot on the y axis
+            y_axis_index: the index of the state variable to plot on the y axis
             x_axis_label: the label for the x axis
-            theta_axis_label: the label for the y axis
+            y_axis_label: the label for the y axis
             default_state: 1 x dynamics_model.n_dims tensor of default state
                            values. The values at x_axis_index and y_axis_index will be
                            overwritten by the grid values.

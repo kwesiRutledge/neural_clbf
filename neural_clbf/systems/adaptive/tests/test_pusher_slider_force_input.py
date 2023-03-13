@@ -5,7 +5,7 @@ Description:
     with a force input.
 """
 
-import unittest
+import unittest, os
 import torch
 import numpy as np
 import polytope as pc
@@ -250,6 +250,177 @@ class TestStringMethods(unittest.TestCase):
             f_trajectory=f_trajectory,
             filename="pusherslider-test_animate2.mp4",
         )
+
+    def test_u_nominal1(self):
+        """
+        test_u_nominal1
+        Description:
+            Tests how well u_nominal works when the direction to the target point is outside
+            of the friction cone.
+        """
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create nominal input
+        x0 = torch.Tensor([0.1, 0.1, torch.pi/2])
+        th = ps.sample_Theta_space(1)
+        th = torch.Tensor(th)
+
+        u_nom = ps.u_nominal(
+            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            th,
+        )
+
+        # Plot it
+        fig = plt.figure()
+        ps.plot(
+            x0, th.flatten(),
+            limits=[[0.0, 0.6], [0.0, 0.6]],
+            hide_axes=False,
+            current_force=u_nom.flatten(),
+        )
+        goal = ps.goal_point(th)
+        print("goal = ", goal)
+        print("goal[0, 0] = ", goal[0, 0])
+        plt.scatter(
+            goal[0, 0], goal[0, 1],
+            color="magenta",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            fig.savefig("images/pusherslider-test_u_nominal1.png", dpi=300)
+            # green is the current force
+
+    def test_u_nominal2(self):
+        """
+        test_u_nominal2
+        Description:
+            Tests how well u_nominal works when the direction to the target point is inside
+            of the friction cone.
+            Nominal should choose the force input f_l
+        """
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create nominal input
+        x0 = torch.Tensor([0.6, 0.4, torch.pi / 2])
+        th = ps.sample_Theta_space(1)
+        th = torch.Tensor(th)
+
+        u_nom = ps.u_nominal(
+            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            th,
+        )
+
+        # Plot it
+        fig = plt.figure()
+        ps.plot(
+            x0, th.flatten(),
+            limits=[[0.4, 0.7], [0.3, 0.6]],
+            hide_axes=False,
+            current_force=u_nom.flatten(),
+        )
+        goal = ps.goal_point(th)
+        print("goal = ", goal)
+        print("goal[0, 0] = ", goal[0, 0])
+        plt.scatter(
+            goal[0, 0], goal[0, 1],
+            color="magenta",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            fig.savefig("images/pusherslider-test_u_nominal2.png", dpi=300)
+            # green is the current force
+
+    def test_u_nominal3(self):
+        """
+        test_u_nominal3
+        Description:
+            Tests how well u_nominal works when the direction to the target point is inside
+            of the friction cone.
+            Nominal should choose the force vector that points from CoM to goal.
+        """
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create nominal input
+        x0 = torch.Tensor([0.52, 0.4, torch.pi / 2])
+        th = ps.sample_Theta_space(1)
+        th = torch.Tensor(th)
+
+        u_nom = ps.u_nominal(
+            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            th,
+        )
+
+        # Plot it
+        fig = plt.figure()
+        ps.plot(
+            x0, th.flatten(),
+            limits=[[0.4, 0.7], [0.3, 0.6]],
+            hide_axes=False,
+            current_force=u_nom.flatten(),
+        )
+        goal = ps.goal_point(th)
+        print("goal = ", goal)
+        print("goal[0, 0] = ", goal[0, 0])
+        plt.scatter(
+            goal[0, 0], goal[0, 1],
+            color="magenta",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            fig.savefig("images/pusherslider-test_u_nominal3.png", dpi=300)
+            # green is the current force
+
 
 if __name__ == '__main__':
     unittest.main()
