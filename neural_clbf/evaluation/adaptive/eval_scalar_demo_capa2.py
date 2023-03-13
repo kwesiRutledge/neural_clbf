@@ -121,7 +121,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 def plot_controlled_scalar_capa2():
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
-    scalar_capa2_log_file_dir = "../training/adaptive/logs/scalar_demo_capa2_system/"
+    scalar_capa2_log_file_dir = "../../training/adaptive/logs/scalar_demo_capa2_system/"
     ckpt_file = scalar_capa2_log_file_dir + "commit_98c4671/version_25/checkpoints/epoch=5-step=845.ckpt"
 
     version_to_load = 43

@@ -137,7 +137,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 def plot_controlled_load_sharing():
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
-    scalar_capa2_log_file_dir = "../training/adaptive/logs/tumbling_target/"
+    scalar_capa2_log_file_dir = "../../training/adaptive/logs/tumbling_target/"
     # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
     version_to_load = 11
