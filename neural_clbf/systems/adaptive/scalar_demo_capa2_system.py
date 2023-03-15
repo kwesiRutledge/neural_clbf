@@ -148,7 +148,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 10 * torch.ones(ScalarCAPA2Demo.N_CONTROLS).to(self.device)
+        upper_limit = 10 * torch.ones(ScalarCAPA2Demo.N_CONTROLS).cpu()
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
