@@ -142,11 +142,11 @@ class ControlAffineParameterAffineSystem(ABC):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the continuous time linear dynamics matrices, dx/dt = Ax + Bu"""
         A = self.compute_A_matrix(
-            torch.Tensor(self.theta).reshape((1, self.n_params)),
+            torch.Tensor(self.theta, device=self.device).reshape((1, self.n_params)),
             scenario,
         )
         B = self.compute_B_matrix(
-            torch.Tensor(self.theta).reshape((1, self.n_params)),
+            torch.Tensor(self.theta, device=self.device).reshape((1, self.n_params)),
             scenario,
         )
 
@@ -186,17 +186,17 @@ class ControlAffineParameterAffineSystem(ABC):
 
             # Get feedback matrix
             K_np = lqr(A, B, Q, R)
-            self.K = torch.tensor(K_np)
+            self.K = torch.tensor(K_np, device=self.device)
 
             Acl_list.append(Act - Bct @ K_np)
 
         # If more than one scenario is provided...
         # get the Lyapunov matrix by robustly solving Lyapunov inequalities
         if len(scenarios) > 1:
-            self.P = torch.tensor(robust_continuous_lyap(Acl_list, Q))
+            self.P = torch.tensor(robust_continuous_lyap(Acl_list, Q), device=self.device)
         else:
             # Otherwise, just use the standard Lyapunov equation
-            self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
+            self.P = torch.tensor(continuous_lyap(Acl_list[0], Q), device=self.device)
 
     @abstractmethod
     def validate_scenario(self, s: Scenario) -> bool:
@@ -266,7 +266,7 @@ class ControlAffineParameterAffineSystem(ABC):
             point is in this region.
         """
         upper_lim, lower_lim = self.state_limits
-        out_of_bounds_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
+        out_of_bounds_mask = torch.zeros_like(x[:, 0], dtype=torch.bool, device=self.device)
         for i_dim in range(x.shape[-1]):
             out_of_bounds_mask.logical_or_(x[:, i_dim] >= upper_lim[i_dim])
             out_of_bounds_mask.logical_or_(x[:, i_dim] <= lower_lim[i_dim])
@@ -360,18 +360,18 @@ class ControlAffineParameterAffineSystem(ABC):
         else:
             batch_size = theta.shape[0]
 
-        return torch.zeros((batch_size, self.n_dims))
+        return torch.zeros((batch_size, self.n_dims), device=self.device)
 
     @property
     def u_eq(self):
-        return torch.zeros((1, self.n_controls))
+        return torch.zeros((1, self.n_controls), device=self.device)
 
     def sample_state_space(self, num_samples: int) -> torch.Tensor:
         """Sample uniformly from the state space"""
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
-        x = torch.Tensor(num_samples, self.n_dims).uniform_(0.0, 1.0)
+        x = torch.Tensor(num_samples, self.n_dims, device=self.device).uniform_(0.0, 1.0)
         for i in range(self.n_dims):
             x[:, i] = x[:, i] * (x_max[i] - x_min[i]) + x_min[i]
 
@@ -381,7 +381,7 @@ class ControlAffineParameterAffineSystem(ABC):
         """Sample uniformly from the Theta space"""
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
-        return torch.Tensor(theta_samples_np.T)
+        return torch.Tensor(theta_samples_np.T, device=self.device)
 
     def sample_with_mask(
         self,
@@ -473,7 +473,7 @@ class ControlAffineParameterAffineSystem(ABC):
         # f_like = torch.zeros((batch_size, self.n_dims, 1))
         # f_like = self._f(x, params) + torch.bmm(self._F(x, params), theta_reshape)
 
-        g_like = torch.zeros((batch_size, self.n_dims, self.n_controls))
+        g_like = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
         g_like = self.input_gain_matrix(x, theta_reshape, params)
 
         F_x_params = self._F(x, params)
@@ -587,17 +587,17 @@ class ControlAffineParameterAffineSystem(ABC):
         # )
 
         # Set up Simulator Variables
-        x_sim = torch.zeros(batch_size, num_steps, self.n_dims).type_as(x_init)
+        x_sim = torch.zeros(batch_size, num_steps, self.n_dims, device=self.device).type_as(x_init)
         x_sim[:, 0, :] = x_init
 
-        th_sim = torch.zeros(batch_size, num_steps, self.n_params).type_as(theta)
+        th_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
         th_sim[:, 0, :] = theta
 
-        th_h_sim = torch.zeros(batch_size, num_steps, self.n_params).type_as(theta)
+        th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
         th_h_samples = self.get_N_samples_from_polytope(self.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.Tensor(th_h_samples.T).type_as(theta)
+        th_h_sim[:, 0, :] = torch.Tensor(th_h_samples.T, device=self.device).type_as(theta)
 
-        u = torch.zeros(x_init.shape[0], self.n_controls).type_as(x_init)
+        u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
 
         # Compute controller update frequency
         if controller_period is None:
@@ -623,7 +623,7 @@ class ControlAffineParameterAffineSystem(ABC):
                 th_sim[:, tstep, :] = theta_current
 
                 # Compute theta hat evolution
-                th_h_dot = torch.zeros(theta_hat_current.shape).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
+                th_h_dot = torch.zeros(theta_hat_current.shape, device=self.device).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
                 th_h_sim[:, tstep, :] = theta_hat_current + self.dt * th_h_dot
 
                 # If the guard is activated for any trajectory, reset that trajectory
@@ -743,7 +743,7 @@ class ControlAffineParameterAffineSystem(ABC):
         for param_index in range(self.n_params):
 
             theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
-            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls))
+            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls), device= self.device)
             G_i[:, :, :] = G[:, :, :, param_index]
             # Update g
             g_like = g_like + torch.mul(theta_i, G_i)
@@ -837,4 +837,4 @@ class ControlAffineParameterAffineSystem(ABC):
         # Get Lie Derivatives of stuff
         raise("Not yet implemented!") # TODO: Implement this function!
 
-        Gamma = torch.eye(n_dims)
+        Gamma = torch.eye(n_dims, device=self.device)
