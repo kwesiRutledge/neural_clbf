@@ -40,13 +40,14 @@ class TestStringMethods(unittest.TestCase):
             nominal_scenario,
             Theta1,
         )
-        x = torch.Tensor([0.1, 0.1, torch.pi/3])
+        x = torch.Tensor([0.1, 0.1, np.pi/3])
 
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
 
         p1 = plt.figure()  # This used to be created by plot, so we needed to check its type.
-        ps.plot(x, th)
+        ax = p1.add_subplot(111)
+        ps.plot_single(x, th, ax)
 
         self.assertEqual(type(p1), type(plt.figure()))
 
@@ -77,7 +78,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Get Initial Condition and Parameter
-        x = torch.Tensor([0.1, 0.1, torch.pi / 6])
+        x = torch.Tensor([0.1, 0.1, np.pi / 6])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
 
@@ -85,7 +86,8 @@ class TestStringMethods(unittest.TestCase):
 
         # Algorithm
         p2 = plt.figure()
-        ps.plot(x, th, hide_axes=False)
+        ax = p2.add_subplot(111)
+        ps.plot_single(x, th, ax, hide_axes=False)
 
         # Show contact point
         cp1 = ps.contact_point(x)
@@ -121,7 +123,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Get Initial Condition and Parameter
-        x = torch.Tensor([0.1, 0.1, torch.pi / 6])
+        x = torch.Tensor([0.1, 0.1, np.pi / 6])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
         print(th)
@@ -130,7 +132,8 @@ class TestStringMethods(unittest.TestCase):
 
         # Algorithm
         p3 = plt.figure()
-        ps.plot(x, th, hide_axes=False, current_force=f)
+        ax = p3.add_subplot(111)
+        ps.plot_single(x, th, ax, hide_axes=False, current_force=f)
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             # Only save if we are running from inside tests directory
@@ -157,11 +160,11 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create synthetic trajectory
-        x0 = torch.Tensor([[0.1, 0.1, torch.pi / 6]])
+        x0 = torch.Tensor([[0.1, 0.1, np.pi / 6]])
         N_traj = 100
         T_sim = 0.5
         x_trajectory = torch.Tensor(
-            [[t, t, (torch.pi/6)*t*3*2] for t in np.linspace(0, T_sim, N_traj+1)]
+            [[t, t, (np.pi/6)*t*3*2] for t in np.linspace(0, T_sim, N_traj+1)]
         )
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
@@ -169,6 +172,7 @@ class TestStringMethods(unittest.TestCase):
 
         # Animate
         fig = plt.figure()
+        ax = fig.add_subplot(111)
         filename = "figures/pusherslider-test_animate1.mp4"
         num_frames = N_traj
         max_t = T_sim
@@ -177,7 +181,7 @@ class TestStringMethods(unittest.TestCase):
         print("th: ", th)
 
         # Plot the initial state.
-        _, plot_objects = ps.plot(x0.flatten(), th, hide_axes=False, current_force=f0)
+        plot_objects = ps.plot_single(x0.flatten(), th, ax, hide_axes=False, current_force=f0)
 
         # This function will modify each of the values of the functions above.
         def update(frame_index):
@@ -237,16 +241,20 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create synthetic state, force trajectories
-        x0 = torch.Tensor([[0.1, 0.1, torch.pi / 6]])
+        x0 = torch.Tensor([[0.1, 0.1, np.pi / 6]])
         N_traj = 100
         T_sim = 0.5
         x_trajectory = torch.Tensor(
-            [[t, t, (torch.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
-        )
+            [[t, t, (np.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
+        ).T
+        x_trajectory = x_trajectory.reshape(1, x_trajectory.shape[0], x_trajectory.shape[1])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
+        th = th.unsqueeze(0)
+
         f0 = torch.Tensor([0.1, 0.0])
-        f_trajectory = torch.kron(torch.ones((N_traj+1, 1)), f0)
+        f_trajectory = torch.kron(torch.ones((N_traj+1, 1)), f0).T
+        f_trajectory = f_trajectory.unsqueeze(0)
 
         # Animate with function
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
@@ -254,7 +262,64 @@ class TestStringMethods(unittest.TestCase):
                 x_trajectory=x_trajectory,
                 th=th,
                 f_trajectory=f_trajectory,
+                hide_axes=False,
                 filename="figures/pusherslider-test_animate2.mp4",
+            )
+
+    """
+        test_save_animated_trajectory1
+        Description:
+            Tests whether or not this function will properly save video of two pusher-slider systems at once.
+        """
+
+    def test_save_animated_trajectory1(self):
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create synthetic state, force trajectories
+        x0 = torch.Tensor([[0.1, 0.1, np.pi / 6]])
+        N_traj = 100
+        T_sim = 0.5
+        batch_size = 2
+        x_trajectory = torch.zeros((batch_size, ps.n_dims, N_traj+1))
+        x_trajectory[0, :, :] = torch.Tensor(
+            [[t, t, (np.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
+        ).T
+        x_trajectory[1, :, :] = torch.Tensor(
+            [[t+0.5, t+0.5, (np.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
+        ).T
+        th = ps.sample_Theta_space(2)
+        th = torch.Tensor(th).reshape(2, 2)
+
+        f0 = torch.Tensor([0.1, 0.0])
+        f_trajectory = torch.zeros((batch_size, ps.n_controls, N_traj+1))
+        for batch_index in range(batch_size):
+            f_trajectory[batch_index, :, :] = torch.kron(torch.ones((N_traj + 1, 1)), f0).T
+
+        # Animate with function
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            ps.save_animated_trajectory(
+                x_trajectory=x_trajectory,
+                th=th,
+                f_trajectory=f_trajectory,
+                hide_axes=False,
+                filename="figures/pusherslider-test_save_animated_trajectory1.mp4",
             )
 
     def test_u_nominal1(self):
@@ -284,7 +349,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create nominal input
-        x0 = torch.Tensor([0.1, 0.1, torch.pi/2])
+        x0 = torch.Tensor([0.1, 0.1, np.pi/2])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th)
 
@@ -295,15 +360,17 @@ class TestStringMethods(unittest.TestCase):
 
         # Plot it
         fig = plt.figure()
-        ps.plot(
+        ax = fig.add_subplot(111)
+        ps.plot_single(
             x0, th.flatten(),
+            ax,
             limits=[[0.0, 0.6], [0.0, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
         )
         goal = ps.goal_point(th)
-        print("goal = ", goal)
-        print("goal[0, 0] = ", goal[0, 0])
+        # print("goal = ", goal)
+        # print("goal[0, 0] = ", goal[0, 0])
         plt.scatter(
             goal[0, 0], goal[0, 1],
             color="magenta",
@@ -341,7 +408,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create nominal input
-        x0 = torch.Tensor([0.6, 0.4, torch.pi / 2])
+        x0 = torch.Tensor([0.6, 0.4, np.pi / 2])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th)
 
@@ -352,15 +419,15 @@ class TestStringMethods(unittest.TestCase):
 
         # Plot it
         fig = plt.figure()
-        ps.plot(
+        ax = fig.add_subplot(111)
+        ps.plot_single(
             x0, th.flatten(),
+            ax,
             limits=[[0.4, 0.7], [0.3, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
         )
         goal = ps.goal_point(th)
-        print("goal = ", goal)
-        print("goal[0, 0] = ", goal[0, 0])
         plt.scatter(
             goal[0, 0], goal[0, 1],
             color="magenta",
@@ -398,7 +465,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create nominal input
-        x0 = torch.Tensor([0.52, 0.4, torch.pi / 2])
+        x0 = torch.Tensor([0.52, 0.4, np.pi / 2])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th)
 
@@ -409,15 +476,15 @@ class TestStringMethods(unittest.TestCase):
 
         # Plot it
         fig = plt.figure()
-        ps.plot(
+        ax = fig.add_subplot(111)
+        ps.plot_single(
             x0, th.flatten(),
+            ax,
             limits=[[0.4, 0.7], [0.3, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
         )
         goal = ps.goal_point(th)
-        print("goal = ", goal)
-        print("goal[0, 0] = ", goal[0, 0])
         plt.scatter(
             goal[0, 0], goal[0, 1],
             color="magenta",

@@ -493,7 +493,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         goal = self.goal_point(theta_hat)
 
         des_direction = goal - x
-        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) + (torch.pi/2 - s_th)
+        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) + (np.pi/2 - s_th)
 
         # Handle each case depending on where the desired motion vector is pointing.
         # 1. Vector points above upper friction cone vector
@@ -647,19 +647,22 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         return contact_point.T
 
-    """
-    plot
-    Description:
-        Plots the pusher-slider system in a 2d plot and returns the figure.
-    """
-    def plot(self, x: torch.Tensor, theta: torch.Tensor,
-             limits: Optional[List[List[float]]] = [[0.0, 0.3], [0.0, 0.3]],
-             hide_axes: bool = True,
-             equal_aspect: bool = True,
-             show_geometric_center: bool = False,
-             show_CoM: bool = True,
-             show_friction_cone_vectors: bool = True,
-             current_force: torch.Tensor = None) -> plt.Figure:
+
+    def plot_single(self,
+        x: torch.Tensor, theta: torch.Tensor,
+        ax: plt.Axes,
+        limits: Optional[List[List[float]]] = [[0.0, 0.3], [0.0, 0.3]],
+        hide_axes: bool = True,
+        equal_aspect: bool = True,
+        show_geometric_center: bool = False,
+        show_CoM: bool = True,
+        show_friction_cone_vectors: bool = True,
+        current_force: torch.Tensor = None) -> plt.Figure:
+        """
+        plot_single
+        Description:
+            Plots a single pusher-slider system in a 2d plot and returns the figure.
+        """
 
         # Input Checking
         assert (x.shape == (3,)), f"x must have shape ({self.n_dims},); received {x.shape}."
@@ -681,11 +684,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         CoM_x = theta[0]
         CoM_y = theta[1]
 
-
         # Setup Figure
         # =========
         fig = plt.gcf()
-        ax = fig.add_subplot(111)
+        # ax = fig.add_subplot(111)
         if hide_axes:
             ax.axis('off')
 
@@ -724,7 +726,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Plot Slider's Center of Mass
         if show_CoM:
-            th_in_contact_point_frame = s_th - torch.pi/2
+            th_in_contact_point_frame = s_th - np.pi/2
             rotation_matrix = torch.Tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -754,7 +756,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
                 norm_vec = torch.Tensor(vec) / torch.norm(torch.Tensor(vec))
                 scaled_vec = (s_length/2.0) * norm_vec
 
-                th_in_contact_point_frame = s_th - torch.pi / 2
+                th_in_contact_point_frame = s_th - np.pi / 2
                 rotation_matrix = torch.Tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -772,7 +774,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             norm_vec = torch.Tensor(current_force) / torch.norm(torch.Tensor(current_force))
             scaled_vec = (s_length/2.0) * norm_vec
 
-            th_in_contact_point_frame = s_th - torch.pi / 2
+            th_in_contact_point_frame = s_th - np.pi / 2
             rotation_matrix = torch.Tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -784,7 +786,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
                       color="green", width=0.001)
             plot_objects["current_force"] = cf_plot
 
-        return ax, plot_objects
+        return plot_objects
 
     def update_plot_objects(
             self,
@@ -829,7 +831,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Update Center of Mass
         cp = self.contact_point(x)
         if show_CoM:
-            th_in_contact_point_frame = s_th - torch.pi / 2
+            th_in_contact_point_frame = s_th - np.pi / 2
             rotation_matrix = torch.Tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -850,7 +852,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
                 norm_vec = torch.Tensor(vec) / torch.norm(torch.Tensor(vec))
                 scaled_vec = (s_length/2.0) * norm_vec
 
-                th_in_contact_point_frame = s_th - torch.pi / 2
+                th_in_contact_point_frame = s_th - np.pi / 2
                 rotation_matrix = torch.Tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -868,7 +870,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             norm_vec = torch.Tensor(current_force) / torch.norm(torch.Tensor(current_force))
             scaled_vec = (s_length/2.0) * norm_vec
 
-            th_in_contact_point_frame = s_th - torch.pi / 2
+            th_in_contact_point_frame = s_th - np.pi / 2
             rotation_matrix = torch.Tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -881,47 +883,79 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
                 dy = rotated_vec[1])
 
 
-    """
-    save_animated_trajectory
-    Description:
-        Animates a trajectory of the pusher-slider system.
-    Inputs:
-        x_trajectory: A tensor of shape (N_traj, 3) containing the trajectory of the system.
-        th: A tensor of shape (2,) containing the parameters of the system.
-        f_trajectory: A tensor of shape (N_traj, 2) containing the trajectory of the forces applied to the system.
-        filename: The name of the file to save the animation to.
-    """
+
     def save_animated_trajectory(
             self,
             x_trajectory: torch.Tensor,
             th: torch.Tensor,
             f_trajectory: torch.Tensor,
-            filename: str="pusherslider-animation1.mp4"):
+            limits: Optional[List[List[float]]] = None,
+            filename: str="pusherslider-animation1.mp4",
+            hide_axes: bool = True):
+        """
+        save_animated_trajectory
+        Description:
+            Animates a trajectory of the pusher-slider system.
+        Inputs:
+            x_trajectory: A bs x N_traj x 3 tensor containing the trajectory of the system.
+            th: A bs x 2 tensor containing the parameters of the system.
+            f_trajectory: A bs x (N_traj-1) x 2 tensor containing the trajectory of the forces applied to the system.
+            filename: The name of the file to save the animation to.
+        """
+        # Input Processing
+        assert len(x_trajectory.shape) == 3, f"x is of the wrong dimension. Received tensor of {len(x_trajectory.shape)} dimensions; expected 2."
+        assert x_trajectory.shape[1] == 3, f"Expected state tensor to have second dimension size 3; received {x_trajectory.shape[1]}."
+
+        assert x_trajectory.shape[0] == th.shape[0], f"The batch size of x ({x_trajectory.shape[0]}) is different from batch size of theta ({th.shape[0]})."
+        assert len(th.shape) == 2, f"theta is of the wrong dimension. Received tensor of {len(th.shape)} dimensions; expected 2."
+        assert th.shape[1] == 2, f"Expected parameter tensor to have second dimension of size 2; received {th.shape[1]}"
 
         # Constants
-        N_traj = x_trajectory.shape[0]
+        batch_size = x_trajectory.shape[0]
+        N_traj = x_trajectory.shape[2]
         num_frames = N_traj
         dt = self.dt
         max_t = num_frames * dt
         min_t = 0.0
 
+        # Create axis limits
+        if limits is None:
+            limits = []
+            x_buffer = self.s_width / 2.0
+            x_limits = [torch.min(x_trajectory[:, self.S_X, :]) - x_buffer, torch.max(x_trajectory[:, self.S_X, :]) + x_buffer]
+            limits.append(
+                x_limits
+            )
+
+            y_buffer = self.s_width / 2.0
+            y_limits = [torch.min(x_trajectory[:, self.S_Y, :] - y_buffer), torch.max(x_trajectory[:, self.S_Y, :]) + y_buffer]
+            limits.append(
+                y_limits
+            )
+            print(limits)
+
+            # End result should be a list of lists (e.g., [[0.0, 0.3], [0.0, 0.3]])
+
         # Create a figure and an axis.
         fig = plt.figure()
+        # ax = fig.add_subplot(111)
 
         # Plot the initial state.
-        x0 = x_trajectory[0, :]
-        f0 = f_trajectory[0, :]
-        _, plot_objects = self.plot(x0.flatten(), th, hide_axes=False, current_force=f0)
+        x0 = x_trajectory[:, :, 0]
+        f0 = f_trajectory[:, :, 0]
+        plot_collection = self.plot(x0, th, limits=limits, hide_axes=hide_axes, current_force=f0)
 
         # This function will modify each of the values of the functions above.
         def update(frame_index):
-            x_t = x_trajectory[frame_index, :]
-            f_t = f_trajectory[frame_index, :]
 
-            self.update_plot_objects(
-                plot_objects,
-                x_t.flatten(), th,
-                current_force=f_t.flatten())
+            for batch_index in range(batch_size):
+                x_t_bi = x_trajectory[batch_index, :, frame_index]
+                f_t_bi = f_trajectory[batch_index, :, frame_index]
+
+                self.update_plot_objects(
+                    plot_collection[batch_index],
+                    x_t_bi.flatten(), th[batch_index, :].flatten(),
+                    current_force=f_t_bi.flatten())
 
         # Construct the animation, using the update function as the animation
         # director.
@@ -930,3 +964,76 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             np.arange(0, num_frames), interval=5)
 
         animation.save(filename=filename, fps=15)
+
+
+    def plot(self, x: torch.Tensor, theta: torch.Tensor,
+             limits: Optional[List[List[float]]] = None,
+             hide_axes: bool = True,
+             ax: plt.Axes = None,
+             equal_aspect: bool = True,
+             show_geometric_center: bool = False,
+             show_CoM: bool = True,
+             show_friction_cone_vectors: bool = True,
+             current_force: torch.Tensor = None) -> List[plt.Figure]:
+        """
+        plot
+        Description
+            Plots all pusher sliders in the batch on screen (be careful with this!)
+            x: A bs x 3 tensor containing the trajectory of the system.
+            theta: A bs x 2 tensor containing the parameters of the system.
+        """
+
+        # Constants
+        batch_size = x.shape[0]
+
+        # Input Processing
+        assert len(x.shape) == 2, f"x is of the wrong dimension. Received tensor of {len(x.shape)} dimensions; expected 2."
+        assert x.shape[1] == 3, f"Expected state tensor to have second dimension size 3; received {x.shape[1]}."
+
+        assert x.shape[0] == theta.shape[0], f"The batch size of x ({x.shape[0]}) is different from batch size of theta ({theta.shape[0]})."
+
+        assert len(theta.shape) == 2, f"theta is of the wrong dimension. Received tensor of {len(theta.shape)} dimensions; expected 2."
+        assert theta.shape[1] == 2, f"Expected parameter tensor to have second dimension of size 2; received {theta.shape[1]}"
+
+        # Compute Axis Limits
+        # Compute Limits
+        if limits is None:
+            limits = []
+            x_buffer = self.s_width / 2.0
+            x_limits = [torch.min(x[:, self.S_X]) - x_buffer, torch.max(x[:, self.S_X]) + x_buffer]
+            limits.append(
+                x_limits
+            )
+
+            y_buffer = self.s_width / 2.0
+            y_limits = [torch.min(x[:, self.S_Y] - y_buffer), torch.max(x[:, self.S_Y]) + y_buffer]
+            limits.append(
+                y_limits
+            )
+
+            # End result should be a list of lists (e.g., [[0.0, 0.3], [0.0, 0.3]])
+
+        # Algorithm
+        fig = plt.gcf()
+        if ax is None:
+            ax = fig.add_subplot(111)
+
+        plot_objects_collection = []
+        for batch_index in range(batch_size):
+            x_bi = x[batch_index, :].flatten()
+            theta_bi = theta[batch_index, :].flatten()
+            f_bi = current_force[batch_index, :].flatten()
+
+            plot_objects_bi = self.plot_single(x_bi, theta_bi,
+                ax,
+                limits=limits, equal_aspect=equal_aspect,
+                hide_axes=hide_axes,
+                show_geometric_center=show_geometric_center,
+                show_CoM=show_CoM,
+                show_friction_cone_vectors=show_friction_cone_vectors,
+                current_force=f_bi,
+                        )
+
+            plot_objects_collection.append(plot_objects_bi)
+
+        return plot_objects_collection
