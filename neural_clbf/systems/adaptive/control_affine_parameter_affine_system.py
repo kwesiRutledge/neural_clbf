@@ -371,7 +371,7 @@ class ControlAffineParameterAffineSystem(ABC):
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
-        x = torch.Tensor(num_samples, self.n_dims, device=self.device).uniform_(0.0, 1.0)
+        x = torch.zeros((num_samples, self.n_dims), device=self.device).uniform_(0.0, 1.0)
         for i in range(self.n_dims):
             x[:, i] = x[:, i] * (x_max[i] - x_min[i]) + x_min[i]
 
@@ -381,7 +381,7 @@ class ControlAffineParameterAffineSystem(ABC):
         """Sample uniformly from the Theta space"""
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
-        return torch.Tensor(theta_samples_np.T, device=self.device)
+        return torch.tensor(theta_samples_np.T, device=self.device)
 
     def sample_with_mask(
         self,
@@ -595,7 +595,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
         th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
         th_h_samples = self.get_N_samples_from_polytope(self.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.Tensor(th_h_samples.T, device=self.device).type_as(theta)
+        th_h_sim[:, 0, :] = torch.tensor(th_h_samples.T, device=self.device).type_as(theta)
 
         u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
 
