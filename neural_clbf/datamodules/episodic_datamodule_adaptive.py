@@ -102,7 +102,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
 
         # Start by sampling from initial conditions from the given region
-        x_init = torch.Tensor(self.trajectories_per_episode, self.n_dims).uniform_(
+        x_init = torch.Tensor(self.trajectories_per_episode, self.n_dims, device=self.device).uniform_(
             0.0, 1.0
         )
         for i in range(self.n_dims):
@@ -112,7 +112,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Simulate each initial condition out for the specified number of steps
 
         theta_init = self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode)
-        theta_init = torch.Tensor(theta_init.T)
+        theta_init = torch.Tensor(theta_init.T, device=self.device)
         x_sim, theta_sim, theta_hat_sim = simulator(x_init, theta_init, self.trajectory_length)
 
         # Reshape the data into a single replay buffer
@@ -191,7 +191,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         theta_hat = torch.cat((theta_hat_sim, theta_hat_sample), dim=0)
 
         # Randomly split data into training and test sets
-        random_indices = torch.randperm(x.shape[0])
+        random_indices = torch.randperm(x.shape[0], device=self.device)
         val_pts = int(x.shape[0] * self.val_split)
         validation_indices = random_indices[:val_pts]
         training_indices = random_indices[val_pts:]
@@ -263,7 +263,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         print(f"Sampled {x.shape[0]} new states, {theta.shape[0]} true parameters and {theta_hat.shape[0]} new parameter estimates")
 
         # Randomly split data into training and test sets
-        random_indices = torch.randperm(x.shape[0])
+        random_indices = torch.randperm(x.shape[0], device=self.device)
         val_pts = int(x.shape[0] * self.val_split)
         validation_indices = random_indices[:val_pts]
         training_indices = random_indices[val_pts:]
