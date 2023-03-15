@@ -798,6 +798,9 @@ class ControlAffineParameterAffineSystem(ABC):
         Description:
             This function retrieves N samples from the polytope P.
             Used to more efficiently produce samples (only have to compute extremes once.)
+
+        Returns:
+            P.Dim x N_samples array containing all of the samples
         """
 
         # Compute V Representation
