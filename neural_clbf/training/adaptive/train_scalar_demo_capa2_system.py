@@ -118,7 +118,7 @@ def main(args):
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
-        trajectories_per_episode=0,
+        trajectories_per_episode=1,
         trajectory_length=1,
         fixed_samples=10000,
         max_points=100000,
@@ -171,7 +171,7 @@ def main(args):
         barrier=False,
         Gamma_factor=0.1,
     )
-    # aclbf_controller.to(device)
+    aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
