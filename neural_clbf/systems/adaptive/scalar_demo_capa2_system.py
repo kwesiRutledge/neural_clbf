@@ -415,7 +415,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
             # Otherwise, collect optimal input value
             u_T_opt = u_T.value
 
-            u[batch_idx, :] = torch.Tensor(u_T_opt[:n_controls])
+            u[batch_idx, :] = torch.tensor(u_T_opt[:n_controls], self.device)
             # self.dynamics_model.u_nominal(
             #     x_shifted.reshape(1, -1), track_zero_angle=False  # type: ignore
             # ).squeeze()

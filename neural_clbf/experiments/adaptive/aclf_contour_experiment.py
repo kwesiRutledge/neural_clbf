@@ -40,6 +40,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         plot_unsafe_region: bool = True,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
+        device: str = "cpu",
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
         state dimensions.
@@ -125,7 +126,7 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         # Default state is all zeros if no default provided
         if self.default_state is None:
-            default_state = torch.zeros(1, controller_under_test.dynamics_model.n_dims)
+            default_state = torch.zeros(1, controller_under_test.dynamics_model.n_dims, device=device)
         else:
             default_state = self.default_state
 
@@ -134,7 +135,8 @@ class AdaptiveCLFContourExperiment(Experiment):
         # Default estimate is all zeros if no default provided
         if self.default_param_estimate is None:
             default_param_estimate = torch.Tensor(
-                system.get_N_samples_from_polytope(system.Theta, 1).T
+                system.get_N_samples_from_polytope(system.Theta, 1).T,
+                device=device,
             )
         else:
             default_param_estimate = self.default_param_estimate

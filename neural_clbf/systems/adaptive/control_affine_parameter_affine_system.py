@@ -142,11 +142,11 @@ class ControlAffineParameterAffineSystem(ABC):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Compute the continuous time linear dynamics matrices, dx/dt = Ax + Bu"""
         A = self.compute_A_matrix(
-            torch.Tensor(self.theta, device=self.device).reshape((1, self.n_params)),
+            torch.Tensor(self.theta).to(self.device).reshape((1, self.n_params)),
             scenario,
         )
         B = self.compute_B_matrix(
-            torch.Tensor(self.theta, device=self.device).reshape((1, self.n_params)),
+            torch.Tensor(self.theta).to(self.device).reshape((1, self.n_params)),
             scenario,
         )
 
