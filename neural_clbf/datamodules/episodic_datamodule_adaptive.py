@@ -111,10 +111,10 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Simulate each initial condition out for the specified number of steps
 
-        theta_init = torch.zeros((self.model.n_params, self.trajectories_per_episode), device=self.device)
+        theta_init = torch.zeros((self.trajectories_per_episode, self.model.n_params), device=self.device)
         if self.trajectories_per_episode > 0:
             theta_init[:, :] = torch.tensor(
-                self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode)
+                self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode).T
             )
         x_sim, theta_sim, theta_hat_sim = simulator(x_init, theta_init, self.trajectory_length)
 
