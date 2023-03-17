@@ -89,7 +89,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         self.device = device
 
         # Then initialize
-        super().__init__(nominal_scenario, Theta, dt, controller_dt)
+        super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
 
         self.scenarios = scenarios
 
@@ -134,7 +134,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         system
         """
         # Define Upper and lower values
-        upper_limit = torch.ones(self.n_dims)
+        upper_limit = torch.ones(self.n_dims, device=self.device)
         upper_limit[ScalarCAPA2Demo.X_DEMO] = 10.0
 
         lower_limit = -1.0 * upper_limit
@@ -148,7 +148,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        upper_limit = 10 * torch.ones(ScalarCAPA2Demo.N_CONTROLS)
+        upper_limit = 10 * torch.ones(ScalarCAPA2Demo.N_CONTROLS).cpu()
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
@@ -167,7 +167,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         wall_pos = self.nominal_scenario["wall_position"]
 
         # Algorithm
-        safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
+        safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
 
         safe_mask.logical_and_(wall_pos <= x[:, 0])
 
@@ -187,7 +187,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         wall_pos = self.nominal_scenario["wall_position"]
 
         # Algorithm
-        unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
+        unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool).to(self.device)
 
         unsafe_mask.logical_and_(wall_pos > x[:, 0])
 
@@ -217,13 +217,13 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         bs = theta.shape[0]
 
         # Algorithm
-        goal = torch.zeros((bs, self.n_dims))
+        goal = torch.zeros(bs, self.n_dims, device=self.device)
         goal[0, 0] = 0.0
         return goal
 
     @property
     def u_eq(self):
-        return torch.zeros((1, self.n_controls))
+        return torch.zeros((1, self.n_controls)).to(self.device)
 
     def _f(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
         """
@@ -238,7 +238,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        f = torch.zeros((batch_size, self.n_dims, 1))
+        f = torch.zeros(
+            (batch_size, self.n_dims, 1),
+            device=self.device,
+        )
         p_demo = x[:, ScalarCAPA2Demo.P_DEMO]
 
         # Algorithm
@@ -259,7 +262,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        F = torch.zeros((batch_size, self.n_dims, self.n_params))
+        F = torch.zeros(
+            (batch_size, self.n_dims, self.n_params),
+            device=self.device,
+        )
         p_demo = x[:, ScalarCAPA2Demo.P_DEMO]
 
         # Algorithm
@@ -280,7 +286,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        g = torch.zeros((batch_size, self.n_dims, self.n_controls))
+        g = torch.zeros(
+            (batch_size, self.n_dims, self.n_controls),
+            device=self.device,
+        )
         g = g.type_as(x)
 
         # Algorithm
@@ -301,7 +310,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        G = torch.zeros((batch_size, self.n_dims, self.n_controls, self.n_params))
+        G = torch.zeros(
+            (batch_size, self.n_dims, self.n_controls, self.n_params),
+            device=self.device,
+        )
 
         # Algorithm
         G[:, ScalarCAPA2Demo.X_DEMO, ScalarCAPA2Demo.U_DEMO, ScalarCAPA2Demo.P_DEMO] = 1.0
@@ -369,7 +381,10 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         # Solve the MPC problem for each element of the batch
         batch_size = x.shape[0]
-        u = torch.zeros(batch_size, n_controls).type_as(x)
+        u = torch.zeros(
+            (batch_size, n_controls),
+            device=self.device,
+        ).type_as(x)
         goal_x = np.array([[0.0]])
         for batch_idx in range(batch_size):
             batch_x = x[batch_idx, :n_dims].cpu().detach().numpy()
@@ -400,7 +415,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
             # Otherwise, collect optimal input value
             u_T_opt = u_T.value
 
-            u[batch_idx, :] = torch.Tensor(u_T_opt[:n_controls])
+            u[batch_idx, :] = torch.tensor(u_T_opt[:n_controls], self.device)
             # self.dynamics_model.u_nominal(
             #     x_shifted.reshape(1, -1), track_zero_angle=False  # type: ignore
             # ).squeeze()

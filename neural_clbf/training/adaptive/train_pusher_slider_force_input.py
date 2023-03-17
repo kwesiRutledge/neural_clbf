@@ -60,9 +60,9 @@ def create_training_hyperparams()-> Dict:
     device = "cpu"
     if torch.cuda.is_available():
         device = "cuda"
-    elif torch.backends.mps.is_available():
-        #device = "mps"
-        device = "cpu"
+    # elif torch.backends.mps.is_available():
+    #     #device = "mps"
+    #     device = "cpu"
 
     nominal_scenario = {
         "obstacle_center_x": 0.0,
@@ -85,7 +85,7 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 11,
+        "max_epochs": 91,
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "n_fixed_samples": 90000,
@@ -102,6 +102,9 @@ def create_training_hyperparams()-> Dict:
         "device": device,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
+
+    # Set default datatype
+    torch.set_default_dtype(torch.float64)
 
     return hyperparams_for_evaluation
 
