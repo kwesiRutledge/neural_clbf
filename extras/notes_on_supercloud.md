@@ -62,5 +62,5 @@ LLsub -i -s 20 -g volta:1
 It looks like we can guarantee that the python script uses devices using this
 
 ```bash
-python train_scalar_demo_capa2_system.py --accelerator 'gpu' --devices 2
+python train_scalar_demo_capa2_system.py --gpus 1
 ```

@@ -186,7 +186,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
             # Get feedback matrix
             K_np = lqr(A, B, Q, R)
-            self.K = torch.tensor(K_np, device=self.device)
+            self.K = torch.tensor(K_np, dtype=torch.float64, device=self.device)
 
             Acl_list.append(Act - Bct @ K_np)
 
@@ -371,7 +371,7 @@ class ControlAffineParameterAffineSystem(ABC):
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
-        x = torch.zeros((num_samples, self.n_dims), device=self.device).uniform_(0.0, 1.0)
+        x = torch.zeros((num_samples, self.n_dims), device=self.device, dtype=torch.float64).uniform_(0.0, 1.0)
         for i in range(self.n_dims):
             x[:, i] = x[:, i] * (x_max[i] - x_min[i]) + x_min[i]
 
@@ -381,7 +381,7 @@ class ControlAffineParameterAffineSystem(ABC):
         """Sample uniformly from the Theta space"""
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
-        return torch.tensor(theta_samples_np.T, device=self.device)
+        return torch.tensor(theta_samples_np.T, device=self.device, dtype=torch.float64)
 
     def sample_with_mask(
         self,
@@ -587,17 +587,17 @@ class ControlAffineParameterAffineSystem(ABC):
         # )
 
         # Set up Simulator Variables
-        x_sim = torch.zeros(batch_size, num_steps, self.n_dims, device=self.device).type_as(x_init)
+        x_sim = torch.zeros(batch_size, num_steps, self.n_dims, device=self.device, dtype=torch.float64).type_as(x_init)
         x_sim[:, 0, :] = x_init
 
-        th_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
+        th_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device, dtype=torch.float64).type_as(theta)
         th_sim[:, 0, :] = theta
 
-        th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
+        th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device, dtype=torch.float64).type_as(theta)
         th_h_samples = self.get_N_samples_from_polytope(self.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.tensor(th_h_samples.T, device=self.device).type_as(theta)
+        th_h_sim[:, 0, :] = torch.tensor(th_h_samples.T, device=self.device, dtype=torch.float64).type_as(theta)
 
-        u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
+        u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device, dtype=torch.float64).type_as(x_init)
 
         # Compute controller update frequency
         if controller_period is None:
@@ -623,7 +623,7 @@ class ControlAffineParameterAffineSystem(ABC):
                 th_sim[:, tstep, :] = theta_current
 
                 # Compute theta hat evolution
-                th_h_dot = torch.zeros(theta_hat_current.shape, device=self.device).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
+                th_h_dot = torch.zeros(theta_hat_current.shape, device=self.device, dtype=torch.float64).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
                 th_h_sim[:, tstep, :] = theta_hat_current + self.dt * th_h_dot
 
                 # If the guard is activated for any trajectory, reset that trajectory

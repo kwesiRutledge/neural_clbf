@@ -198,7 +198,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         obst_center_x = self.nominal_scenario["obstacle_center_x"]
         obst_center_y = self.nominal_scenario["obstacle_center_y"]
 
-        obst_center = torch.Tensor(
+        obst_center = torch.tensor(
             [obst_center_x, obst_center_y]
         ).to(self.device)
         obst_radius = self.nominal_scenario["obstacle_radius"]
@@ -231,7 +231,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         obst_center_x = self.nominal_scenario["obstacle_center_x"]
         obst_center_y = self.nominal_scenario["obstacle_center_y"]
 
-        obst_center = torch.Tensor(
+        obst_center = torch.tensor(
             [obst_center_x, obst_center_y]
         ).to(self.device)
         obst_radius = self.nominal_scenario["obstacle_radius"]
@@ -332,7 +332,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Sample States
         x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
-        x_unsafe = torch.Tensor(x_unsafe_np.T).to(self.device)
+        x_unsafe = torch.tensor(x_unsafe_np.T).to(self.device)
 
         theta_unsafe = self.sample_Theta_space(num_samples)
 
@@ -642,8 +642,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         s_th = x[2]
 
         # Compute contact point
-        rot2 = torch.Tensor([[np.cos(s_th), -np.sin(s_th)], [np.sin(s_th), np.cos(s_th)]])
-        contact_point = torch.Tensor([[s_x], [s_y]]) + rot2 @ torch.Tensor([[-self.s_length/2], [0]])
+        rot2 = torch.tensor([[np.cos(s_th), -np.sin(s_th)], [np.sin(s_th), np.cos(s_th)]])
+        contact_point = torch.tensor([[s_x], [s_y]]) + rot2 @ torch.tensor([[-self.s_length/2], [0]])
 
         return contact_point.T
 
@@ -727,11 +727,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Plot Slider's Center of Mass
         if show_CoM:
             th_in_contact_point_frame = s_th - np.pi/2
-            rotation_matrix = torch.Tensor([
+            rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
             ])
-            CoM = cp.T + rotation_matrix @ torch.Tensor([[CoM_x], [CoM_y]])
+            CoM = cp.T + rotation_matrix @ torch.tensor([[CoM_x], [CoM_y]])
 
             CoM_plot = plt.scatter(CoM[0, 0], CoM[1, 0], color='red', s=10)
             plot_objects["CoM"] = CoM_plot
@@ -753,11 +753,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             # Plot Friction Cone Vectors
             plot_objects["friction_cone_vectors"] = []
             for i, vec in enumerate(friction_cone_vectors):
-                norm_vec = torch.Tensor(vec) / torch.norm(torch.Tensor(vec))
+                norm_vec = torch.tensor(vec) / torch.norm(torch.tensor(vec))
                 scaled_vec = (s_length/2.0) * norm_vec
 
                 th_in_contact_point_frame = s_th - np.pi / 2
-                rotation_matrix = torch.Tensor([
+                rotation_matrix = torch.tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
                 ])
@@ -771,11 +771,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Plot Current Force
         if current_force is not None:
             # Normalize and plot vector of force
-            norm_vec = torch.Tensor(current_force) / torch.norm(torch.Tensor(current_force))
+            norm_vec = torch.tensor(current_force) / torch.norm(torch.tensor(current_force))
             scaled_vec = (s_length/2.0) * norm_vec
 
             th_in_contact_point_frame = s_th - np.pi / 2
-            rotation_matrix = torch.Tensor([
+            rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
             ])
@@ -832,11 +832,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         cp = self.contact_point(x)
         if show_CoM:
             th_in_contact_point_frame = s_th - np.pi / 2
-            rotation_matrix = torch.Tensor([
+            rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
             ])
-            CoM = cp.T + rotation_matrix @ torch.Tensor([[CoM_x], [CoM_y]])
+            CoM = cp.T + rotation_matrix @ torch.tensor([[CoM_x], [CoM_y]])
             plot_objects["CoM"].set_offsets((CoM[0, 0], CoM[1, 0]))
 
         # Update Pusher
@@ -849,11 +849,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
             # Plot Friction Cone Vectors
             for i, vec in enumerate(friction_cone_vectors):
-                norm_vec = torch.Tensor(vec) / torch.norm(torch.Tensor(vec))
+                norm_vec = torch.tensor(vec) / torch.norm(torch.tensor(vec))
                 scaled_vec = (s_length/2.0) * norm_vec
 
                 th_in_contact_point_frame = s_th - np.pi / 2
-                rotation_matrix = torch.Tensor([
+                rotation_matrix = torch.tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
                 ])
@@ -867,11 +867,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Update Current Force
         if current_force is not None:
             # Normalize and plot vector of force
-            norm_vec = torch.Tensor(current_force) / torch.norm(torch.Tensor(current_force))
+            norm_vec = torch.tensor(current_force) / torch.norm(torch.tensor(current_force))
             scaled_vec = (s_length/2.0) * norm_vec
 
             th_in_contact_point_frame = s_th - np.pi / 2
-            rotation_matrix = torch.Tensor([
+            rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
             ])

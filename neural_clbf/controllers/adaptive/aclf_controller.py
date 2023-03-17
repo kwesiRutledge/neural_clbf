@@ -220,6 +220,9 @@ class aCLFController(Controller):
 
     def V(self, x: torch.Tensor, theta_hat: torch.Tensor) -> torch.Tensor:
         """Compute the value of the CLF"""
+        print("x.dtype = ", x.dtype)
+        print("theta_hat.dtype = ", theta_hat.dtype)
+
         V, _, _ = self.V_with_jacobian(x, theta_hat)
         return V
 
