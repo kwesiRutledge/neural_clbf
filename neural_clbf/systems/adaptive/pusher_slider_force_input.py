@@ -332,9 +332,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Sample States
         x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
-        x_unsafe = torch.tensor(x_unsafe_np.T).to(self.device)
+        x_unsafe = torch.tensor(x_unsafe_np.T)
 
-        theta_unsafe = self.sample_Theta_space(num_samples)
+        theta_unsafe_np = self.sample_Theta_space(num_samples)
+        theta_unsafe = torch.tensor(theta_unsafe_np)
 
         xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
 
@@ -753,7 +754,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             # Plot Friction Cone Vectors
             plot_objects["friction_cone_vectors"] = []
             for i, vec in enumerate(friction_cone_vectors):
-                norm_vec = torch.tensor(vec) / torch.norm(torch.tensor(vec))
+                vec_clone = vec.clone().detach()
+                norm_vec = vec_clone / torch.norm(vec_clone)
                 scaled_vec = (s_length/2.0) * norm_vec
 
                 th_in_contact_point_frame = s_th - np.pi / 2
@@ -771,7 +773,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Plot Current Force
         if current_force is not None:
             # Normalize and plot vector of force
-            norm_vec = torch.tensor(current_force) / torch.norm(torch.tensor(current_force))
+            current_force_clone = current_force.clone().detach()
+            norm_vec = current_force_clone / torch.norm(current_force_clone)
             scaled_vec = (s_length/2.0) * norm_vec
 
             th_in_contact_point_frame = s_th - np.pi / 2
@@ -849,7 +852,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
             # Plot Friction Cone Vectors
             for i, vec in enumerate(friction_cone_vectors):
-                norm_vec = torch.tensor(vec) / torch.norm(torch.tensor(vec))
+                vec_clone = vec.clone().detach()
+                norm_vec = vec_clone / torch.norm(vec_clone)
                 scaled_vec = (s_length/2.0) * norm_vec
 
                 th_in_contact_point_frame = s_th - np.pi / 2
@@ -867,7 +871,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Update Current Force
         if current_force is not None:
             # Normalize and plot vector of force
-            norm_vec = torch.tensor(current_force) / torch.norm(torch.tensor(current_force))
+            current_force_clone = current_force.clone().detach()
+            norm_vec = current_force_clone / torch.norm(current_force_clone)
             scaled_vec = (s_length/2.0) * norm_vec
 
             th_in_contact_point_frame = s_th - np.pi / 2
@@ -979,8 +984,9 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         plot
         Description
             Plots all pusher sliders in the batch on screen (be careful with this!)
-            x: A bs x 3 tensor containing the trajectory of the system.
-            theta: A bs x 2 tensor containing the parameters of the system.
+            x:              A bs x 3 tensor containing the states of bs systems.
+            theta:          A bs x 2 tensor containing the parameters of bs systems.
+            current_force:  A bs x ps.num_controls tensor containing the inputs of bs systems.
         """
 
         # Constants

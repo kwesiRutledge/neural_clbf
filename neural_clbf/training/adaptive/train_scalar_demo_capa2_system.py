@@ -64,10 +64,11 @@ def create_hyperparam_struct()-> Dict:
         "clf_lambda": 1.0,
         # Training Parameters
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
+        "use_oracle": False,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
-        "max_epochs": 11,
+        "max_epochs": 6,
         # Device
         "accelerator": accelerator_name,
     }
@@ -124,7 +125,7 @@ def main(args):
         trajectories_per_episode=1,
         trajectory_length=1,
         fixed_samples=10000,
-        max_points= 100000,
+        max_points=100000,
         val_split=0.1,
         batch_size=batch_size,
         quotas=hyperparams["sample_quotas"],
@@ -173,6 +174,7 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
         Gamma_factor=0.1,
+        include_oracle_loss=hyperparams["use_oracle"],
     )
     aclbf_controller.to(device)
 
@@ -190,6 +192,9 @@ def main(args):
     trainer = pl.Trainer(
         logger=tb_logger,
         max_epochs=hyperparams["max_epochs"],
+        # reload_dataloaders_every_n_epochs=1,
+        val_check_interval=1.0,
+        log_every_n_steps=1,
         accelerator=hyperparams["accelerator"],
     )
 
@@ -211,10 +216,10 @@ def main(args):
         "/version_" + str(tb_logger.version) + "/Vnn.pt"
     )
 
-    for layer in aclbf_controller.V_nn:
-        print(layer)
-        if isinstance(layer, torch.nn.Linear):
-            print(layer.weight)
+    # for layer in aclbf_controller.V_nn:
+    #     print(layer)
+    #     if isinstance(layer, torch.nn.Linear):
+    #         print(layer.weight)
 
     # Record Hyperparameters in small pytorch format
     torch.save(

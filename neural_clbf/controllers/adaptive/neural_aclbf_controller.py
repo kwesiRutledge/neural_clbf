@@ -59,7 +59,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         normalize_V_nominal: bool = False,
         saved_Vnn: torch.nn.Sequential = None,
         Gamma_factor: float = None,
-        include_oracle_loss: bool = False,
+        include_oracle_loss: bool = True,
     ):
         """Initialize the controller.
 
@@ -172,6 +172,10 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             for layer_idx in range(len(saved_Vnn)):
                 if isinstance(saved_Vnn[layer_idx], nn.Linear):
                     self.V_nn[layer_idx].weight = saved_Vnn[layer_idx].weight
+
+        # Define training outputs for convenient passing of data during on_train_epoch_end()
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
 
     def prepare_data(self):
         return self.datamodule.prepare_data()
@@ -708,13 +712,6 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         component_losses.update(
             self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
         )
-        # component_losses.update(
-        #     self.oracle_descent_loss(
-        #         x, theta_hat, theta,
-        #         goal_mask, safe_mask, unsafe_mask,
-        #         requires_grad=True,
-        #     )
-        # )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0).type_as(x)
@@ -725,21 +722,26 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         batch_dict = {"loss": total_loss, **component_losses}
 
+        self.training_step_outputs.append(batch_dict)
+
         return batch_dict
 
-    def on_train_epoch_end(self, outputs):
+    def on_train_epoch_end(self):
         """
         Description
             This function is called after every epoch is completed.
         """
-        # Outputs contains a list for each optimizer, and we need to collect the losses
-        # from all of them if there is a nested list
-        if isinstance(outputs[0], list):
-            outputs = itertools.chain(*outputs)
+        # # Outputs contains a list for each optimizer, and we need to collect the losses
+        # # from all of them if there is a nested list
+        # if isinstance(outputs[0], list):
+        #     outputs = itertools.chain(*outputs)
+
+        # batch_dict = self.training_step_outputs[0]
+        # print(batch_dict)
 
         # Gather up all of the losses for each component from all batches
         losses = {}
-        for batch_output in outputs:
+        for batch_output in self.training_step_outputs:
             for key in batch_output.keys():
                 # if we've seen this key before, add this component loss to the list
                 if key in losses:
@@ -764,6 +766,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             # Log the other losses
             self.log(loss_key + " / train", avg_losses[loss_key], sync_dist=True)
 
+        # Free memory
+        self.training_step_outputs.clear()
+
     def validation_step(self, batch, batch_idx):
         """Conduct the validation step for the given batch"""
         # Extract the input and masks from the batch
@@ -771,6 +776,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         # Get the various losses
         component_losses = {}
+        component_losses.update(self.initial_loss(x, theta_hat))
         component_losses.update(
             self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
         )
@@ -793,13 +799,14 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         batch_dict = {"val_loss": total_loss, **component_losses}
 
-        return batch_dict
+        self.validation_step_outputs.append(batch_dict)
 
-    def on_validation_epoch_end(self, outputs):
-        """This function is called after every epoch is completed."""
+    # def on_validation_epoch_end(self):
+    #     """This function is called after every epoch is completed."""
+
         # Gather up all of the losses for each component from all batches
         losses = {}
-        for batch_output in outputs:
+        for batch_output in self.validation_step_outputs:
             for key in batch_output.keys():
                 # if we've seen this key before, add this component loss to the list
                 if key in losses:
@@ -816,6 +823,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         # Log the overall loss...
         self.log("Total loss / val", avg_losses["val_loss"], sync_dist=True)
+        # self.logger.log_metrics(
+        #     {"Total loss / val", avg_losses["val_loss"]},
+        # )
         # And all component losses
         for loss_key in avg_losses.keys():
             # We already logged overall loss, so skip that here
@@ -834,6 +844,11 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         self.experiment_suite.run_all_and_log_plots(
             self, self.logger, self.current_epoch
         )
+
+        # Free memory
+        self.validation_step_outputs.clear()
+
+        return batch_dict
 
     #@pl.core.decorators.auto_move_data
     def simulator_fn(

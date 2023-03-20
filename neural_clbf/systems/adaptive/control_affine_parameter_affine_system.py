@@ -396,7 +396,12 @@ class ControlAffineParameterAffineSystem(ABC):
         return x
 
     def sample_Theta_space(self, num_samples: int) -> torch.Tensor:
-        """Sample uniformly from the Theta space"""
+        """
+        Description:
+            Sample uniformly from the Theta space
+        Outputs:
+            theta_samples: self.n_params x N_samples
+        """
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
         if torch.get_default_dtype() == torch.float32:

@@ -55,11 +55,12 @@ def create_training_hyperparams()-> Dict:
     )
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
-    device = "cpu"
+    accelerator = "cpu"
     if torch.cuda.is_available():
-        device = "cuda"
+        accelerator = "cuda"
     elif torch.backends.mps.is_available():
-        device = "mps"
+        # device = "mps"
+        accelerator = "cpu"
 
     nominal_scenario = {
         "obstacle_center_x": 0.25,
@@ -85,6 +86,8 @@ def create_training_hyperparams()-> Dict:
         # Training parameters
         "max_epochs": 16,
         "n_fixed_samples": 10000,
+        "accelerator": accelerator,
+        "use_oracle_loss": True,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
@@ -94,7 +97,6 @@ def create_training_hyperparams()-> Dict:
         "pt_manual_seed": 30,
         "np_manual_seed": 51,
         # Device
-        "device": device,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
 
@@ -109,7 +111,7 @@ def main(args):
     # Set Constants
     torch.manual_seed(t_hyper["pt_manual_seed"])
     np.random.seed(t_hyper["np_manual_seed"])
-    device = torch.device(t_hyper["device"])
+    device = torch.device(t_hyper["accelerator"])
 
     # Define the scenarios
     scenarios = [
@@ -210,19 +212,21 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
         Gamma_factor=t_hyper["Gamma_factor"],
+        include_oracle_loss=t_hyper["use_oracle_loss"],
     )
-    #aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
     )
-    trainer = pl.Trainer.from_argparse_args(
-        args,
+    trainer = pl.Trainer(
         logger=tb_logger,
-        reload_dataloaders_every_epoch=True,
+        # reload_dataloaders_every_epoch=True,
         max_epochs=t_hyper["max_epochs"],
+        val_check_interval=1.0,
+        log_every_n_steps=1,
+        accelerator=t_hyper["accelerator"],
     )
 
     # Train
@@ -267,7 +271,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser = pl.Trainer.add_argparse_args(parser)
+    # parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
 
     main(args)
