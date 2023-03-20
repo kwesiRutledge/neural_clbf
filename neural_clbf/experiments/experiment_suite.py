@@ -9,7 +9,7 @@ from matplotlib.pyplot import figure
 import matplotlib.pyplot as plt
 import matplotlib
 import pandas as pd
-from pytorch_lightning.loggers import LightningLoggerBase
+from pytorch_lightning.loggers import Logger
 
 from .experiment import Experiment
 
@@ -100,7 +100,7 @@ class ExperimentSuite(object):
     def run_all_and_log_plots(
         self,
         controller_under_test: "Controller",
-        logger: LightningLoggerBase,
+        logger: Logger,
         log_epoch: int,
         plot_tag: Optional[str] = None,
     ):

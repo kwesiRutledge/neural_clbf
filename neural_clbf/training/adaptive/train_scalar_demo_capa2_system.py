@@ -32,9 +32,12 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct()-> Dict:
     # Device declaration
-    device = "cpu"
+    accelerator_name = "cpu"
     if torch.cuda.is_available():
-        device = "cuda"
+        accelerator_name = "cuda"
+    elif torch.backends.mps.is_available():
+        #accelerator_name = "mps"
+        accelerator_name = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -46,7 +49,7 @@ def create_hyperparam_struct()-> Dict:
             [-0.5],
             [-0.7]
         ]
-    ).to(device)
+    ).to(accelerator_name)
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -61,12 +64,13 @@ def create_hyperparam_struct()-> Dict:
         "clf_lambda": 1.0,
         # Training Parameters
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
+        "use_oracle": False,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
-        "max_epochs": 11,
+        "max_epochs": 6,
         # Device
-        "device": device,
+        "accelerator": accelerator_name,
     }
 
     return hyperparams_for_evaluation
@@ -81,7 +85,7 @@ def main(args):
 
     hyperparams = create_hyperparam_struct()
 
-    device = torch.device(hyperparams["device"])
+    device = torch.device(hyperparams["accelerator"])
 
     batch_size = hyperparams["batch_size"]
     controller_period = hyperparams["controller_period"]
@@ -108,7 +112,7 @@ def main(args):
         dt=simulation_dt,
         controller_dt=controller_period,
         scenarios=scenarios,
-        device=hyperparams["device"],
+        device=hyperparams["accelerator"],
     )
 
     # Initialize the DataModule
@@ -125,7 +129,7 @@ def main(args):
         val_split=0.1,
         batch_size=batch_size,
         quotas=hyperparams["sample_quotas"],
-        device=hyperparams["device"],
+        device=hyperparams["accelerator"],
         # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
@@ -170,6 +174,7 @@ def main(args):
         epochs_per_episode=100,
         barrier=False,
         Gamma_factor=0.1,
+        include_oracle_loss=hyperparams["use_oracle"],
     )
     aclbf_controller.to(device)
 
@@ -178,11 +183,19 @@ def main(args):
         "logs/scalar_demo_capa2_system",
         name=f"commit_{current_git_hash()}",
     )
-    trainer = pl.Trainer.from_argparse_args(
-        args,
+    # trainer = pl.Trainer.from_argparse_args(
+    #     args,
+    #     logger=tb_logger,
+    #     reload_dataloaders_every_epoch=True,
+    #     max_epochs=hyperparams["max_epochs"],
+    # )
+    trainer = pl.Trainer(
         logger=tb_logger,
-        reload_dataloaders_every_epoch=True,
         max_epochs=hyperparams["max_epochs"],
+        # reload_dataloaders_every_n_epochs=1,
+        val_check_interval=1.0,
+        log_every_n_steps=1,
+        accelerator=hyperparams["accelerator"],
     )
 
     # Train
@@ -203,10 +216,10 @@ def main(args):
         "/version_" + str(tb_logger.version) + "/Vnn.pt"
     )
 
-    for layer in aclbf_controller.V_nn:
-        print(layer)
-        if isinstance(layer, torch.nn.Linear):
-            print(layer.weight)
+    # for layer in aclbf_controller.V_nn:
+    #     print(layer)
+    #     if isinstance(layer, torch.nn.Linear):
+    #         print(layer.weight)
 
     # Record Hyperparameters in small pytorch format
     torch.save(
@@ -230,7 +243,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser = pl.Trainer.add_argparse_args(parser)
+    # parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
 
     main(args)

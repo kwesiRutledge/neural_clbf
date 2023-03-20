@@ -57,9 +57,9 @@ def create_training_hyperparams()-> Dict:
     )
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
-    device = "cpu"
+    accelerator_name = "cpu"
     if torch.cuda.is_available():
-        device = "cuda"
+        accelerator_name = "cuda"
     # elif torch.backends.mps.is_available():
     #     #device = "mps"
     #     device = "cpu"
@@ -99,12 +99,12 @@ def create_training_hyperparams()-> Dict:
         "pt_manual_seed": 30,
         "np_manual_seed": 51,
         # Device
-        "device": device,
+        "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
 
     # Set default datatype
-    torch.set_default_dtype(torch.float64)
+    # torch.set_default_dtype(torch.float64)
 
     return hyperparams_for_evaluation
 
@@ -117,7 +117,7 @@ def main(args):
     # Set Constants
     torch.manual_seed(t_hyper["pt_manual_seed"])
     np.random.seed(t_hyper["np_manual_seed"])
-    device = torch.device(t_hyper["device"])
+    device = torch.device(t_hyper["accelerator"])
 
     # Define the scenarios
     scenarios = [
@@ -235,11 +235,16 @@ def main(args):
         "logs/pusher_slider_sticking_force_input",
         name=f"commit_{current_git_hash()}",
     )
-    trainer = pl.Trainer.from_argparse_args(
-        args,
+    # trainer = pl.Trainer.from_argparse_args(
+    #     args,
+    #     logger=tb_logger,
+    #     reload_dataloaders_every_epoch=True,
+    #     max_epochs=t_hyper["max_epochs"],
+    # )
+    trainer = pl.Trainer(
         logger=tb_logger,
-        reload_dataloaders_every_epoch=True,
         max_epochs=t_hyper["max_epochs"],
+        accelerator=t_hyper["accelerator"],
     )
 
     # Train
@@ -283,7 +288,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser = pl.Trainer.add_argparse_args(parser)
+    # parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
 
     main(args)

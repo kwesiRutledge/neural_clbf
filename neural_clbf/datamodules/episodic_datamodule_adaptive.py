@@ -115,7 +115,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         if self.trajectories_per_episode > 0:
             theta_init[:, :] = torch.tensor(
                 self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode).T
-            )
+            ).type_as(x_init)
         x_sim, theta_sim, theta_hat_sim = simulator(x_init, theta_init, self.trajectory_length)
 
         # Reshape the data into a single replay buffer

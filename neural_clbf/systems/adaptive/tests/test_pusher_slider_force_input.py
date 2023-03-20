@@ -139,6 +139,206 @@ class TestStringMethods(unittest.TestCase):
             # Only save if we are running from inside tests directory
             p3.savefig("figures/pusherslider-test_plot3.png", dpi=300)
 
+    def test_plot4(self):
+        """
+        test_plot4
+        Description:
+            Verifies that we can successfully plot a bunch of pusher-slider's simultaneously.
+        Notes:
+            This code was used to create images in Group Slides for Mon. March 20, 2023.
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 4
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.Tensor([0.1, 0.1, 0.0])
+        x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
+        print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p4 = plt.figure()
+        ax = p4.add_subplot(111)
+        ps.plot(x, th,
+                limits=limits,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False,
+                )
+
+        goal_point = torch.tensor([0.5, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p4.savefig("figures/pusherslider-test_plot4.png", dpi=300)
+
+    def test_plot5(self):
+        """
+        test_plot5
+        Description:
+            Verifies that we can successfully plot a bunch of pusher-slider's
+             simultaneously. We also show a "goal" point at the origin.
+        Notes:
+            This code was used to create images in Group Slides for Mon. March 20, 2023.
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 4
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.Tensor([0.1, 0.1, 0.0])
+        x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
+        print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p4 = plt.figure()
+        ax = p4.add_subplot(111)
+        ps.plot(x, th,
+                limits=limits,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False,
+                )
+
+        goal_point = torch.tensor([0.0, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p4.savefig("figures/pusherslider-test_plot5.png", dpi=300)
+
+    def test_plot6(self):
+        """
+        test_plot5
+        Description:
+            Verifies that we can successfully plot a bunch of
+            pusher-sliders simultaneously. We
+        Notes:
+            This code was used to create images in Group Slides for Mon. March 20, 2023.
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 1
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.Tensor([-0.05, 0.06, 0.0])
+        # x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        # x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
+        print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p6 = plt.figure()
+        ax = p6.add_subplot(111)
+        ps.plot(x, th,
+                limits=limits,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False,
+                )
+
+        goal_point = torch.tensor([0.0, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p6.savefig("figures/pusherslider-test_plot6.png", dpi=300)
+
     def test_animate1(self):
         # Constants
         nominal_scenario = {
