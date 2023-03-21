@@ -332,6 +332,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Sample States
         x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
+        if torch.get_default_dtype() == torch.float32:
+            x_unsafe_np = np.float32(x_unsafe_np)
         x_unsafe = torch.tensor(x_unsafe_np.T)
 
         theta_unsafe_np = self.sample_Theta_space(num_samples)
