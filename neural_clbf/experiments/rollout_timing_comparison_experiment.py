@@ -254,6 +254,7 @@ class ACLFRolloutTimingExperiment(Experiment):
                 results.append(log_packet)
 
             # Simulate forward using the dynamics
+            # TODO: Investigate if we can do this in parallel (shouldn't it be possible to batch all of this?
             for i in range(n_sims):
                 xdot = controller_under_test.dynamics_model.closed_loop_dynamics(
                     x_current[i, :].unsqueeze(0),
@@ -271,7 +272,10 @@ class ACLFRolloutTimingExperiment(Experiment):
                 )
                 x_mpc_current[i, :] = x_mpc_current[i, :] + delta_t + xdot_mpc.squeeze()
 
-                theta_hat_dot = torch.zeros((n_theta)) #TODO: Add estimator dynamics!
+                theta_hat_dot = controller_under_test.closed_loop_estimator_dynamics(
+                    x_current[i, :], theta_current[i, :], u_current[i, :],
+                    random_scenarios[i],
+                )
                 theta_hat_current[i, :] = theta_hat_current[i, :] + delta_t * theta_hat_dot.squeeze()
 
         return pd.DataFrame(results)

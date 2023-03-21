@@ -298,8 +298,7 @@ class aCLFController(Controller):
 
             LF_V_scenario = LF_V[:, i, :].unsqueeze(1)
             LFGamma = torch.bmm(LF_V_scenario, Gamma_copied)
-            # LFGammadV_V[:, i, :] = torch.bmm(LFGamma, gradV_theta.mT).squeeze(1)
-            LFGammadV_V[:, i, :] = torch.bmm(LFGamma, gradV_theta.transpose(-2,-1)).squeeze(1) # TODO: Reevaluate if we want to hide mT
+            LFGammadV_V[:, i, :] = torch.bmm(LFGamma, gradV_theta.mT).squeeze(1)
 
             # list_LGi_V
             for param_index in range(self.dynamics_model.n_params):
@@ -312,8 +311,7 @@ class aCLFController(Controller):
 
                 # Compute Complicated Term
                 # gradVx_Gamma = torch.bmm(gradV_x, Gamma_copied)
-                # Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.mT)
-                Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.transpose(-2, -1)) # TODO: Reevaluate if hiding mT is fine
+                Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.mT)
 
                 LGammadVG_V_current = torch.zeros((batch_size, 1, self.dynamics_model.n_controls))
                 LGammadVG_V_current[:, :, :] = LGammadVG_V[:, i, :].unsqueeze(1)
@@ -334,8 +332,7 @@ class aCLFController(Controller):
                 print("x", x[b_idx, :])
                 print("theta_hat", theta_hat[b_idx, :])
                 print("dVdx", gradV_x[b_idx, :, :])
-                # print("dVdtheta", gradV_theta.mT[b_idx, :, :])
-                print("dVdtheta", gradV_theta.transpose(-2, -1)[b_idx, :, :]) # TODO: Reevaluate if hiding mT is fine, or if we want to upgrade torch
+                print("dVdtheta", gradV_theta.mT[b_idx, :, :])
                 print("V", V[b_idx])
                 print("Lf_V ", Lf_V[b_idx, :, :])
 
@@ -347,7 +344,6 @@ class aCLFController(Controller):
         Vdot_for_scenario
         Description
             This function computes the modified version of V-dot which aCLFs use to guarantee convergence.
-        Input
         Input
             scenario_idx: an integer indicating which scenario to calculate Vdot for
             x: a bs x self.dynamics_model.n_dims tensor containing the states in the current batch
