@@ -124,7 +124,7 @@ class RolloutStateSpaceExperiment(Experiment):
         device = "cpu"
         if hasattr(controller_under_test, "device"):
             device = controller_under_test.device  # type: ignore
-        x_current = x_sim_start.to(device)
+        x_current = x_sim_start
 
         # Reset the controller if necessary
         if hasattr(controller_under_test, "reset_controller"):
@@ -137,7 +137,7 @@ class RolloutStateSpaceExperiment(Experiment):
         # Simulate!
         delta_t = controller_under_test.dynamics_model.dt
         num_timesteps = int(self.t_sim // delta_t)
-        u_current = torch.zeros(x_sim_start.shape[0], n_controls, device=device)
+        u_current = torch.zeros(x_sim_start.shape[0], n_controls)
         controller_update_freq = int(controller_under_test.controller_period / delta_t)
         prog_bar_range = tqdm.trange(
             0, num_timesteps, desc="Controller Rollout", leave=True

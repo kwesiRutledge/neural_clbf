@@ -176,7 +176,6 @@ def main(args):
         Gamma_factor=0.1,
         include_oracle_loss=hyperparams["use_oracle"],
     )
-    aclbf_controller.to(device)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -193,8 +192,8 @@ def main(args):
         logger=tb_logger,
         max_epochs=hyperparams["max_epochs"],
         # reload_dataloaders_every_n_epochs=1,
-        val_check_interval=1.0,
-        log_every_n_steps=1,
+        # val_check_interval=1.0,
+        # log_every_n_steps=1,
         accelerator=hyperparams["accelerator"],
     )
 
