@@ -390,8 +390,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        g = torch.zeros((batch_size, self.n_dims, self.n_controls)).to(self.device)
+        g = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
+        print("g.device = ", g.device)
         g = g.type_as(x)
+        print("g.device = ", g.device)
 
         f_max, tau_max = self.limit_surface_bounds()
         a = (1/10.0)*(1/(f_max ** 2))
@@ -424,8 +426,6 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         """
         # Constants
         batch_size = x.shape[0]
-        g = torch.zeros((batch_size, self.n_dims, self.n_controls)).to(self.device)
-        g = g.type_as(x)
 
         f_max, tau_max = self.limit_surface_bounds()
         a = (1 / 10.0) * (1 / (f_max ** 2))

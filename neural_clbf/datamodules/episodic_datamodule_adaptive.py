@@ -104,14 +104,14 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         # Start by sampling from initial conditions from the given region
         x_init = torch.zeros((self.trajectories_per_episode, self.n_dims)).uniform_(
             0.0, 1.0
-        )
+        ).to(self.device)
         for i in range(self.n_dims):
             min_val, max_val = self.initial_domain[i]
             x_init[:, i] = x_init[:, i] * (max_val - min_val) + min_val
 
         # Simulate each initial condition out for the specified number of steps
 
-        theta_init = torch.zeros((self.trajectories_per_episode, self.model.n_params))
+        theta_init = torch.zeros((self.trajectories_per_episode, self.model.n_params), device=self.device)
         if self.trajectories_per_episode > 0:
             theta_init[:, :] = torch.tensor(
                 self.model.get_N_samples_from_polytope(self.model.Theta, self.trajectories_per_episode).T
@@ -189,12 +189,13 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Augment those points with samples from the fixed range
         x_sample, theta_sample, theta_hat_sample = self.sample_fixed()
+        print("x_sim.device = ", x_sim.device, ", x_sample.device = ", x_sample.device)
         x = torch.cat((x_sim, x_sample), dim=0)
         theta = torch.cat((theta_sim, theta_sample), dim=0)
         theta_hat = torch.cat((theta_hat_sim, theta_hat_sample), dim=0)
 
         # Randomly split data into training and test sets
-        random_indices = torch.randperm(x.shape[0])
+        random_indices = torch.randperm(x.shape[0], device=self.device)
         val_pts = int(x.shape[0] * self.val_split)
         validation_indices = random_indices[:val_pts]
         training_indices = random_indices[val_pts:]
@@ -266,7 +267,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         print(f"Sampled {x.shape[0]} new states, {theta.shape[0]} true parameters and {theta_hat.shape[0]} new parameter estimates")
 
         # Randomly split data into training and test sets
-        random_indices = torch.randperm(x.shape[0])
+        random_indices = torch.randperm(x.shape[0], device=self.device)
         val_pts = int(x.shape[0] * self.val_split)
         validation_indices = random_indices[:val_pts]
         training_indices = random_indices[val_pts:]
