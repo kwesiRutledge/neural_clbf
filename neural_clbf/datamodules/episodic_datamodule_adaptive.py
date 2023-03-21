@@ -337,16 +337,24 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
     def train_dataloader(self):
         """Make the DataLoader for training data"""
-        return DataLoader(
-            self.training_data,
+        dl = DataLoader(
+            self.training_data.cpu(),
             batch_size=self.batch_size,
             num_workers=4,
         )
+        for x in dl:
+            x = x.to(self.device, non_blocking=True)
+
+        return dl
 
     def val_dataloader(self):
         """Make the DataLoader for validation data"""
-        return DataLoader(
-            self.validation_data,
+        dl = DataLoader(
+            self.validation_data.cpu(),
             batch_size=self.batch_size,
             num_workers=4,
         )
+        for x in dl:
+            x = x.to(self.device, non_blocking=True)
+
+        return dl

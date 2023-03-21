@@ -28,6 +28,7 @@ from neural_clbf.experiments import (
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
 
+torch.distributed.init_process_group()
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct()-> Dict:
@@ -37,8 +38,8 @@ def create_hyperparam_struct()-> Dict:
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        # accelerator_name = "mps"
-        accelerator_name = "cpu"
+        accelerator_name = "mps"
+        # accelerator_name = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -176,7 +177,7 @@ def main(args):
         barrier=False,
         Gamma_factor=0.1,
         include_oracle_loss=hyperparams["use_oracle"],
-    )
+    ).to(hyperparams["accelerator"])
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
