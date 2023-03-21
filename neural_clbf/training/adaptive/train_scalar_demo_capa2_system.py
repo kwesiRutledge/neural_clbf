@@ -28,7 +28,6 @@ from neural_clbf.experiments import (
 from neural_clbf.training.utils import current_git_hash
 import polytope as pc
 
-torch.distributed.init_process_group()
 torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct()-> Dict:
