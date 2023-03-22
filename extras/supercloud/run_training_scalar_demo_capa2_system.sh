@@ -4,7 +4,7 @@
 #SBATCH -o outputs/scalar-%j.stdout
 #SBATCH -e outputs/scalar-%j.stderr
 #SBATCH -c 20
-#SBATCH --gres=gpu:volta:2
+#SBATCH --gres=gpu:volta:1
 #SBATCH --time=24:00:00
 
 # Write your commands here
