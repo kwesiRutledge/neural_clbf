@@ -385,7 +385,13 @@ class ControlAffineParameterAffineSystem(ABC):
         return torch.zeros((1, self.n_controls), device=self.device)
 
     def sample_state_space(self, num_samples: int) -> torch.Tensor:
-        """Sample uniformly from the state space"""
+        """
+        Description:
+            Sample uniformly from the state space
+
+        Outputs:
+            x: num_samples x self.n_dims
+        """
         x_max, x_min = self.state_limits
 
         # Sample uniformly from 0 to 1 and then shift and scale to match state limits
@@ -400,14 +406,14 @@ class ControlAffineParameterAffineSystem(ABC):
         Description:
             Sample uniformly from the Theta space
         Outputs:
-            theta_samples: self.n_params x N_samples
+            theta_samples: N_samples x self.n_params
         """
 
         theta_samples_np = self.get_N_samples_from_polytope(self.Theta, num_samples)
         if torch.get_default_dtype() == torch.float32:
             theta_samples_np = np.float32(theta_samples_np)
 
-        return torch.tensor(theta_samples_np.T, device=self.device)
+        return torch.tensor(theta_samples_np, device=self.device)
 
     def sample_with_mask(
         self,
@@ -621,7 +627,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
         th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
         th_h_samples = self.sample_Theta_space(batch_size) #self.get_N_samples_from_polytope(self.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.tensor(th_h_samples.T, device=self.device).type_as(theta)
+        th_h_sim[:, 0, :] = torch.tensor(th_h_samples, device=self.device).type_as(theta)
 
         u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
 
@@ -826,7 +832,7 @@ class ControlAffineParameterAffineSystem(ABC):
             Used to more efficiently produce samples (only have to compute extremes once.)
 
         Returns:
-            P.Dim x N_samples array containing all of the samples
+            N_samples x P.Dim array containing all of the samples
         """
 
         # Compute V Representation
@@ -846,7 +852,7 @@ class ControlAffineParameterAffineSystem(ABC):
             comb_rand_var[:, sample_index] = comb_rand_var[:, sample_index] / np.sum(
                 comb_rand_var[:, sample_index])
 
-        return np.dot(V.T, comb_rand_var)
+        return np.dot(V.T, comb_rand_var).T
 
     def compute_simple_aCLF_estimator_dynamics(self, x:torch.Tensor, theta_hat:torch.Tensor, params:Scenario):
         """

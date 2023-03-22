@@ -334,10 +334,9 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
         if torch.get_default_dtype() == torch.float32:
             x_unsafe_np = np.float32(x_unsafe_np)
-        x_unsafe = torch.tensor(x_unsafe_np.T)
+        x_unsafe = torch.tensor(x_unsafe_np, device=self.device)
 
-        theta_unsafe_np = self.sample_Theta_space(num_samples)
-        theta_unsafe = torch.tensor(theta_unsafe_np)
+        theta_unsafe = self.sample_Theta_space(num_samples)
 
         xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
 
@@ -391,9 +390,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Constants
         batch_size = x.shape[0]
         g = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
-        print("g.device = ", g.device)
         g = g.type_as(x)
-        print("g.device = ", g.device)
 
         f_max, tau_max = self.limit_surface_bounds()
         a = (1/10.0)*(1/(f_max ** 2))
@@ -577,7 +574,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         mu = self.ps_cof
 
         # Create output
-        return torch.tensor([mu, 1.0]), torch.tensor([-mu, 1.0])
+        return torch.tensor([mu, 1.0], device=self.device), torch.tensor([-mu, 1.0], device=self.device)
 
 
     def compute_linearized_controller(self, scenarios: Optional[ScenarioList] = None):

@@ -551,6 +551,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             loss.append(("CLBF descent accuracy (simulated)", clbf_descent_acc_sim))
 
         # Oracle Loss
+        oracle_weight = float(V_Theta.shape[0]) # Number of vertices in the polytope
         if self.include_oracle_loss:
             # Compute the shadow descent loss
             eps = 1.0
@@ -569,7 +570,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 )
                 violation = violation * condition_active
 
-                oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
+                oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + oracle_weight * violation.mean()
                 oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
                         violation.nelement() * self.n_scenarios
                 )
@@ -735,6 +736,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         Description
             This function is called after every epoch is completed.
         """
+
         # # Outputs contains a list for each optimizer, and we need to collect the losses
         # # from all of them if there is a nested list
         # if isinstance(outputs[0], list):
@@ -805,8 +807,16 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         self.validation_step_outputs.append(batch_dict)
 
-    # def on_validation_epoch_end(self):
-    #     """This function is called after every epoch is completed."""
+        # TODO: Add method for detecting "last batch" here
+
+        return batch_dict
+
+    def on_validation_epoch_end(self):
+        """
+        on_validation_epoch_end
+        Description:
+            This function is called at the end of every validation epoch.
+        """
 
         # Gather up all of the losses for each component from all batches
         losses = {}
@@ -826,6 +836,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             avg_losses[key] = torch.nansum(key_losses) / key_losses.shape[0]
 
         # Log the overall loss...
+        print(avg_losses.keys())
         self.log("Total loss / val", avg_losses["val_loss"], sync_dist=True)
         # self.logger.log_metrics(
         #     {"Total loss / val", avg_losses["val_loss"]},
@@ -852,7 +863,29 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         # Free memory
         self.validation_step_outputs.clear()
 
-        return batch_dict
+        # ========================================================
+        # We want to generate new data at the end of every episode
+        if self.current_epoch > 0 and self.current_epoch % self.epochs_per_episode == 0:
+            if self.penalty_scheduling_rate > 0:
+                relaxation_penalty = (
+                        self.clf_relaxation_penalty
+                        * self.current_epoch
+                        / self.penalty_scheduling_rate
+                )
+            else:
+                relaxation_penalty = self.clf_relaxation_penalty
+
+            # Use the models simulation function with this controller
+            def simulator_fn_wrapper(x_init: torch.Tensor, num_steps: int):
+                return self.simulator_fn(
+                    x_init,
+                    num_steps,
+                    relaxation_penalty=relaxation_penalty,
+                )
+
+            self.datamodule.add_data(simulator_fn_wrapper)
+
+        return
 
     #@pl.core.decorators.auto_move_data
     def simulator_fn(
@@ -980,29 +1013,6 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 break
 
         return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :]
-
-    def on_validation_epoch_end(self):
-        """This function is called at the end of every validation epoch"""
-        # We want to generate new data at the end of every episode
-        if self.current_epoch > 0 and self.current_epoch % self.epochs_per_episode == 0:
-            if self.penalty_scheduling_rate > 0:
-                relaxation_penalty = (
-                    self.clf_relaxation_penalty
-                    * self.current_epoch
-                    / self.penalty_scheduling_rate
-                )
-            else:
-                relaxation_penalty = self.clf_relaxation_penalty
-
-            # Use the models simulation function with this controller
-            def simulator_fn_wrapper(x_init: torch.Tensor, num_steps: int):
-                return self.simulator_fn(
-                    x_init,
-                    num_steps,
-                    relaxation_penalty=relaxation_penalty,
-                )
-
-            self.datamodule.add_data(simulator_fn_wrapper)
 
     def configure_optimizers(self):
         clbf_params = list(self.V_nn.parameters())

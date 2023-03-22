@@ -30,7 +30,7 @@ import polytope as pc
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-def create_hyperparam_struct()-> Dict:
+def create_hyperparam_struct(args)-> Dict:
     # Device declaration
     accelerator_name = "cpu"
     if torch.cuda.is_available():
@@ -69,7 +69,7 @@ def create_hyperparam_struct()-> Dict:
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
-        "max_epochs": 6,
+        "max_epochs": args.max_epochs,
         # Device
         "accelerator": accelerator_name,
     }
@@ -84,7 +84,7 @@ def main(args):
     np_manual_seed = pt_manual_seed
     np.random.seed(np_manual_seed)
 
-    hyperparams = create_hyperparam_struct()
+    hyperparams = create_hyperparam_struct(args)
 
     device = torch.device(hyperparams["accelerator"])
 
@@ -243,7 +243,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    # parser = pl.Trainer.add_argparse_args(parser)
+    parser.add_argument('--seed', type=int, default=31)
+    # parser.add_argument('--gpus', type=int, default=1)
+    parser.add_argument('--max_epochs', type=int, default=6)
     args = parser.parse_args()
 
     main(args)

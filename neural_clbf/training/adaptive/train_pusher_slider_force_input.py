@@ -40,7 +40,7 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 
 simulation_dt = 0.01
 
-def create_training_hyperparams()-> Dict:
+def create_training_hyperparams(args)-> Dict:
     """
     create_hyperparams
     Description
@@ -61,15 +61,18 @@ def create_training_hyperparams()-> Dict:
     if torch.cuda.is_available():
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
-        device = "mps"
+        # torch.set_default_dtype(torch.float32)
+        accelerator_name = "mps"
     #     device = "cpu"
 
+    # Create the nominal scenario
     nominal_scenario = {
         "obstacle_center_x": 0.0,
         "obstacle_center_y": 0.0,
         "obstacle_radius": 0.1,
     }
 
+    # Create default number of maximum epochs
     hyperparams_for_evaluation = {
         "batch_size": 128,
         "controller_period": 0.05,
@@ -85,7 +88,7 @@ def create_training_hyperparams()-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 91,
+        "max_epochs": args.max_epochs,
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "n_fixed_samples": 90000,
@@ -112,7 +115,7 @@ def main(args):
     # Constants
 
     # Get hyperparameters for training
-    t_hyper = create_training_hyperparams()
+    t_hyper = create_training_hyperparams(args)
 
     # Set Constants
     torch.manual_seed(t_hyper["pt_manual_seed"])
@@ -288,8 +291,16 @@ def main(args):
     )
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    # parser = pl.Trainer.add_argparse_args(parser)
+    parser = ArgumentParser(description="This script trains the PusherSliderStickingForceInput controller based on adaptive control Lyapunov function principles.")
+
+    # training params
+    # TODO multi-GPU
+    parser.add_argument('--seed', type=int, default=31)
+    # parser.add_argument('--gpus', type=int, default=1)
+    parser.add_argument('--max_epochs', type=int, default=91)
+    # parser.add_argument('--learn_shape_epochs', type=int, default=60,
+    #                     help='different from max_epochs when training a neural policy')
+
     args = parser.parse_args()
 
     main(args)
