@@ -13,7 +13,7 @@
 module load anaconda/2023a
 
 # Activate Environment
-conda activate neural_clbf
+source activate neural_clbf
 
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
