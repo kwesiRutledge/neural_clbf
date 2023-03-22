@@ -148,4 +148,4 @@ neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.png
 *.DS_Store
 
 # Supercloud related files
-extras/login_to_supercloud.sh
+extras/supercloud/login_to_supercloud.sh
