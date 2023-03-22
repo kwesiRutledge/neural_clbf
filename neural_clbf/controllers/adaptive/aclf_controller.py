@@ -262,13 +262,13 @@ class aCLFController(Controller):
 
         # We need to compute Lie derivatives for each scenario
         batch_size = x.shape[0]
-        Lf_V = torch.zeros(batch_size, n_scenarios, 1)
-        LF_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_params)
-        LFGammadV_V = torch.zeros(batch_size, n_scenarios, 1)
-        Lg_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls)
-        LGammadVG_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls)
+        Lf_V = torch.zeros((batch_size, n_scenarios, 1), device=x.device)
+        LF_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_params).to(device=x.device)
+        LFGammadV_V = torch.zeros(batch_size, n_scenarios, 1, device=x.device)
+        Lg_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls, device=x.device)
+        LGammadVG_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls, device=x.device)
 
-        Gamma_copied = Gamma.repeat(batch_size, 1, 1)
+        Gamma_copied = Gamma.repeat(batch_size, 1, 1).to(x.device)
 
         Lf_V = Lf_V.type_as(x)
         LF_V = LF_V.type_as(x)

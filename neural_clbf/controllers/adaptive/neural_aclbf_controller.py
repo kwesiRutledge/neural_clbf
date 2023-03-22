@@ -241,7 +241,8 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         #     JVth[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx]
 
         JVxth = torch.zeros(
-            (bs, self.n_dims_extended+self.n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params)
+            (bs, self.n_dims_extended+self.n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params),
+            device=x.device,
         )
         # and for each non-angle dimension, we need to scale by the normalization
         for dim in range(self.dynamics_model.n_dims):

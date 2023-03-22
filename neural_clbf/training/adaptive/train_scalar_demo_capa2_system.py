@@ -176,7 +176,7 @@ def main(args):
         barrier=False,
         Gamma_factor=0.1,
         include_oracle_loss=hyperparams["use_oracle"],
-    ).to(hyperparams["accelerator"])
+    )
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(

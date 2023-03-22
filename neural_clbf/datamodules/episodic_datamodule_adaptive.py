@@ -227,20 +227,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Turn these into tensor datasets
         self.training_data = TensorDataset(
-            self.x_training,
-            self.theta_training,
-            self.theta_h_training,
-            self.model.goal_mask(self.x_training, self.theta_training),
-            self.model.safe_mask(self.x_training, self.theta_training),
-            self.model.unsafe_mask(self.x_training, self.theta_training),
+            self.x_training.cpu(),
+            self.theta_training.cpu(),
+            self.theta_h_training.cpu(),
+            self.model.goal_mask(self.x_training, self.theta_training).cpu(),
+            self.model.safe_mask(self.x_training, self.theta_training).cpu(),
+            self.model.unsafe_mask(self.x_training, self.theta_training).cpu(),
         )
         self.validation_data = TensorDataset(
-            self.x_validation,
-            self.theta_validation,
-            self.theta_h_validation,
-            self.model.goal_mask(self.x_validation, self.theta_validation),
-            self.model.safe_mask(self.x_validation, self.theta_validation),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation),
+            self.x_validation.cpu(),
+            self.theta_validation.cpu(),
+            self.theta_h_validation.cpu(),
+            self.model.goal_mask(self.x_validation, self.theta_validation).cpu(),
+            self.model.safe_mask(self.x_validation, self.theta_validation).cpu(),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).cpu(),
         )
 
     def add_data(self, simulator: Callable[[torch.Tensor, int], torch.Tensor]):
@@ -315,20 +315,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Save the new datasets
         self.training_data = TensorDataset(
-            self.x_training,
-            self.theta_training,
-            self.theta_h_training,
-            self.model.goal_mask(self.x_training),
-            self.model.safe_mask(self.x_training),
-            self.model.unsafe_mask(self.x_training),
+            self.x_training.cpu(),
+            self.theta_training.cpu(),
+            self.theta_h_training.cpu(),
+            self.model.goal_mask(self.x_training).cpu(),
+            self.model.safe_mask(self.x_training).cpu(),
+            self.model.unsafe_mask(self.x_training).cpu(),
         )
         self.validation_data = TensorDataset(
-            self.x_validation,
-            self.theta_validation,
-            self.theta_h_validation,
-            self.model.goal_mask(self.x_validation),
-            self.model.safe_mask(self.x_validation),
-            self.model.unsafe_mask(self.x_validation),
+            self.x_validation.cpu(),
+            self.theta_validation.cpu(),
+            self.theta_h_validation.cpu(),
+            self.model.goal_mask(self.x_validation).cpu(),
+            self.model.safe_mask(self.x_validation).cpu(),
+            self.model.unsafe_mask(self.x_validation).cpu(),
         )
 
     def setup(self, stage=None):
@@ -338,23 +338,26 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
     def train_dataloader(self):
         """Make the DataLoader for training data"""
         dl = DataLoader(
-            self.training_data.cpu(),
+            self.training_data,
             batch_size=self.batch_size,
             num_workers=4,
         )
         for x in dl:
-            x = x.to(self.device, non_blocking=True)
+            for x_k in x:
+                x_k = x_k.to(self.device, non_blocking=True)
 
         return dl
 
     def val_dataloader(self):
         """Make the DataLoader for validation data"""
         dl = DataLoader(
-            self.validation_data.cpu(),
+            self.validation_data,
             batch_size=self.batch_size,
             num_workers=4,
         )
         for x in dl:
-            x = x.to(self.device, non_blocking=True)
+            for x_k in x:
+                x_k = x_k.to(self.device, non_blocking=True)
+            # x = x.to(self.device, non_blocking=True)
 
         return dl
