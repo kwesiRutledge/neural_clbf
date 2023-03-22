@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J scalar_demo_capa2_system Training
+#SBATCH -J pusher_slider_training
 #SBATCH -o outputs/scalar-%j.stdout
 #SBATCH -e outputs/scalar-%j.stderr
 #SBATCH -c 20
