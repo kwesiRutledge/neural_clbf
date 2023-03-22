@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #SBATCH -J USERNAME
-#SBATCH -o %j.stdout
-#SBATCH -e %j.stderr
+#SBATCH -o outputs/%j.stdout
+#SBATCH -e outputs/%j.stderr
 #SBATCH -c 20
 #SBATCH --gres=gpu:volta:2
 #SBATCH --time=24:00:00
