@@ -253,7 +253,7 @@ class aCLFController(Controller):
         if scenarios is None:
             scenarios = self.scenarios
         n_scenarios = len(scenarios)
-        Gamma = self.Gamma
+        Gamma = self.Gamma.to(x.device)
         n_dims = self.dynamics_model.n_dims
 
 
@@ -263,7 +263,7 @@ class aCLFController(Controller):
         # We need to compute Lie derivatives for each scenario
         batch_size = x.shape[0]
         Lf_V = torch.zeros((batch_size, n_scenarios, 1), device=x.device)
-        LF_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_params).to(device=x.device)
+        LF_V = torch.zeros((batch_size, n_scenarios, self.dynamics_model.n_params), device=x.device)
         LFGammadV_V = torch.zeros(batch_size, n_scenarios, 1, device=x.device)
         Lg_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls, device=x.device)
         LGammadVG_V = torch.zeros(batch_size, n_scenarios, self.dynamics_model.n_controls, device=x.device)
@@ -311,18 +311,21 @@ class aCLFController(Controller):
 
                 # Compute Complicated Term
                 # gradVx_Gamma = torch.bmm(gradV_x, Gamma_copied)
-                Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.mT)
+                Gamma_gradVtheta = torch.bmm(Gamma_copied, gradV_theta.mT).to(x.device)
 
-                LGammadVG_V_current = torch.zeros((batch_size, 1, self.dynamics_model.n_controls))
+                LGammadVG_V_current = torch.zeros(
+                    (batch_size, 1, self.dynamics_model.n_controls),
+                    device=x.device,
+                )
                 LGammadVG_V_current[:, :, :] = LGammadVG_V[:, i, :].unsqueeze(1)
 
                 Gamma_gradVtheta_i = Gamma_gradVtheta[:, mode_index, 0].reshape((batch_size, 1, 1))
                 coeff = torch.kron(
                     Gamma_gradVtheta_i,
-                    torch.eye(n_dims).type_as(x).reshape((1, n_dims, n_dims)),
+                    torch.eye(n_dims, device=x.device).type_as(x).reshape((1, n_dims, n_dims)),
                 )
 
-                GammadVG_i = torch.bmm(coeff, G_p)
+                GammadVG_i = torch.bmm(coeff, G_p).to(x.device)
                 LGammadVG_V[:, i, :] = (LGammadVG_V_current + torch.matmul(gradV_x, GammadVG_i)).squeeze(1)
 
         eps = 1e-6
@@ -360,17 +363,23 @@ class aCLFController(Controller):
 
         n_scenarios = len(scenarios)
 
+        theta_hat = theta_hat.to(x.device)
+
         # Compute Lie Derivatives
         Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
 
         # Use the dynamics to compute the derivative of V at each corner of V_Theta
-        sum_LG_V = torch.zeros((bs, n_scenarios, n_controls))
+        sum_LG_V = torch.zeros((bs, n_scenarios, n_controls), device=x.device)
         for theta_dim in range(n_params):
-            sum_LG_V = sum_LG_V + torch.bmm(theta_hat[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
+            sum_LG_V = sum_LG_V + \
+                       torch.bmm(theta_hat[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim]).to(x.device)
 
         # Should we use the true theta in this computation? I don't think so.
         Vdot = Lf_Va[:, scenario_idx, :].unsqueeze(1) + \
-            torch.bmm(LF_Va[:, scenario_idx, :].unsqueeze(1), theta_hat.reshape((theta_hat.shape[0], theta_hat.shape[1], 1))) + \
+            torch.bmm(
+                LF_Va[:, scenario_idx, :].unsqueeze(1),
+                theta_hat.reshape((theta_hat.shape[0], theta_hat.shape[1], 1)),
+            ) + \
             LFGammadVa_Va[:, scenario_idx, :].unsqueeze(1) + \
             torch.bmm(
                 Lg_V[:, scenario_idx, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
@@ -818,13 +827,19 @@ class aCLFController(Controller):
         LF_V_scenario = torch.zeros((bs, 1, self.dynamics_model.n_params)).type_as(x)
         LF_V_scenario[:, :, :] = LF_V[:, 0, :].unsqueeze(dim=1)
 
-        Galpha_scenario = torch.zeros((bs, n_dims, n_params))
+        Galpha_scenario = torch.zeros(
+            (bs, n_dims, n_params),
+            device=x.device,
+        )
         G = self.dynamics_model._G(x, scenario)
         for th_idx in range(n_params):
             G_th = G[:, :, :, th_idx].reshape((bs, n_dims, n_controls))
             Galpha_scenario[:, :, th_idx] = torch.bmm(G_th, u.reshape((bs, n_controls, 1))).squeeze(dim=2)
 
-        LGalpha_V_scenario = torch.zeros((bs, 1, self.dynamics_model.n_params))
+        LGalpha_V_scenario = torch.zeros(
+            (bs, 1, self.dynamics_model.n_params),
+            device=x.device,
+        )
         LGalpha_V_scenario[:, :, :] = torch.bmm(dVdx, Galpha_scenario)
 
         tau = torch.zeros((bs, self.dynamics_model.n_params)).type_as(x)
@@ -847,7 +862,7 @@ class aCLFController(Controller):
         # Constants
         batch_size = x.shape[0]
         n_params = self.dynamics_model.n_params
-        Gamma = self.Gamma
+        Gamma = self.Gamma.to(x.device)
 
         # Algorithm
 
@@ -858,9 +873,12 @@ class aCLFController(Controller):
         Gamma_tau = torch.bmm(
             Gamma_copied,
             tau.reshape((batch_size, n_params, 1))
-        )
+        ).to(x.device)
 
-        thetadot = torch.zeros((batch_size, n_params))
+        thetadot = torch.zeros(
+            (batch_size, n_params),
+            device=x.device,
+        )
         thetadot[:, :] = Gamma_tau.squeeze(dim=2)
 
         return thetadot
@@ -884,7 +902,7 @@ class aCLFController(Controller):
         """
         # Constants
         bs = x.shape[0]
-        Gamma = self.Gamma
+        Gamma = self.Gamma.to(x.device)
 
         # Get Va
         Va = self.V(x, theta_hat)

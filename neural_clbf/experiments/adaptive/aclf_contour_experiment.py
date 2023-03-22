@@ -40,7 +40,6 @@ class AdaptiveCLFContourExperiment(Experiment):
         plot_unsafe_region: bool = True,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
-        device: str = "cpu",
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
         state dimensions.
@@ -134,10 +133,7 @@ class AdaptiveCLFContourExperiment(Experiment):
 
         # Default estimate is all zeros if no default provided
         if self.default_param_estimate is None:
-            default_param_estimate = torch.Tensor(
-                system.get_N_samples_from_polytope(system.Theta, 1).T,
-                device=device,
-            )
+            default_param_estimate = system.sample_Theta_space(1)
         else:
             default_param_estimate = self.default_param_estimate
 
@@ -148,6 +144,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             default_state.clone()
             .detach()
             .reshape(1, controller_under_test.dynamics_model.n_dims)
+            .to(device)
         )
 
         # Make a copy of the default estimator state, which we'll modify on every loop
@@ -155,6 +152,7 @@ class AdaptiveCLFContourExperiment(Experiment):
             default_param_estimate.clone()
             .detach()
             .reshape(1, controller_under_test.dynamics_model.n_params)
+            .to(device)
         )
 
         # Loop through the grid

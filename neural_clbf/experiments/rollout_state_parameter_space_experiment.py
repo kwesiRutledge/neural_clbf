@@ -92,6 +92,10 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         else:
             scenarios = self.scenarios
 
+        device = "cpu"
+        if hasattr(controller_under_test, "device"):
+            device = controller_under_test.device  # type: ignore
+
         # Set up a dataframe to store the results
         results = []
 
@@ -111,20 +115,25 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         n_theta = controller_under_test.dynamics_model.n_params
         Theta = controller_under_test.dynamics_model.Theta
 
-        x_sim_start = torch.zeros(n_sims, n_dims).type_as(self.start_x)
+        x_sim_start = torch.zeros(
+            (n_sims, n_dims),
+            device=device,
+        ).type_as(self.start_x)
         for i in range(0, self.start_x.shape[0]):
             for j in range(0, self.n_sims_per_start):
                 x_sim_start[i * self.n_sims_per_start + j, :] = self.start_x[i, :]
 
-        theta_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
-        )
+        theta_sim_start = torch.zeros(
+            (n_sims, n_theta),
+            device=device,
+        ).type_as(self.start_x)
+        theta_sim_start[:, :] = controller_under_test.dynamics_model.sample_Theta_space(n_sims)
 
-        theta_hat_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_hat_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
-        )
+        theta_hat_sim_start = torch.zeros(
+            (n_sims, n_theta),
+            device=device,
+        ).type_as(self.start_x)
+        theta_hat_sim_start[:, :] = controller_under_test.dynamics_model.sample_Theta_space(n_sims)
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -155,7 +164,10 @@ class RolloutStateParameterSpaceExperiment(Experiment):
         # Simulate!
         delta_t = controller_under_test.dynamics_model.dt
         num_timesteps = int(self.t_sim // delta_t)
-        u_current = torch.zeros(x_sim_start.shape[0], n_controls, device=device)
+        u_current = torch.zeros(
+            (x_sim_start.shape[0], n_controls),
+            device=device,
+        )
         controller_update_freq = int(controller_under_test.controller_period / delta_t)
         prog_bar_range = tqdm.trange(
             0, num_timesteps, desc="Controller Rollout", leave=True

@@ -264,7 +264,10 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             JVxth[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx - (self.n_dims_extended)]
 
         # Now step through each layer in V
-        x_theta_norm = torch.zeros((bs, self.n_dims_extended+self.n_params_extended)).type_as(x)
+        x_theta_norm = torch.zeros(
+            (bs, self.n_dims_extended+self.n_params_extended),
+            device=x.device,
+        ).type_as(x)
         # x_theta_norm = torch.cat([x_norm, theta_hat_norm], dim=1)
 
         x_theta_norm[:, :self.n_dims_extended] = x_norm
@@ -300,11 +303,11 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             )
             x0 = self.dynamics_model.goal_point(theta0).type_as(x)
 
-            xtheta0 = torch.zeros(x0.shape)
+            xtheta0 = torch.zeros(x0.shape, device=x.device)
             xtheta0[:, :self.dynamics_model.n_dims] = x0
             xtheta0[:, self.dynamics_model.n_dims:] = theta0
 
-            xtheta = torch.zeros(xtheta0.shape)
+            xtheta = torch.zeros(xtheta0.shape, device=x.device)
             xtheta[:, :self.dynamics_model.n_dims] = x
             xtheta[:, self.dynamics_model.n_dims:] = theta0
 
@@ -328,7 +331,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             V_nominal = 0.5 * F.bilinear(x - x0, x - x0, P)
 
             # Reshape again to calculate the gradient
-            P = P.reshpae(self.dynamics_model.n_dims, self.dynamics_model.n_dims)
+            P = P.reshape(self.dynamics_model.n_dims, self.dynamics_model.n_dims)
             JVxth_nominal = F.linear(x - x0, P)
             JVxth_nominal = JVxth_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
 
@@ -340,10 +343,10 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             JVxth = JVxth + JVxth_nominal
 
         # At the very last second split the gradient.
-        JVx = torch.zeros((bs, 1, self.dynamics_model.n_dims))
+        JVx = torch.zeros((bs, 1, self.dynamics_model.n_dims), device=x.device)
         JVx[:, 0, :] = JVxth[:, 0, :self.dynamics_model.n_dims]
 
-        JVth = torch.zeros((bs, 1, self.dynamics_model.n_params))
+        JVth = torch.zeros((bs, 1, self.dynamics_model.n_params), device=x.device)
         JVth[:, 0, :] = JVxth[:, 0, self.dynamics_model.n_dims:]
 
         return V, JVx, JVth
@@ -719,7 +722,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         # For the objectives, we can just sum them
         for _, loss_value in component_losses.items():
             if not torch.isnan(loss_value):
-                total_loss = total_loss + loss_value
+                total_loss = total_loss + loss_value.to(x.device)
 
         batch_dict = {"loss": total_loss, **component_losses}
 
@@ -788,7 +791,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         # For the objectives, we can just sum them
         for _, loss_value in component_losses.items():
             if not torch.isnan(loss_value):
-                total_loss = total_loss + loss_value
+                total_loss = total_loss + loss_value.to(x.device)
 
         # Also compute the accuracy associated with each loss
         component_losses.update(
