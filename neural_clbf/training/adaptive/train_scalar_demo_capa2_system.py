@@ -160,7 +160,7 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    if not args.load_from_checkpoint:
+    if args.checkpoint_path is None:
         aclbf_controller = NeuralaCLBFController(
             dynamics_model,
             scenarios,
@@ -179,9 +179,6 @@ def main(args):
             include_oracle_loss=hyperparams["use_oracle"],
         )
     else:
-        # Make sure path is given
-        if args.checkpoint_path is None:
-            raise ValueError("Must provide a checkpoint path if load_from_checkpoint is True")
 
         aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
             args.checkpoint_path,
@@ -215,8 +212,8 @@ def main(args):
     # ========================
 
     # Logging
-    tb_logger.log_metrics({"pytorch random seed": pt_manual_seed})
-    tb_logger.log_metrics({"numpy random seed": np_manual_seed})
+    tb_logger.log_metrics({"pytorch random seed": hyperparams["pt_manual_seed"]})
+    tb_logger.log_metrics({"numpy random seed": hyperparams["np_manual_seed"]})
 
     # Saving Data
     torch.save(
@@ -262,10 +259,6 @@ if __name__ == "__main__":
     )
     # parser.add_argument('--gpus', type=int, default=1)
     parser.add_argument('--max_epochs', type=int, default=6)
-    parser.add_argument(
-        '--load_from_checkpoint', type=bool, default=False,
-        help='Load aCLBF from checkpoint (default: False) \\ Requires that a checkpoint_path is also given!',
-    )
     parser.add_argument(
         '--checkpoint_path', type=str, default=None,
         help='Path to checkpoint to load from (default: None)',

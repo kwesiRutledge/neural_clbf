@@ -17,4 +17,6 @@ source activate neural_clbf
 
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
-python train_pusher_slider_force_input.py --max_epochs 91
+python train_pusher_slider_force_input.py \
+  --max_epochs 91 \
+  --checkpoint_path logs/scalar_demo_capa2_system/commit_f5234e7/version_30/checkpoints/epoch=5-step=846.ckpt

@@ -17,4 +17,4 @@ source activate neural_clbf
 
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
-python train_scalar_demo_capa2_system.py --max_epochs 6
+python train_scalar_demo_capa2_system.py --max_epochs 6 --np_random_seed 11
