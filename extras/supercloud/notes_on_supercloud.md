@@ -99,4 +99,7 @@ cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_scalar_demo_capa2_system.py $SLURM_ARRAY_TASK_ID $SLURM_ARRAY_TASK_COUNT
 ```
 
+## Retrieving Data from Supercloud login nodes
+
+You can use the `scp` command to retrieve data from the login nodes.
 

@@ -87,9 +87,12 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     lb_Vcontour = lb[hyperparams["contour_exp_theta_index"]]
     ub_Vcontour = ub[hyperparams["contour_exp_theta_index"]]
     theta_range_Vcontour = ub_Vcontour - lb_Vcontour
+
+    x_ub, x_lb = dynamics_model.state_limits
+
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(-2.0, 2.0)],  # plotting domain
+        x_domain=[(x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X])],  # plotting domain
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=PusherSliderStickingForceInput.S_X,
@@ -118,9 +121,43 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         n_sims_per_start=1,
         t_sim=3*hyperparams["rollout_experiment_horizon"],
     )
+
+    start_x4 = torch.tensor([
+        [0.0, 0.5, 0.0],
+        [0.2, -0.2, np.pi / 2.0]
+    ])
+    rollout_experiment6 = RolloutManipulatorConvergenceExperiment(
+        "Rollout Manipulator Convergence (Shorter travel time)",
+        start_x4,
+        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_THETA],
+        ["$s_x$", "$s_y$", "$s_{\\theta}$"],
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=3*hyperparams["rollout_experiment_horizon"],
+    )
+
+    start_x5 = torch.tensor([
+        [0.0, 0.5, 0.0],
+        [0.2, -0.2, np.pi/2.0]
+    ])
+    rollout_experiment5 = RolloutStateParameterSpaceExperimentMultiple(
+        "Rollout (Multiple Slices)",
+        start_x5,
+        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_X],
+        ["$r_1$", "$v_1$", "$r_2$"],
+        [PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_Y],
+        ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
+        scenarios=scenarios,
+        n_sims_per_start=1,
+        t_sim=hyperparams["rollout_experiment_horizon"],
+    )
+
     V_contour_experiment5 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
-        x_domain=[(-0.6, 0.6), (-0.6, 0.6)],  # plotting domain
+        x_domain=[
+            (x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X]),
+            (x_lb[PusherSliderStickingForceInput.S_Y], x_ub[PusherSliderStickingForceInput.S_Y])
+        ],  # plotting domain
         n_grid=50,
         x_axis_index=PusherSliderStickingForceInput.S_X,
         y_axis_index=PusherSliderStickingForceInput.S_Y,
@@ -131,7 +168,10 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     )
     V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
-        x_domain=[(-0.6, 0.6), (-0.6, 0.6)],  # plotting domain
+        x_domain=[
+            (x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X]),
+            (x_lb[PusherSliderStickingForceInput.S_Y], x_ub[PusherSliderStickingForceInput.S_Y])
+        ],  # plotting domain
         n_grid=50,
         x_axis_index=PusherSliderStickingForceInput.S_X,
         y_axis_index=PusherSliderStickingForceInput.S_Y,
@@ -159,7 +199,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     #experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, rollout_experiment3, rollout_experiment4])
     experiment_suite = ExperimentSuite(
-        [V_contour_experiment, V_contour_experiment5, V_contour_experiment6, rollout_experiment2, rollout_experiment3]
+        [V_contour_experiment, V_contour_experiment5, V_contour_experiment6, rollout_experiment2, rollout_experiment3, rollout_experiment5, rollout_experiment6]
     )
 
     return dynamics_model, scenarios, data_module, experiment_suite
@@ -170,21 +210,31 @@ def plot_pusher_slider_data():
     scalar_capa2_log_file_dir = "../../training/adaptive/logs/pusher_slider_sticking_force_input/"
     # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
-    commit_name = 'a0fc5fd'
-    version_to_load = 24
+    commit_name = 'supercloud1'
+    version_to_load = 2
     hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/hyperparams.pt"
 
-    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt")
-    saved_hyperparams = torch.load(hyperparam_log_file)
+    saved_Vnn = torch.load(
+        scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt",
+        map_location=torch.device('cpu'),
+    )
+    saved_hyperparams = torch.load(
+        hyperparam_log_file,
+        map_location=torch.device('cpu'),
+    )
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
-    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/controller.pt")
+    aclbf_controller = torch.load(
+        scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/controller.pt",
+        map_location=torch.device('cpu'),
+    )
     aclbf_controller.experiment_suite = experiment_suite
+    aclbf_controller.dynamics_model = dynamics_model # Replace the CUDA-based dynamics model with our new, CPU-based one
 
     # Update parameters
     for experiment_idx in range(1, 3 +1):
-        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = start_x = 50.0* torch.tensor(
+        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = 50.0* torch.tensor(
         [
             [0.5, 0.0, 0.0],
             [0.0, 0.5, 0.0],
@@ -199,7 +249,15 @@ def plot_pusher_slider_data():
         aclbf_controller, display_plots=False
     )
 
-    fig_titles = ["V-contour", "V-contour-xSlices-only-theta0", "V-contour-xSlices-only-theta_pi4", "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories", "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1"]
+    fig_titles = [
+        "V-contour",
+        "V-contour-xSlices-only-theta0",
+        "V-contour-xSlices-only-theta_pi4",
+        "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories",
+        "x-convergence",
+        "V-trajectories4", "V-trajectories5", "V-trajectories6", "u-trajectories4",
+        "x-convergence4",
+    ]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)

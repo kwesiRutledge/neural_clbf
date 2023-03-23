@@ -70,6 +70,9 @@ def create_hyperparam_struct(args)-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         "max_epochs": args.max_epochs,
+        # Random Seed Info
+        "pt_manual_seed": args.pt_random_seed,
+        "np_manual_seed": args.np_random_seed,
         # Device
         "accelerator": accelerator_name,
     }
@@ -78,13 +81,10 @@ def create_hyperparam_struct(args)-> Dict:
 
 def main(args):
 
-    # Random Seed
-    pt_manual_seed = 30
-    torch.manual_seed(pt_manual_seed)
-    np_manual_seed = pt_manual_seed
-    np.random.seed(np_manual_seed)
-
     hyperparams = create_hyperparam_struct(args)
+    # Random Seed Setting
+    torch.manual_seed(hyperparams["pt_manual_seed"])
+    np.random.seed(hyperparams["np_manual_seed"])
 
     device = torch.device(hyperparams["accelerator"])
 
@@ -160,23 +160,32 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    aclbf_controller = NeuralaCLBFController(
-        dynamics_model,
-        scenarios,
-        data_module,
-        experiment_suite=experiment_suite,
-        clbf_hidden_layers=hyperparams["clbf_hidden_layers"],
-        clbf_hidden_size=hyperparams["clbf_hidden_size"],
-        clf_lambda=hyperparams["clf_lambda"],
-        safe_level=0.5,
-        controller_period=controller_period,
-        clf_relaxation_penalty=1e2,
-        num_init_epochs=5,
-        epochs_per_episode=100,
-        barrier=False,
-        Gamma_factor=0.1,
-        include_oracle_loss=hyperparams["use_oracle"],
-    )
+    if not args.load_from_checkpoint:
+        aclbf_controller = NeuralaCLBFController(
+            dynamics_model,
+            scenarios,
+            data_module,
+            experiment_suite=experiment_suite,
+            clbf_hidden_layers=hyperparams["clbf_hidden_layers"],
+            clbf_hidden_size=hyperparams["clbf_hidden_size"],
+            clf_lambda=hyperparams["clf_lambda"],
+            safe_level=0.5,
+            controller_period=controller_period,
+            clf_relaxation_penalty=1e2,
+            num_init_epochs=5,
+            epochs_per_episode=100,
+            barrier=False,
+            Gamma_factor=0.1,
+            include_oracle_loss=hyperparams["use_oracle"],
+        )
+    else:
+        # Make sure path is given
+        if args.checkpoint_path is None:
+            raise ValueError("Must provide a checkpoint path if load_from_checkpoint is True")
+
+        aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
+            args.checkpoint_path,
+        )
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -243,9 +252,24 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument('--seed', type=int, default=31)
+    parser.add_argument(
+        '--pt_random_seed', type=int, default=31,
+        help='Integer used as pytorch''s random seed (default: 31)',
+    ),
+    parser.add_argument(
+        '--np_random_seed', type=int, default=30,
+        help='Integer used as numpy''s random seed (default: 31)'
+    )
     # parser.add_argument('--gpus', type=int, default=1)
     parser.add_argument('--max_epochs', type=int, default=6)
+    parser.add_argument(
+        '--load_from_checkpoint', type=bool, default=False,
+        help='Load aCLBF from checkpoint (default: False) \\ Requires that a checkpoint_path is also given!',
+    )
+    parser.add_argument(
+        '--checkpoint_path', type=str, default=None,
+        help='Path to checkpoint to load from (default: None)',
+    )
     args = parser.parse_args()
 
     main(args)

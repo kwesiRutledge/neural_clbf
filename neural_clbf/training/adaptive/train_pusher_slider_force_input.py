@@ -99,8 +99,8 @@ def create_training_hyperparams(args)-> Dict:
         # Rollout Experiment Parameters
         "rollout_experiment_horizon": 15.0,
         # Random Seed Info
-        "pt_manual_seed": 30,
-        "np_manual_seed": 51,
+        "pt_manual_seed": args.random_seed,
+        "np_manual_seed": args.random_seed,
         # Device
         "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
     # training params
     # TODO multi-GPU
-    parser.add_argument('--seed', type=int, default=31)
+    parser.add_argument('--random_seed', type=int, default=31)
     # parser.add_argument('--gpus', type=int, default=1)
     parser.add_argument('--max_epochs', type=int, default=91)
     # parser.add_argument('--learn_shape_epochs', type=int, default=60,

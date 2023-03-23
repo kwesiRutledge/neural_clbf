@@ -134,12 +134,12 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
 
         theta_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
         theta_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
+            controller_under_test.dynamics_model.sample_Theta_space(n_sims),
         )
 
         theta_hat_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
         theta_hat_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
+            controller_under_test.dynamics_model.sample_Theta_space(n_sims),
         )
 
         # Generate a random scenario for each rollout from the given scenarios
