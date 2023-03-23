@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from typing import Union
 
 from neural_clbf.systems import ControlAffineSystem
+from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
 from neural_clbf.experiments import ExperimentSuite
 
 
@@ -11,7 +13,7 @@ class Controller(ABC):
 
     def __init__(
         self,
-        dynamics_model: ControlAffineSystem,
+        dynamics_model: Union[ControlAffineSystem, ControlAffineParameterAffineSystem],
         experiment_suite: ExperimentSuite,
         controller_period: float = 0.01,
     ):
