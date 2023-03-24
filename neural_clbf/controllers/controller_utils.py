@@ -73,8 +73,14 @@ def normalize_theta(
 
     # Get minimum and maximum possible values for theta
     V_Theta = pc.extreme(Theta)
-    theta_max = torch.Tensor(np.max(V_Theta, axis=0))
-    theta_min = torch.Tensor(np.min(V_Theta, axis=0))
+    theta_max = torch.tensor(
+        np.max(V_Theta, axis=0),
+        dtype=torch.get_default_dtype(),
+    )
+    theta_min = torch.tensor(
+        np.min(V_Theta, axis=0),
+        dtype=torch.get_default_dtype(),
+    )
 
     theta_center = (theta_max + theta_min) / 2.0
     theta_range = (theta_max - theta_min) / 2.0
