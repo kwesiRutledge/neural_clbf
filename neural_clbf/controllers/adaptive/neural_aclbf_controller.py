@@ -461,7 +461,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         V_Theta = pc.extreme(self.dynamics_model.Theta)
 
         # The aCLBF decrease condition requires that V is decreasing everywhere where
-        # V <= safe_level. We'll encourage this in three ways:
+        # Va <= safe_level. We'll encourage this in three ways:
         #
         #   1) Minimize the relaxation needed to make the QP feasible.
         #   2) Compute the aCLBF decrease at each point by linearizing
@@ -469,9 +469,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         # First figure out where this condition needs to hold
         eps = 0.1
-        V_x_thetahat = self.V(x, theta_hat)
+        Va = self.V(x, theta_hat)
         if self.barrier:
-            condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
+            condition_active = torch.sigmoid(10 * (self.safe_level + eps - Va))
         else:
             condition_active = torch.tensor(1.0)
 
@@ -520,8 +520,8 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 #             u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
                 #         )
 
-                Vdot = Vdot.reshape(V_x_thetahat.shape)
-                violation = F.relu(eps + Vdot + self.clf_lambda * V_x_thetahat)
+                Vdot = Vdot.reshape(Va.shape)
+                violation = F.relu(eps + Vdot + self.clf_lambda * Va)
                 violation = violation * condition_active
                 clbf_descent_term_lin = clbf_descent_term_lin + violation.mean()
                 clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
@@ -542,7 +542,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
             V_next = self.V(x_next, theta_hat_next)
             violation = F.relu(
-                eps + (V_next - V_x_thetahat) / self.controller_period + self.clf_lambda * V_x_thetahat
+                eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
             )
             violation = violation * condition_active
 

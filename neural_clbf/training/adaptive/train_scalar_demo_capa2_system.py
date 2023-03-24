@@ -140,11 +140,14 @@ def main(args):
     x_ub, x_lb = dynamics_model.state_limits
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(x_lb[ScalarCAPA2Demo.X_DEMO], x_ub[ScalarCAPA2Demo.X_DEMO])], #plotting domain
         n_grid=30,
+        # X axis details
+        x_domain=[(x_lb[ScalarCAPA2Demo.X_DEMO], x_ub[ScalarCAPA2Demo.X_DEMO])], #plotting domain
         x_axis_index=ScalarCAPA2Demo.X_DEMO,
-        theta_axis_index=ScalarCAPA2Demo.P_DEMO,
         x_axis_label="$p_x$",
+        # Theta axis details
+        theta_axis_index=ScalarCAPA2Demo.P_DEMO,
+        theta_domain=[(lb[0], ub[0])], # plotting domain for theta
         theta_axis_label="$\\theta$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
