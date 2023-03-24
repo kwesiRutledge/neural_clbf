@@ -89,7 +89,12 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         self.device = device
 
         # Then initialize
-        super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
+        super().__init__(
+            nominal_scenario, Theta, dt, controller_dt,
+            device=device,
+            theta=theta,
+            use_linearized_controller=use_linearized_controller,
+        )
 
         self.scenarios = scenarios
 
@@ -218,7 +223,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         # Algorithm
         goal = torch.zeros(bs, self.n_dims, device=self.device)
-        goal[0, 0] = 0.0
+        goal[0, 0] = 1.0
         return goal
 
     @property
@@ -228,6 +233,9 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
     def _f(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
         """
         Return the control-independent part of the control-affine dynamics.
+
+        Notes:
+            This should be the function f(x) = x for the scalar input x.
 
         args:
             x: bs x self.n_dims tensor of state
@@ -355,7 +363,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
     def plot_environment(self, ax: Axes) -> None:
         """
         Add a plot of the environment to the given figure. Defaults to do nothing
-        unless overidden.
+        unless overridden.
 
         args:
             ax: the axis on which to plot

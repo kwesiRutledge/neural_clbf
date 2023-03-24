@@ -37,8 +37,8 @@ def create_hyperparam_struct(args)-> Dict:
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        accelerator_name = "mps"
-        # accelerator_name = "cpu"
+        # accelerator_name = "mps"
+        accelerator_name = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -65,7 +65,9 @@ def create_hyperparam_struct(args)-> Dict:
         "clf_lambda": 1.0,
         # Training Parameters
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
-        "use_oracle": False,
+        "use_oracle": args.use_oracle,
+        "barrier": args.barrier,
+        "safe_level": args.safe_level,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
@@ -135,9 +137,10 @@ def main(args):
     )
 
     # Define the experiment suite
+    x_ub, x_lb = dynamics_model.state_limits
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(-2.0, 2.0)], #plotting domain
+        x_domain=[(x_lb[ScalarCAPA2Demo.X_DEMO], x_ub[ScalarCAPA2Demo.X_DEMO])], #plotting domain
         n_grid=30,
         x_axis_index=ScalarCAPA2Demo.X_DEMO,
         theta_axis_index=ScalarCAPA2Demo.P_DEMO,
@@ -169,12 +172,12 @@ def main(args):
             clbf_hidden_layers=hyperparams["clbf_hidden_layers"],
             clbf_hidden_size=hyperparams["clbf_hidden_size"],
             clf_lambda=hyperparams["clf_lambda"],
-            safe_level=0.5,
+            safe_level=hyperparams["safe_level"],
             controller_period=controller_period,
             clf_relaxation_penalty=1e2,
-            num_init_epochs=5,
+            num_init_epochs=10,
             epochs_per_episode=100,
-            barrier=False,
+            barrier=hyperparams["barrier"],
             Gamma_factor=0.1,
             include_oracle_loss=hyperparams["use_oracle"],
         )
@@ -251,17 +254,29 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
         '--pt_random_seed', type=int, default=31,
-        help='Integer used as pytorch''s random seed (default: 31)',
+        help='Integer used as PyTorch\'s random seed (default: 31)',
     ),
     parser.add_argument(
         '--np_random_seed', type=int, default=30,
-        help='Integer used as numpy''s random seed (default: 31)'
+        help='Integer used as Numpy\'s random seed (default: 30)'
     )
     # parser.add_argument('--gpus', type=int, default=1)
     parser.add_argument('--max_epochs', type=int, default=6)
     parser.add_argument(
         '--checkpoint_path', type=str, default=None,
         help='Path to checkpoint to load from (default: None)',
+    )
+    parser.add_argument(
+        '--use_oracle', type=bool, default=False,
+        help='Whether to use the oracle loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--barrier', type=bool, default=False,
+        help='Whether to use the barrier loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--safe_level', type=float, default=0.5,
+        help='Safe level for the CLBF (default: 0.5)',
     )
     args = parser.parse_args()
 
