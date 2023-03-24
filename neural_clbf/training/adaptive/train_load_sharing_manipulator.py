@@ -59,8 +59,9 @@ def create_training_hyperparams(args)-> Dict:
     if torch.cuda.is_available():
         accelerator = "cuda"
     elif torch.backends.mps.is_available():
-        # device = "mps"
-        accelerator = "cpu"
+        torch.set_default_dtype(torch.float32)
+        accelerator = "mps"
+        # accelerator = "cpu"
 
     nominal_scenario = {
         "obstacle_center_x": 0.25,
@@ -133,6 +134,7 @@ def main(args):
         dt=simulation_dt,
         controller_dt=t_hyper["controller_period"],
         scenarios=scenarios,
+        device=t_hyper["accelerator"],
     )
 
     # Initialize the DataModule
@@ -154,6 +156,7 @@ def main(args):
         val_split=0.1,
         batch_size=64,
         quotas=t_hyper["sample_quotas"],
+        device=t_hyper["accelerator"],
     )
 
     # Define the experiment suite
@@ -224,8 +227,6 @@ def main(args):
         logger=tb_logger,
         # reload_dataloaders_every_epoch=True,
         max_epochs=t_hyper["max_epochs"],
-        val_check_interval=1.0,
-        log_every_n_steps=1,
         accelerator=t_hyper["accelerator"],
     )
 

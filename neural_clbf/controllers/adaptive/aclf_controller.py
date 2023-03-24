@@ -153,8 +153,8 @@ class aCLFController(Controller):
         # Control limit constraints
         upper_lim, lower_lim = self.dynamics_model.control_limits
         for control_idx in range(self.dynamics_model.n_controls):
-            constraints.append(u[control_idx] >= lower_lim[control_idx])
-            constraints.append(u[control_idx] <= upper_lim[control_idx])
+            constraints.append(u[control_idx] >= lower_lim.cpu()[control_idx])
+            constraints.append(u[control_idx] <= upper_lim.cpu()[control_idx])
 
         # And define the objective
         objective_expression = cp.sum_squares(u - u_ref_param)

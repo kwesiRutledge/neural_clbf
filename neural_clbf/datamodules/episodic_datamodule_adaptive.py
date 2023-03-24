@@ -102,9 +102,12 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
 
         # Start by sampling from initial conditions from the given region
-        x_init = torch.zeros((self.trajectories_per_episode, self.n_dims)).uniform_(
+        x_init = torch.zeros(
+            (self.trajectories_per_episode, self.n_dims),
+            device=self.device,
+        ).uniform_(
             0.0, 1.0
-        ).to(self.device)
+        )
         for i in range(self.n_dims):
             min_val, max_val = self.initial_domain[i]
             x_init[:, i] = x_init[:, i] * (max_val - min_val) + min_val
