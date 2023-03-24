@@ -61,7 +61,7 @@ def create_training_hyperparams(args)-> Dict:
     if torch.cuda.is_available():
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
-        # torch.set_default_dtype(torch.float32)
+        torch.set_default_dtype(torch.float32)
         accelerator_name = "mps"
     #     device = "cpu"
 
@@ -93,14 +93,15 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 20,
         "n_fixed_samples": 90000,
         "include_oracle_loss": True,
+        "barrier": args.barrier,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": PusherSliderStickingForceInput.S_X,
         # Rollout Experiment Parameters
         "rollout_experiment_horizon": 15.0,
         # Random Seed Info
-        "pt_manual_seed": args.random_seed,
-        "np_manual_seed": args.random_seed,
+        "pt_manual_seed": args.pt_random_seed,
+        "np_manual_seed": args.np_random_seed,
         # Device
         "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
@@ -120,7 +121,6 @@ def main(args):
     # Set Constants
     torch.manual_seed(t_hyper["pt_manual_seed"])
     np.random.seed(t_hyper["np_manual_seed"])
-    device = torch.device(t_hyper["accelerator"])
 
     # Define the scenarios
     scenarios = [
@@ -229,7 +229,7 @@ def main(args):
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
         epochs_per_episode=100,
-        barrier=False,
+        barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
     )
@@ -294,12 +294,33 @@ if __name__ == "__main__":
     parser = ArgumentParser(description="This script trains the PusherSliderStickingForceInput controller based on adaptive control Lyapunov function principles.")
 
     # training params
-    # TODO multi-GPU
-    parser.add_argument('--random_seed', type=int, default=31)
+    # TODO: Add multi-GPU at some point?
+    parser.add_argument(
+        '--pt_random_seed', type=int, default=31,
+        help='Integer used as PyTorch\'s random seed (default: 31)',
+    ),
+    parser.add_argument(
+        '--np_random_seed', type=int, default=30,
+        help='Integer used as Numpy\'s random seed (default: 30)'
+    )
     # parser.add_argument('--gpus', type=int, default=1)
-    parser.add_argument('--max_epochs', type=int, default=91)
-    # parser.add_argument('--learn_shape_epochs', type=int, default=60,
-    #                     help='different from max_epochs when training a neural policy')
+    parser.add_argument('--max_epochs', type=int, default=6)
+    parser.add_argument(
+        '--checkpoint_path', type=str, default=None,
+        help='Path to checkpoint to load from (default: None)',
+    )
+    parser.add_argument(
+        '--use_oracle', type=bool, default=False,
+        help='Whether to use the oracle loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--barrier', type=bool, default=False,
+        help='Whether to use the barrier loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--safe_level', type=float, default=0.5,
+        help='Safe level for the CLBF (default: 0.5)',
+    )
 
     args = parser.parse_args()
 

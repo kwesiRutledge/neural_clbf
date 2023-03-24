@@ -408,23 +408,37 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         if self.barrier:
             #   2.) 0 < V <= safe_level in the safe region
             V_safe = V[safe_mask]
-            safe_violation = F.relu(eps + V_safe - self.safe_level)
-            safe_V_term = 1e2 * safe_violation.mean()
-            loss.append(("CLBF safe region term", safe_V_term))
-            if accuracy:
-                safe_V_acc = (safe_violation <= eps).sum() / safe_violation.nelement()
-                loss.append(("CLBF safe region accuracy", safe_V_acc))
+            if len(V_safe) > 0:
+                # Nonzero number of safe points found in data
+                safe_violation = F.relu(eps + V_safe - self.safe_level)
+                safe_V_term = 1e2 * safe_violation.mean()
+                loss.append(("CLBF safe region term", safe_V_term))
+                if accuracy:
+                    safe_V_acc = (safe_violation <= eps).sum() / safe_violation.nelement()
+                    loss.append(("CLBF safe region accuracy", safe_V_acc))
+            else:
+                # No safe points found in data
+                loss.append(("CLBF safe region term", torch.tensor(0.0)))
+                if accuracy:
+                    loss.append(("CLBF safe region accuracy", torch.tensor(1.0)))
 
             #   3.) V >= unsafe_level in the unsafe region
             V_unsafe = V[unsafe_mask]
-            unsafe_violation = F.relu(eps + self.unsafe_level - V_unsafe)
-            unsafe_V_term = 1e2 * unsafe_violation.mean()
-            loss.append(("CLBF unsafe region term", unsafe_V_term))
-            if accuracy:
-                unsafe_V_acc = (
-                    unsafe_violation <= eps
-                ).sum() / unsafe_violation.nelement()
-                loss.append(("CLBF unsafe region accuracy", unsafe_V_acc))
+            if len(V_unsafe) > 0:
+                # Nonzero number of unsafe points found in data
+                unsafe_violation = F.relu(eps + self.unsafe_level - V_unsafe)
+                unsafe_V_term = 1e2 * unsafe_violation.mean()
+                loss.append(("CLBF unsafe region term", unsafe_V_term))
+                if accuracy:
+                    unsafe_V_acc = (
+                        unsafe_violation <= eps
+                    ).sum() / unsafe_violation.nelement()
+                    loss.append(("CLBF unsafe region accuracy", unsafe_V_acc))
+            else:
+                # No unsafe points found in data
+                loss.append(("CLBF unsafe region term", torch.tensor(0.0)))
+                if accuracy:
+                    loss.append(("CLBF unsafe region accuracy", torch.tensor(1.0)))
 
         return loss
 
