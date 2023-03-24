@@ -314,7 +314,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         # Sample States
         x_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
-        x_unsafe = torch.Tensor(x_unsafe_np.T).to(self.device)
+        x_unsafe = torch.Tensor(x_unsafe_np).to(self.device)
 
         theta_unsafe = self.sample_Theta_space(num_samples)
 

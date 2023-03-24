@@ -36,7 +36,7 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 
 simulation_dt = 0.01
 
-def create_training_hyperparams()-> Dict:
+def create_training_hyperparams(args)-> Dict:
     """
     create_hyperparams
     Description
@@ -106,7 +106,7 @@ def main(args):
     # Constants
 
     # Get hyperparameters for training
-    t_hyper = create_training_hyperparams()
+    t_hyper = create_training_hyperparams(args)
 
     # Set Constants
     torch.manual_seed(t_hyper["pt_manual_seed"])
@@ -271,7 +271,32 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    # parser = pl.Trainer.add_argparse_args(parser)
+    parser.add_argument(
+        '--pt_random_seed', type=int, default=31,
+        help='Integer used as PyTorch\'s random seed (default: 31)',
+    ),
+    parser.add_argument(
+        '--np_random_seed', type=int, default=30,
+        help='Integer used as Numpy\'s random seed (default: 30)'
+    )
+    # parser.add_argument('--gpus', type=int, default=1)
+    parser.add_argument('--max_epochs', type=int, default=6)
+    parser.add_argument(
+        '--checkpoint_path', type=str, default=None,
+        help='Path to checkpoint to load from (default: None)',
+    )
+    parser.add_argument(
+        '--use_oracle', type=bool, default=False,
+        help='Whether to use the oracle loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--barrier', type=bool, default=False,
+        help='Whether to use the barrier loss in training(default: False)',
+    )
+    parser.add_argument(
+        '--safe_level', type=float, default=0.5,
+        help='Safe level for the CLBF (default: 0.5)',
+    )
     args = parser.parse_args()
 
     main(args)
