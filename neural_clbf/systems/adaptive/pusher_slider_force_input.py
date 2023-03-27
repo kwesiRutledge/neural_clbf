@@ -103,9 +103,9 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # =================
         self.s_mass = 1.05  # kg
 
-        self.K_x = float(-1.0)
-        self.K_y = float(-1.0)
-        self.K_z = float(-1.0)
+        # self.K_x = float(-1.0)
+        # self.K_y = float(-1.0)
+        # self.K_z = float(-1.0)
 
         # Geometric Parameters (helpful for plotting and some calculations)
         self.s_length = 0.09
@@ -165,7 +165,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         upper_limit = torch.ones(self.n_dims).to(self.device)
         upper_limit[PusherSliderStickingForceInput.S_X] = 1.0
         upper_limit[PusherSliderStickingForceInput.S_Y] = 1.0
-        upper_limit[PusherSliderStickingForceInput.S_THETA] = np.pi
+        upper_limit[PusherSliderStickingForceInput.S_THETA] = torch.pi
 
         lower_limit = -1.0 * upper_limit
 
@@ -611,6 +611,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # self.K = torch.tensor(
         #     [[0.1]]
         # )
+
+        self.K = torch.tensor([
+            [0.1, 0.0, 0.0],
+            [0.0, 0.1, 0.0],
+        ])
 
         # If more than one scenario is provided...
         # get the Lyapunov matrix by robustly solving Lyapunov inequalities

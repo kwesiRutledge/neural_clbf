@@ -62,8 +62,8 @@ def create_training_hyperparams(args)-> Dict:
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        accelerator_name = "mps"
-    #     device = "cpu"
+        # accelerator_name = "mps"
+        accelerator_name = "cpu"
 
     # Create the nominal scenario
     nominal_scenario = {
@@ -81,7 +81,7 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.03, -0.03],
         "Theta_ub": [0.03, 0.03],
-        "clf_lambda": 1.0,
+        "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         "safe_level": 10.0,
         # layer specifications
@@ -94,6 +94,7 @@ def create_training_hyperparams(args)-> Dict:
         "n_fixed_samples": 90000,
         "include_oracle_loss": True,
         "barrier": args.barrier,
+        "gradient_clip_val": args.gradient_clip_val,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": PusherSliderStickingForceInput.S_X,
@@ -227,12 +228,31 @@ def main(args):
         safe_level=t_hyper["safe_level"],
         controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=1e2,
-        num_init_epochs=5,
+        num_init_epochs=15,
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
     )
+
+    # for layer_idx in range(len(aclbf_controller.V_nn)):
+    #     layer = aclbf_controller.V_nn[layer_idx]
+    #     print(layer)
+    #
+    #     if isinstance(layer, torch.nn.Linear):
+    #         print("layer.weight \n", layer.weight)
+    #         print("layer.bias\n", layer.bias)
+    #
+    # x0 = torch.tensor([
+    #     [-0.25, 0.25, torch.pi/2]
+    # ])
+    # thetahat0 = torch.tensor([
+    #     [0.03, 0.03]
+    # ])
+    # print("aclbf_controller.V_with_jacobian(x0,thetahat0) =", aclbf_controller.V_with_jacobian(x0,thetahat0))
+
+    # print("Reached end")
+    # exit(0)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -249,6 +269,7 @@ def main(args):
         logger=tb_logger,
         max_epochs=t_hyper["max_epochs"],
         accelerator=t_hyper["accelerator"],
+        gradient_clip_val=t_hyper["gradient_clip_val"],
     )
 
     # Train
@@ -296,8 +317,8 @@ if __name__ == "__main__":
     # training params
     # TODO: Add multi-GPU at some point?
     parser.add_argument(
-        '--pt_random_seed', type=int, default=31,
-        help='Integer used as PyTorch\'s random seed (default: 31)',
+        '--pt_random_seed', type=int, default=361,
+        help='Integer used as PyTorch\'s random seed (default: 361)',
     ),
     parser.add_argument(
         '--np_random_seed', type=int, default=30,
@@ -320,6 +341,14 @@ if __name__ == "__main__":
     parser.add_argument(
         '--safe_level', type=float, default=0.5,
         help='Safe level for the CLBF (default: 0.5)',
+    )
+    parser.add_argument(
+        '--clf_lambda', type=float, default=0.01,
+        help='Lambda for the CLF (default: 0.01)',
+    )
+    parser.add_argument(
+        '--gradient_clip_val', type=float, default=0.5,
+        help='Gradient clipping value (default: 0.5)',
     )
 
     args = parser.parse_args()

@@ -78,7 +78,7 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.25, 0.25, 0.2],
         "Theta_ub": [0.0, 0.35, 0.25],
-        "clf_lambda": 1.0,
+        "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         "safe_level": 10.0,
         # layer specifications
@@ -89,14 +89,15 @@ def create_training_hyperparams(args)-> Dict:
         "n_fixed_samples": 10000,
         "accelerator": accelerator,
         "use_oracle_loss": True,
+        "barrier": args.barrier,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
         # Rollout Experiment Parameters
         "rollout_experiment_horizon": 15.0,
         # Random Seed Info
-        "pt_manual_seed": 30,
-        "np_manual_seed": 51,
+        "pt_manual_seed": args.pt_random_seed,
+        "np_manual_seed": args.np_random_seed,
         # Device
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
@@ -165,7 +166,9 @@ def main(args):
     theta_range_Vcontour = ub_Vcontour - lb_Vcontour
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(-2.0, 2.0)],
+        x_domain=[
+            (dynamics_model.state_limits[1][LoadSharingManipulator.P_X], dynamics_model.state_limits[0][LoadSharingManipulator.P_X]),
+        ],
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=LoadSharingManipulator.P_X,
@@ -205,15 +208,15 @@ def main(args):
         scenarios,
         data_module,
         experiment_suite=experiment_suite,
-        clbf_hidden_layers=2,
-        clbf_hidden_size=64,
-        clf_lambda=1.0,
+        clbf_hidden_layers=t_hyper["clbf_hidden_layers"],
+        clbf_hidden_size=t_hyper["clbf_hidden_size"],
+        clf_lambda=t_hyper["clf_lambda"],
         safe_level=t_hyper["safe_level"],
         controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=1e2,
         num_init_epochs=5,
         epochs_per_episode=100,
-        barrier=False,
+        barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["use_oracle_loss"],
     )
@@ -297,6 +300,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--safe_level', type=float, default=0.5,
         help='Safe level for the CLBF (default: 0.5)',
+    )
+    parser.add_argument(
+        '--clf_lambda', type=float, default=1.0,
+        help='Desired decay rate for the CLBF (default: 1.0)',
     )
     args = parser.parse_args()
 

@@ -338,6 +338,15 @@ class aCLFController(Controller):
                 print("dVdtheta", gradV_theta.mT[b_idx, :, :])
                 print("V", V[b_idx])
                 print("Lf_V ", Lf_V[b_idx, :, :])
+                print("Lg_V ", Lg_V[b_idx, :, :])
+                print("LGammadVG_V ", LGammadVG_V[b_idx, :, :])
+
+                # print(
+                #     "f = ", self.dynamics_model._f(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                #     " g = ", self.dynamics_model._g(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                #     " F = ", self.dynamics_model._F(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                #     " G = ", self.dynamics_model._G(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                # )
 
         # return the Lie derivatives
         return Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V
@@ -367,6 +376,9 @@ class aCLFController(Controller):
 
         # Compute Lie Derivatives
         Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
+        # print(
+        #     "list_LGi_V = \n", list_LGi_V, "\n",
+        # )
 
         # Use the dynamics to compute the derivative of V at each corner of V_Theta
         sum_LG_V = torch.zeros((bs, n_scenarios, n_controls), device=x.device)
@@ -643,7 +655,7 @@ class aCLFController(Controller):
         # =======================
         params = []
 
-        # Following the order of the paramter vector creation
+        # Following the order of the parameter vector creation
         params.append(V.reshape(-1, 1))
         params.append(u_ref)
         params.append(torch.tensor([relaxation_penalty]).type_as(x))

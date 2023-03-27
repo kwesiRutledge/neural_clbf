@@ -293,11 +293,22 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 print("# of Small JV_idcs: ", torch.sum(smallJV_idcs))
                 print("Last Tanh weight: ", torch.diag_embed(1 - V**2))
 
+                print("V = ", V)
+                print("(V * V).sum(dim=1) = ", (V * V).sum(dim=1))
+                print("(V * V).sum(dim=1) = ", 0.5 * (V * V).sum(dim=1))
+
 
 
         # Compute the final activation
         JVxth = torch.bmm(V.unsqueeze(1), JVxth)
         V = 0.5 * (V * V).sum(dim=1)
+
+        # largeV_idcs = V.flatten() >= 1e10
+        # if torch.sum(largeV_idcs) > 0:
+        #     print("V.dtype = ", V.dtype)
+        #     print("largeVs: ", V[largeV_idcs])
+        #     print("x_theta_norm.dtype = ", x_theta_norm.dtype)
+        #     print("xtheta_norm[largeV_idcs, :]: ", x_theta_norm[largeV_idcs, :])
 
         if self.add_nominal:
             # Get the nominal Lyapunov function
@@ -706,6 +717,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         P = P.reshape(1, self.dynamics_model.n_dims, self.dynamics_model.n_dims)
         P_theta = torch.eye(self.dynamics_model.n_dims).type_as(x).unsqueeze(0)
         V_nominal = 0.5 * F.bilinear(x - x0, x - x0, P)
+        # print("V_nominal", V_nominal)
 
         if self.normalize_V_nominal:
             self.V_nominal_mean = V_nominal.mean()
@@ -855,7 +867,6 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             avg_losses[key] = torch.nansum(key_losses) / key_losses.shape[0]
 
         # Log the overall loss...
-        print(avg_losses.keys())
         self.log("Total loss / val", avg_losses["val_loss"], sync_dist=True)
         # self.logger.log_metrics(
         #     {"Total loss / val", avg_losses["val_loss"]},
@@ -1079,3 +1090,16 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         mean1 = (torch.tensor(lower_bounds) + torch.tensor(upper_bounds))/2.0
         range1 = (torch.tensor(upper_bounds) - torch.tensor(lower_bounds))/2.0
         return mean1, range1
+
+    # def configure_gradient_clipping(self, optimizer, gradient_clip_val, gradient_clip_algorithm):
+    #     """
+    #     Description:
+    #         Configure gradient clipping for the optimizer
+    #
+    #     """
+    #     if self.current_epoch > 5:
+    #         gradient_clip_val = gradient_clip_val * 2
+    #
+    #     # Lightning will handle the gradient clipping
+    #     self.clip_gradients(optimizer, gradient_clip_val=gradient_clip_val,
+    #                         gradient_clip_algorithm=gradient_clip_algorithm)
