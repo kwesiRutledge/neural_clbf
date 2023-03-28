@@ -10,6 +10,8 @@ import torch
 import numpy as np
 import polytope as pc
 
+from torch.distributions.uniform import Uniform
+
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 
@@ -47,7 +49,7 @@ class TestStringMethods(unittest.TestCase):
 
         p1 = plt.figure()  # This used to be created by plot, so we needed to check its type.
         ax = p1.add_subplot(111)
-        ps.plot_single(x, th, ax)
+        ps.plot_single(x, th, ax, show_obstacle=False, show_goal=False)
 
         self.assertEqual(type(p1), type(plt.figure()))
 
@@ -87,7 +89,7 @@ class TestStringMethods(unittest.TestCase):
         # Algorithm
         p2 = plt.figure()
         ax = p2.add_subplot(111)
-        ps.plot_single(x, th, ax, hide_axes=False)
+        ps.plot_single(x, th, ax, hide_axes=False, show_obstacle=False, show_goal=False)
 
         # Show contact point
         cp1 = ps.contact_point(x)
@@ -133,7 +135,7 @@ class TestStringMethods(unittest.TestCase):
         # Algorithm
         p3 = plt.figure()
         ax = p3.add_subplot(111)
-        ps.plot_single(x, th, ax, hide_axes=False, current_force=f)
+        ps.plot_single(x, th, ax, hide_axes=False, current_force=f, show_obstacle=False, show_goal=False)
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             # Only save if we are running from inside tests directory
@@ -193,6 +195,7 @@ class TestStringMethods(unittest.TestCase):
                 limits=limits,
                 ax=ax, hide_axes=False, current_force=f,
                 show_friction_cone_vectors=False,
+                show_obstacle=False, show_goal=False,
                 )
 
         goal_point = torch.tensor([0.5, 0.0])
@@ -260,6 +263,7 @@ class TestStringMethods(unittest.TestCase):
                 limits=limits,
                 ax=ax, hide_axes=False, current_force=f,
                 show_friction_cone_vectors=False,
+                show_obstacle=False, show_goal=False,
                 )
 
         goal_point = torch.tensor([0.0, 0.0])
@@ -327,6 +331,72 @@ class TestStringMethods(unittest.TestCase):
                 limits=limits,
                 ax=ax, hide_axes=False, current_force=f,
                 show_friction_cone_vectors=False,
+                show_obstacle=False, show_goal=False,
+                )
+
+        goal_point = torch.tensor([0.5, 0.5])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p6.savefig("figures/pusherslider-test_plot6.png", dpi=300)
+
+
+    def test_plot7(self):
+        """
+        test_plot7
+        Description:
+            Verifies that we can successfully plot the obstacle along with the current state.
+
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.05,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 1
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        # x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
+        print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        # limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p6 = plt.figure()
+        ax = p6.add_subplot(111)
+        ps.plot(x, th,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False, show_goal=False,
                 )
 
         goal_point = torch.tensor([0.0, 0.0])
@@ -337,7 +407,74 @@ class TestStringMethods(unittest.TestCase):
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             # Only save if we are running from inside tests directory
-            p6.savefig("figures/pusherslider-test_plot6.png", dpi=300)
+            p6.savefig("figures/pusherslider-test_plot7.png", dpi=300)
+
+    def test_plot8(self):
+        """
+        test_plot8
+        Description:
+            Verifies that we can successfully plot:
+            - the obstacle AND
+            - the goal
+            along with the current state.
+
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.05,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 1
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        # x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
+        print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        # limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p6 = plt.figure()
+        ax = p6.add_subplot(111)
+        ps.plot(x, th,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False,
+                )
+
+        goal_point = torch.tensor([0.0, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p6.savefig("figures/pusherslider-test_plot8.png", dpi=300)
 
     def test_animate1(self):
         # Constants
@@ -381,7 +518,11 @@ class TestStringMethods(unittest.TestCase):
         print("th: ", th)
 
         # Plot the initial state.
-        plot_objects = ps.plot_single(x0.flatten(), th, ax, hide_axes=False, current_force=f0)
+        plot_objects = ps.plot_single(
+            x0.flatten(), th, ax,
+            hide_axes=False, current_force=f0,
+            show_obstacle=False, show_goal=False,
+        )
 
         # This function will modify each of the values of the functions above.
         def update(frame_index):
@@ -464,6 +605,68 @@ class TestStringMethods(unittest.TestCase):
                 f_trajectory=f_trajectory,
                 hide_axes=False,
                 filename="figures/pusherslider-test_animate2.mp4",
+                show_obstacle=False, show_goal=False,
+            )
+
+    def test_animate3(self):
+        """
+        test_animate3
+        Description:
+            Tests the ability to simulate a trajectory using the closed-loop functions of pusher-slider.
+        """
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = PusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create synthetic state, force trajectories
+        x0 = torch.Tensor([[0.1, 0.1, np.pi / 6]])
+        N_traj = 100
+        T_sim = 2.5
+        dt = T_sim / N_traj
+        x_trajectory = x0
+
+        U_dist = Uniform( self.input_bounds[0, 0], self.input_bounds[0, 1] )
+        for k in range(N_traj):
+            x_k = x_trajectory[k, :].reshape(1, 3)
+            u_k = torch.rand(1, 2)
+
+
+        x_trajectory = torch.Tensor(
+            [[t, t, (np.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
+        ).T
+        x_trajectory = x_trajectory.reshape(1, x_trajectory.shape[0], x_trajectory.shape[1])
+        th = ps.sample_Theta_space(1)
+        th = torch.Tensor(th).flatten()
+        th = th.unsqueeze(0)
+
+        f0 = torch.Tensor([0.1, 0.0])
+        f_trajectory = torch.kron(torch.ones((N_traj + 1, 1)), f0).T
+        f_trajectory = f_trajectory.unsqueeze(0)
+
+        # Animate with function
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            ps.save_animated_trajectory(
+                x_trajectory=x_trajectory,
+                th=th,
+                f_trajectory=f_trajectory,
+                hide_axes=False,
+                filename="figures/pusherslider-test_animate2.mp4",
+                show_obstacle=False, show_goal=False,
             )
 
     """
@@ -567,6 +770,8 @@ class TestStringMethods(unittest.TestCase):
             limits=[[0.0, 0.6], [0.0, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
+            show_obstacle=False,
+            show_goal=False,
         )
         goal = ps.goal_point(th)
         # print("goal = ", goal)
@@ -626,6 +831,7 @@ class TestStringMethods(unittest.TestCase):
             limits=[[0.4, 0.7], [0.3, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
+            show_goal=False,
         )
         goal = ps.goal_point(th)
         plt.scatter(
@@ -683,6 +889,8 @@ class TestStringMethods(unittest.TestCase):
             limits=[[0.4, 0.7], [0.3, 0.6]],
             hide_axes=False,
             current_force=u_nom.flatten(),
+            show_obstacle=False,
+            show_goal=False,
         )
         goal = ps.goal_point(th)
         plt.scatter(

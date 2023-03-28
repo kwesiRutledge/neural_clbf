@@ -72,6 +72,8 @@ def create_training_hyperparams(args)-> Dict:
         "obstacle_radius": 0.1,
     }
 
+    s_width = 0.09
+
     # Create default number of maximum epochs
     hyperparams_for_evaluation = {
         "batch_size": 128,
@@ -79,8 +81,8 @@ def create_training_hyperparams(args)-> Dict:
         "start_x": start_x,
         "simulation_dt": 0.01,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [-0.03, -0.03],
-        "Theta_ub": [0.03, 0.03],
+        "Theta_lb": [-0.03, -0.03 + s_width/2.0],
+        "Theta_ub": [0.03, 0.03 + s_width/2.0],
         "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         "safe_level": 10.0,
@@ -95,6 +97,7 @@ def create_training_hyperparams(args)-> Dict:
         "include_oracle_loss": True,
         "barrier": args.barrier,
         "gradient_clip_val": args.gradient_clip_val,
+        "checkpoint_path": args.checkpoint_path,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": PusherSliderStickingForceInput.S_X,

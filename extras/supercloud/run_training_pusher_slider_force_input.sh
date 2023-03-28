@@ -18,5 +18,5 @@ source activate neural_clbf
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_pusher_slider_force_input.py \
-  --max_epochs 31 \
-  --use_oracle True --barrier True
+  --max_epochs 71 \
+  --use_oracle True --barrier True --gradient_clip_val 100.0

@@ -259,18 +259,18 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             point is in this region.
         """
         # Include a sensible default
-        goal_tolerance = 0.1
+        goal_tolerance = self.goal_radius
         batch_size = x.shape[0]
 
         # Create goal position
-        goal = torch.ones(batch_size, self.n_dims-1).to(self.device)
-        goal *= 0.5  # goal is in the upper right corner of the workspace
+        goal_pose = self.goal_point(theta)
+        goal_xy = goal_pose[:, :2].to(goal_pose.device)
 
         # Algorithm
         r = torch.zeros(batch_size, 2).to(self.device) #get position from state
         r[:, :] = x[:, :2]
 
-        return (r - goal).norm(dim=-1) <= goal_tolerance
+        return (r - goal_xy).norm(dim=-1) <= goal_tolerance
 
     def goal_point(self, theta: torch.Tensor) -> torch.Tensor:
         """
@@ -292,6 +292,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         goal[:, PusherSliderStickingForceInput.S_THETA] = 0.0
 
         return goal
+
+    @property
+    def goal_radius(self):
+        """Return the radius of the goal region"""
+        return 0.1
 
     @property
     def u_eq(self):
@@ -662,6 +667,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         show_geometric_center: bool = False,
         show_CoM: bool = True,
         show_friction_cone_vectors: bool = True,
+        show_obstacle: bool = True,
+        show_goal: bool = True,
         current_force: torch.Tensor = None) -> plt.Figure:
         """
         plot_single
@@ -707,6 +714,29 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Plot Objects
         # ============
+
+        # Plot Obstacle first (just in case we collide with it, we want to make it clear that collision happens)
+        if show_obstacle:
+            s = self.nominal_scenario
+            obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+            obstacle = plt.Circle(
+                (obstacle_x, obstacle_y),
+                obstacle_radius,
+                color="#E31A1C")
+            ax.add_patch(obstacle)
+            plot_objects["obstacle"] = obstacle
+
+        # Plot Goal
+        if show_goal:
+            goal_pose = self.goal_point(theta)
+            goal_xy = goal_pose[:, :2].to(goal_pose.device)
+            goal = plt.Circle(
+                (goal_xy[0, 0], goal_xy[0, 1]),
+                self.goal_radius,
+                color="#009392",
+            )
+            ax.add_patch(goal)
+            plot_objects["goal"] = goal
 
         # Plot Slider
         s_th_in_degrees = np.degrees(s_th)
@@ -900,7 +930,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
             f_trajectory: torch.Tensor,
             limits: Optional[List[List[float]]] = None,
             filename: str="pusherslider-animation1.mp4",
-            hide_axes: bool = True):
+            hide_axes: bool = True,
+            show_obstacle: bool = True,
+            show_goal: bool = True,
+        ):
         """
         save_animated_trajectory
         Description:
@@ -926,21 +959,41 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         dt = self.dt
         max_t = num_frames * dt
         min_t = 0.0
+        s = self.nominal_scenario
+        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+        goal_pose = self.goal_point(th)
+        goal_xy = goal_pose[:, :2].to(goal_pose.device)
 
         # Create axis limits
         if limits is None:
             limits = []
-            x_buffer = self.s_width / 2.0
+            x_buffer = self.s_width
             x_limits = [torch.min(x_trajectory[:, self.S_X, :]) - x_buffer, torch.max(x_trajectory[:, self.S_X, :]) + x_buffer]
             limits.append(
                 x_limits
             )
 
-            y_buffer = self.s_width / 2.0
+            y_buffer = self.s_length
             y_limits = [torch.min(x_trajectory[:, self.S_Y, :] - y_buffer), torch.max(x_trajectory[:, self.S_Y, :]) + y_buffer]
             limits.append(
                 y_limits
             )
+
+            if show_obstacle:
+                # Incorporate obstacle in limits
+                limits[0][0] = min(limits[0][0], obstacle_x - 2*obstacle_radius)
+                limits[0][1] = max(limits[0][1], obstacle_x + 2*obstacle_radius)
+                limits[1][0] = min(limits[1][0], obstacle_y - 2*obstacle_radius)
+                limits[1][1] = max(limits[1][1], obstacle_y + 2*obstacle_radius)
+
+            if show_goal:
+                # incorporate goal in limits
+                goal_radius = 0.1
+                limits[0][0] = min(limits[0][0], goal_xy[0, 0] - 2*self.goal_radius)
+                limits[0][1] = max(limits[0][1], goal_xy[0, 0] + 2*self.goal_radius)
+                limits[1][0] = min(limits[1][0], goal_xy[0, 1] - 2*self.goal_radius)
+                limits[1][1] = max(limits[1][1], goal_xy[0, 1] + 2*self.goal_radius)
+
             print(limits)
 
             # End result should be a list of lists (e.g., [[0.0, 0.3], [0.0, 0.3]])
@@ -952,7 +1005,11 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Plot the initial state.
         x0 = x_trajectory[:, :, 0]
         f0 = f_trajectory[:, :, 0]
-        plot_collection = self.plot(x0, th, limits=limits, hide_axes=hide_axes, current_force=f0)
+        plot_collection = self.plot(
+            x0, th,
+            limits=limits, hide_axes=hide_axes, current_force=f0,
+            show_obstacle=show_obstacle, show_goal=show_goal,
+        )
 
         # This function will modify each of the values of the functions above.
         def update(frame_index):
@@ -983,6 +1040,8 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
              show_geometric_center: bool = False,
              show_CoM: bool = True,
              show_friction_cone_vectors: bool = True,
+             show_obstacle: bool = True,
+             show_goal: bool = True,
              current_force: torch.Tensor = None) -> List[plt.Figure]:
         """
         plot
@@ -995,6 +1054,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         # Constants
         batch_size = x.shape[0]
+        s = self.nominal_scenario
+        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+        goal_pose = self.goal_point(theta)
+        goal_xy = goal_pose[:, :2].to(goal_pose.device)
 
         # Input Processing
         assert len(x.shape) == 2, f"x is of the wrong dimension. Received tensor of {len(x.shape)} dimensions; expected 2."
@@ -1009,17 +1072,34 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         # Compute Limits
         if limits is None:
             limits = []
-            x_buffer = self.s_width / 2.0
-            x_limits = [torch.min(x[:, self.S_X]) - x_buffer, torch.max(x[:, self.S_X]) + x_buffer]
+            x_buffer = self.s_width
+            x_limits = [torch.min(x[:, self.S_X]) - x_buffer,
+                        torch.max(x[:, self.S_X]) + x_buffer]
             limits.append(
                 x_limits
             )
 
-            y_buffer = self.s_width / 2.0
-            y_limits = [torch.min(x[:, self.S_Y] - y_buffer), torch.max(x[:, self.S_Y]) + y_buffer]
+            y_buffer = self.s_length
+            y_limits = [torch.min(x[:, self.S_Y] - y_buffer),
+                        torch.max(x[:, self.S_Y]) + y_buffer]
             limits.append(
                 y_limits
             )
+
+            if show_obstacle:
+                # Incorporate obstacle in limits
+                limits[0][0] = min(limits[0][0], obstacle_x - 2*obstacle_radius)
+                limits[0][1] = max(limits[0][1], obstacle_x + 2*obstacle_radius)
+                limits[1][0] = min(limits[1][0], obstacle_y - 2*obstacle_radius)
+                limits[1][1] = max(limits[1][1], obstacle_y + 2*obstacle_radius)
+
+            if show_goal:
+                # incorporate goal in limits
+                goal_radius = 0.1
+                limits[0][0] = min(limits[0][0], goal_xy[0, 0] - 2*self.goal_radius)
+                limits[0][1] = max(limits[0][1], goal_xy[0, 0] + 2*self.goal_radius)
+                limits[1][0] = min(limits[1][0], goal_xy[0, 1] - 2*self.goal_radius)
+                limits[1][1] = max(limits[1][1], goal_xy[0, 1] + 2*self.goal_radius)
 
             # End result should be a list of lists (e.g., [[0.0, 0.3], [0.0, 0.3]])
 
@@ -1041,6 +1121,7 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
                 show_geometric_center=show_geometric_center,
                 show_CoM=show_CoM,
                 show_friction_cone_vectors=show_friction_cone_vectors,
+                show_obstacle=show_obstacle and (batch_index == 0),
                 current_force=f_bi,
                         )
 
