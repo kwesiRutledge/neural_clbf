@@ -316,7 +316,7 @@ class AdaptiveCLFContourExperiment(Experiment):
         ax.set_xlabel(self.x_axis_label)
         ax.set_ylabel(self.theta_axis_label)
 
-        fig_handle = ("V Contour", fig)
+        fig_handle = (self.name, fig)
 
         if display_plots:
             plt.show()

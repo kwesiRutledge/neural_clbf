@@ -344,7 +344,7 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
 
         # Create output
         fig_handles.append(
-            ("Rollout (input)", u_fig)
+            (self.name + ": Rollout (input)", u_fig)
         )
 
         if display_plots:
@@ -491,4 +491,4 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
             # Plot a reference line at V = 0
             V_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
-        return (f"Rollout x_{plot_x_index}, theta_{plot_theta_index}", fig)
+        return (f"{self.name} : Rollout x_{plot_x_index}, theta_{plot_theta_index}", fig)
