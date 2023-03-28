@@ -172,9 +172,11 @@ def main(args):
     lb_Vcontour = lb[t_hyper["contour_exp_theta_index"]]
     ub_Vcontour = ub[t_hyper["contour_exp_theta_index"]]
     theta_range_Vcontour = ub_Vcontour - lb_Vcontour
+    x_ub, x_lb = dynamics_model.state_limits
+
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(-1.0, 1.0)],
+        x_domain=[(x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X])],
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
         x_axis_index=PusherSliderStickingForceInput.S_X,
@@ -207,7 +209,10 @@ def main(args):
     )
     V_contour_experiment3 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
-        x_domain=[(-0.6, 0.6), (-0.6, 0.6)],  # plotting domain
+        x_domain=[
+            (x_lb[0], x_ub[0]),
+            (x_lb[1], x_ub[1]),
+        ],  # plotting domain
         n_grid=50,
         x_axis_index=PusherSliderStickingForceInput.S_X,
         y_axis_index=PusherSliderStickingForceInput.S_Y,
