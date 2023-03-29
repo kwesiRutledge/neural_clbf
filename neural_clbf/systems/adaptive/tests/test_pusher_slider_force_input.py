@@ -15,7 +15,7 @@ from torch.distributions.uniform import Uniform
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 
-from neural_clbf.systems.adaptive.pusher_slider_force_input import PusherSliderStickingForceInput
+from neural_clbf.systems.adaptive.adaptive_pusher_slider_force_input import AdaptivePusherSliderStickingForceInput
 
 
 class TestStringMethods(unittest.TestCase):
@@ -38,7 +38,7 @@ class TestStringMethods(unittest.TestCase):
             ])
         )
 
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -74,7 +74,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.03+(s_length/2), 0.03+(s_length/2)]  # CoM_y
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -84,7 +84,7 @@ class TestStringMethods(unittest.TestCase):
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
 
-        print(th)
+        # print(th)
 
         # Algorithm
         p2 = plt.figure()
@@ -119,7 +119,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01+(s_length/2.0), 0.01+(s_length/2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -128,7 +128,7 @@ class TestStringMethods(unittest.TestCase):
         x = torch.Tensor([0.1, 0.1, np.pi / 6])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th).flatten()
-        print(th)
+        # print(th)
 
         f = torch.Tensor([0.1, 0.1])
 
@@ -164,7 +164,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -181,8 +181,8 @@ class TestStringMethods(unittest.TestCase):
         th = torch.zeros((batch_size, ps.n_params))
         f = torch.zeros((batch_size, ps.n_controls))
 
-        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
-        print(th)
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
 
         f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
 
@@ -232,7 +232,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -249,8 +249,8 @@ class TestStringMethods(unittest.TestCase):
         th = torch.zeros((batch_size, ps.n_params))
         f = torch.zeros((batch_size, ps.n_controls))
 
-        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
-        print(th)
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
 
         f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
 
@@ -300,7 +300,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -317,8 +317,8 @@ class TestStringMethods(unittest.TestCase):
         th = torch.zeros((batch_size, ps.n_params))
         f = torch.zeros((batch_size, ps.n_controls))
 
-        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
-        print(th)
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
 
         f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
 
@@ -367,7 +367,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -384,8 +384,8 @@ class TestStringMethods(unittest.TestCase):
         th = torch.zeros((batch_size, ps.n_params))
         f = torch.zeros((batch_size, ps.n_controls))
 
-        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
-        print(th)
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
 
         f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
 
@@ -434,7 +434,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -451,8 +451,8 @@ class TestStringMethods(unittest.TestCase):
         th = torch.zeros((batch_size, ps.n_params))
         f = torch.zeros((batch_size, ps.n_controls))
 
-        th[:, :] = torch.tensor(ps.sample_Theta_space(batch_size))
-        print(th)
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
 
         f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
 
@@ -491,7 +491,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -515,7 +515,7 @@ class TestStringMethods(unittest.TestCase):
         max_t = T_sim
         min_t = 0.0
 
-        print("th: ", th)
+        # print("th: ", th)
 
         # Plot the initial state.
         plot_objects = ps.plot_single(
@@ -576,7 +576,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -628,7 +628,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -638,44 +638,48 @@ class TestStringMethods(unittest.TestCase):
         N_traj = 100
         T_sim = 2.5
         dt = T_sim / N_traj
-        x_trajectory = x0
+        x_trajectory = x0.T
 
-        U_dist = Uniform( self.input_bounds[0, 0], self.input_bounds[0, 1] )
+        f_trajectory = torch.zeros((ps.n_controls, 0))
+
+        U_dist = Uniform(ps.control_limits[1][0], ps.control_limits[0][0])
+        theta = ps.sample_Theta_space(1)
+        theta = torch.Tensor(theta).flatten()
+        theta = theta.unsqueeze(0)
         for k in range(N_traj):
-            x_k = x_trajectory[k, :].reshape(1, 3)
-            u_k = torch.rand(1, 2)
+            x_k = x_trajectory[:, k].reshape(1, 3)
+            u_k = torch.tensor(U_dist.sample((1, 2)))
+            u_k[0, 1] = 7.0
 
+            x_kp1 = x_k + ps.dt * ps.closed_loop_dynamics(
+                x_k, u_k, theta.reshape((1, ps.n_params)))
 
-        x_trajectory = torch.Tensor(
-            [[t, t, (np.pi / 6) * t * 3 * 2] for t in np.linspace(0, T_sim, N_traj + 1)]
-        ).T
+            # Save data
+            f_trajectory = torch.cat((f_trajectory, u_k.T), dim=1)
+            x_trajectory = torch.cat((x_trajectory, x_kp1.T), dim=1)
+
+        # Reshape
         x_trajectory = x_trajectory.reshape(1, x_trajectory.shape[0], x_trajectory.shape[1])
-        th = ps.sample_Theta_space(1)
-        th = torch.Tensor(th).flatten()
-        th = th.unsqueeze(0)
-
-        f0 = torch.Tensor([0.1, 0.0])
-        f_trajectory = torch.kron(torch.ones((N_traj + 1, 1)), f0).T
-        f_trajectory = f_trajectory.unsqueeze(0)
+        f_trajectory = f_trajectory.reshape(1, f_trajectory.shape[0], f_trajectory.shape[1])
 
         # Animate with function
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             ps.save_animated_trajectory(
                 x_trajectory=x_trajectory,
-                th=th,
+                th=theta,
                 f_trajectory=f_trajectory,
                 hide_axes=False,
-                filename="figures/pusherslider-test_animate2.mp4",
+                filename="figures/pusherslider-test_animate3.mp4",
                 show_obstacle=False, show_goal=False,
             )
 
-    """
+    def test_save_animated_trajectory1(self):
+        """
         test_save_animated_trajectory1
         Description:
             Tests whether or not this function will properly save video of two pusher-slider systems at once.
         """
 
-    def test_save_animated_trajectory1(self):
         # Constants
         nominal_scenario = {
             "obstacle_center_x": 0.0,
@@ -690,7 +694,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -746,7 +750,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -757,7 +761,7 @@ class TestStringMethods(unittest.TestCase):
         th = torch.Tensor(th)
 
         u_nom = ps.u_nominal(
-            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
             th,
         )
 
@@ -807,7 +811,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -818,7 +822,7 @@ class TestStringMethods(unittest.TestCase):
         th = torch.Tensor(th)
 
         u_nom = ps.u_nominal(
-            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
             th,
         )
 
@@ -865,7 +869,7 @@ class TestStringMethods(unittest.TestCase):
                 [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
             ])
         )
-        ps = PusherSliderStickingForceInput(
+        ps = AdaptivePusherSliderStickingForceInput(
             nominal_scenario,
             Theta1,
         )
@@ -876,7 +880,7 @@ class TestStringMethods(unittest.TestCase):
         th = torch.Tensor(th)
 
         u_nom = ps.u_nominal(
-            x0.reshape(1, PusherSliderStickingForceInput.N_DIMS),
+            x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
             th,
         )
 
@@ -901,6 +905,123 @@ class TestStringMethods(unittest.TestCase):
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             fig.savefig("figures/pusherslider-test_u_nominal3.png", dpi=300)
             # green is the current force
+
+    def test_U1(self):
+        """
+        test_U1
+        Description:
+            Displays an example friction cone.
+
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.05,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = AdaptivePusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create Friction Cone
+        f_l, f_u = ps.friction_cone_extremes()
+
+        # Algorithm
+        H = np.array([
+            [1.0, -ps.ps_cof],
+            [-1.0, -ps.ps_cof],
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, -1.0],
+        ])
+        # H[2, 0] = 0.0
+        # H[2, 1] = 0.0
+
+        h = np.zeros((5, 1))
+        h[2, 0] = 2.0
+        h[3, 0] = 2.0
+
+        U1 = pc.Polytope(
+            H, h,
+        )
+
+        p1 = plt.figure()
+        ax = p1.add_subplot(111)
+
+        # Plot Friction Cone Vectors
+        plt.arrow(0.0, 0.0, f_l[0], f_l[1], color="red", width=0.001)
+        plt.arrow(0.0, 0.0, f_u[0], f_u[1], color="red", width=0.001)
+
+        U1.plot(ax, color="blue", alpha=0.5)
+
+        assert U1.dim == 2, f"U1.dim = {U1.dim}; expected dimesnion 2"
+
+        print("U1.bounding_box = ", U1.bounding_box)
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p1.savefig("figures/pusherslider-test_U1.png", dpi=300)
+
+    def test_U2(self):
+        """
+        test_U2
+        Description:
+            Displays an example friction cone using the build in U() method.
+
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.05,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = AdaptivePusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Create Friction Cone
+        f_l, f_u = ps.friction_cone_extremes()
+
+        # Algorithm
+        U2 = ps.U
+
+        p1 = plt.figure()
+        ax = p1.add_subplot(111)
+
+        # Plot Friction Cone Vectors
+        plt.arrow(0.0, 0.0, f_l[0], f_l[1], color="red", width=0.001)
+        plt.arrow(0.0, 0.0, f_u[0], f_u[1], color="red", width=0.001)
+
+        U2.plot(ax, color="blue", alpha=0.5)
+
+        assert U2.dim == 2, f"U1.dim = {U2.dim}; expected dimesnion 2"
+
+        print("U2.bounding_box = ", U2.bounding_box)
+        print("ps.control_limits = ", ps.control_limits)
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p1.savefig("figures/pusherslider-test_U2.png", dpi=300)
 
 
 if __name__ == '__main__':

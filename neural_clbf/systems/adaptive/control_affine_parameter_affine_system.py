@@ -256,12 +256,36 @@ class ControlAffineParameterAffineSystem(ABC):
         pass
 
     @abstractproperty
+    def U(self) -> pc.Polytope:
+        """
+        U = self.U
+        
+        Description:
+            This abstract property returns the polytope U, which is the set of all
+            allowable control inputs for the system.
+        """
+        pass
+
+    @property
     def control_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return a tuple (upper, lower) describing the range of allowable control
         limits for this system
         """
-        pass
+        # Get bounds on the U polytope
+        V_U = pc.extreme(self.U)
+
+        upper_limit = torch.tensor(
+            np.max(V_U, axis=0),
+            dtype=torch.get_default_dtype(),
+        ).to(self.device)
+
+        lower_limit = torch.tensor(
+            np.min(V_U, axis=0),
+            dtype=torch.get_default_dtype(),
+        ).to(self.device)
+
+        return (upper_limit, lower_limit)
 
     @property
     def intervention_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -627,7 +651,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
         th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
         th_h_samples = self.sample_Theta_space(batch_size) #self.get_N_samples_from_polytope(self.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.tensor(th_h_samples, device=self.device).type_as(theta)
+        th_h_sim[:, 0, :] = th_h_samples.squeeze()
 
         u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
 

@@ -1,7 +1,7 @@
 """
 pusher_slider_sticking_force_input.py
 Description:
-    Define an instance of class ControlAffineParameterAffineSystem for the system of a
+    Define an instance of class ControlAffineSystem for the system of a
     point finger attempting to push a sliding square with a force input.
     It is assumed that sticking contact is always made.
 """
@@ -132,6 +132,9 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         valid = valid and ("obstacle_center_x" in s)
         valid = valid and ("obstacle_center_y" in s)
         valid = valid and ("obstacle_radius" in s)
+
+        valid = valid and ("CoM_x" in s)
+        valid = valid and ("CoM_y" in s)
 
         return valid
 
@@ -364,23 +367,6 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
 
         return f
 
-    def _F(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
-        """
-        Return the control-independent part of the control-affine dynamics.
-
-        args:
-            x: bs x self.n_dims tensor of state
-            params: a dictionary giving the parameter values for the system. If None,
-                    default to the nominal parameters used at initialization
-        returns:
-            F: bs x self.n_dims x self.n_params tensor
-        """
-        # Constants
-        batch_size = x.shape[0]
-        F = torch.zeros((batch_size, self.n_dims, self.n_params)).to(self.device)
-
-        return F
-
     def _g(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
         """
         Return the control-dependent part of the control-affine dynamics.
@@ -401,6 +387,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         a = (1/10.0)*(1/(f_max ** 2))
         b = (1/10.0)*(1/(tau_max ** 2))
 
+        # Parameters
+        c_x = params["CoM_x"]
+        c_y = params["CoM_y"]
+
         # States
         s_x = x[:, PusherSliderStickingForceInput.S_X]
         s_y = x[:, PusherSliderStickingForceInput.S_Y]
@@ -413,38 +403,10 @@ class PusherSliderStickingForceInput(ControlAffineParameterAffineSystem):
         g[:, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.F_X] = torch.sin(s_theta) * a
         g[:, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.F_Y] = torch.cos(s_theta) * a
 
+        g[:, PusherSliderStickingForceInput.S_THETA, PusherSliderStickingForceInput.F_X] = -b * c_y
+        g[:, PusherSliderStickingForceInput.S_THETA, PusherSliderStickingForceInput.F_Y] = b * c_x
+
         return g
-
-    def _G(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
-        """
-        Return the control-dependent and parameter-dependent part of the control-affine dynamics.
-
-        args:
-            x: bs x self.n_dims tensor of state
-            params: a dictionary giving the parameter values for the system. If None,
-                    default to the nominal parameters used at initialization
-        returns:
-            G: bs x self.n_dims x self.n_controls x self.n_params tensor
-        """
-        # Constants
-        batch_size = x.shape[0]
-
-        f_max, tau_max = self.limit_surface_bounds()
-        a = (1 / 10.0) * (1 / (f_max ** 2))
-        b = (1 / 10.0) * (1 / (tau_max ** 2))
-
-        # States
-        s_x = x[:, PusherSliderStickingForceInput.S_X]
-        s_y = x[:, PusherSliderStickingForceInput.S_Y]
-        s_theta = x[:, PusherSliderStickingForceInput.S_THETA]
-
-        # Create output
-        G = torch.zeros((batch_size, self.n_dims, self.n_controls, self.n_params)).to(self.device)
-
-        G[:, PusherSliderStickingForceInput.S_THETA, PusherSliderStickingForceInput.F_X, PusherSliderStickingForceInput.C_Y] = -b
-        G[:, PusherSliderStickingForceInput.S_THETA, PusherSliderStickingForceInput.F_Y, PusherSliderStickingForceInput.C_X] = b
-
-        return G
 
     def limit_surface_bounds(self):
         # Constants

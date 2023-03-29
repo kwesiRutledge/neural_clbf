@@ -151,10 +151,14 @@ class aCLFController(Controller):
                 )
 
         # Control limit constraints
-        upper_lim, lower_lim = self.dynamics_model.control_limits
-        for control_idx in range(self.dynamics_model.n_controls):
-            constraints.append(u[control_idx] >= lower_lim.cpu()[control_idx])
-            constraints.append(u[control_idx] <= upper_lim.cpu()[control_idx])
+        # upper_lim, lower_lim = self.dynamics_model.control_limits
+        # for control_idx in range(self.dynamics_model.n_controls):
+        #     constraints.append(u[control_idx] >= lower_lim.cpu()[control_idx])
+        #     constraints.append(u[control_idx] <= upper_lim.cpu()[control_idx])
+        U = self.dynamics_model.U
+        constraints.append(
+            U.A @ u <= U.b,
+        )
 
         # And define the objective
         objective_expression = cp.sum_squares(u - u_ref_param)
@@ -521,6 +525,11 @@ class aCLFController(Controller):
             upper_lim = upper_lim.cpu().numpy()
             lower_lim = lower_lim.cpu().numpy()
             u = model.addMVar(n_controls, lb=lower_lim, ub=upper_lim)
+            # Add Constraint on u
+            U = self.dynamics_model.U
+            model.addConstr(
+                U.A @ u <= U.b, name="u_constraint"
+            )
             if allow_relaxation:
                 r_set = []
                 for corner_idx in range(n_Theta_vertices):

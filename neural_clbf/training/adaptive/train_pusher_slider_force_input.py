@@ -19,7 +19,7 @@ from neural_clbf.controllers import (
 from neural_clbf.datamodules import (
     EpisodicDataModule, EpisodicDataModuleAdaptive
 )
-from neural_clbf.systems.adaptive import PusherSliderStickingForceInput
+from neural_clbf.systems.adaptive import AdaptivePusherSliderStickingForceInput
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
@@ -100,7 +100,7 @@ def create_training_hyperparams(args)-> Dict:
         "checkpoint_path": args.checkpoint_path,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
-        "contour_exp_theta_index": PusherSliderStickingForceInput.S_X,
+        "contour_exp_theta_index": AdaptivePusherSliderStickingForceInput.S_X,
         # Rollout Experiment Parameters
         "rollout_experiment_horizon": 15.0,
         # Random Seed Info
@@ -140,7 +140,7 @@ def main(args):
     Theta = pc.box2poly(np.array([lb, ub]).T)
 
     # Define the dynamics model
-    dynamics_model = PusherSliderStickingForceInput(
+    dynamics_model = AdaptivePusherSliderStickingForceInput(
         t_hyper["nominal_scenario"],
         Theta,
         dt=simulation_dt,
@@ -176,10 +176,10 @@ def main(args):
 
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X])],
+        x_domain=[(x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X])],
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
-        x_axis_index=PusherSliderStickingForceInput.S_X,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
         theta_axis_index=t_hyper["contour_exp_theta_index"],
         x_axis_label="$p_x$",
         theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
@@ -188,9 +188,9 @@ def main(args):
     rollout_experiment = RolloutStateParameterSpaceExperiment(
         "Rollout",
         t_hyper["start_x"],
-        PusherSliderStickingForceInput.S_X,
+        AdaptivePusherSliderStickingForceInput.S_X,
         "$r_1$",
-        PusherSliderStickingForceInput.C_X,
+        AdaptivePusherSliderStickingForceInput.C_X,
         "$\\theta_1 (r_1^{(d)})$",
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -199,9 +199,9 @@ def main(args):
     rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
         "Rollout (Multiple Slices)",
         t_hyper["start_x"],
-        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_X],
+        [AdaptivePusherSliderStickingForceInput.S_X, AdaptivePusherSliderStickingForceInput.S_Y, AdaptivePusherSliderStickingForceInput.S_X],
         ["$r_1$", "$v_1$", "$r_2$"],
-        [PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_Y],
+        [AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_Y],
         ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -214,12 +214,12 @@ def main(args):
             (x_lb[1], x_ub[1]),
         ],  # plotting domain
         n_grid=50,
-        x_axis_index=PusherSliderStickingForceInput.S_X,
-        y_axis_index=PusherSliderStickingForceInput.S_Y,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+        y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((PusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
@@ -320,7 +320,7 @@ def main(args):
     )
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="This script trains the PusherSliderStickingForceInput controller based on adaptive control Lyapunov function principles.")
+    parser = ArgumentParser(description="This script trains the AdaptivePusherSliderStickingForceInput controller based on adaptive control Lyapunov function principles.")
 
     # training params
     # TODO: Add multi-GPU at some point?

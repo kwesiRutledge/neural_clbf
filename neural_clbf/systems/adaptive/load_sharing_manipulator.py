@@ -174,15 +174,18 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
 
     @property
-    def control_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
+    def U(self) -> pc.Polytope:
         """
-        Return a tuple (upper, lower) describing the range of allowable control
-        limits for this system
-        """
-        upper_limit = 250.0 * torch.ones(LoadSharingManipulator.N_CONTROLS, device=self.device)
-        lower_limit = -1.0 * upper_limit
+        U = self.U
 
-        return (upper_limit, lower_limit)
+        Description:
+            This abstract property returns the polytope U, which is the set of all
+            allowable control inputs for the system.
+        """
+        # Define U
+        U = pc.Polytope.box2poly([(-250.0, 250.0) for i in range(self.n_controls)])
+
+        return U
 
     def safe_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating safe regions for this system

@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
 import matplotlib
+from argparse import ArgumentParser
 
 from neural_clbf.controllers import (
     NeuralaCLBFController, NeuralCLBFController
 )
-from neural_clbf.systems.adaptive import PusherSliderStickingForceInput
+from neural_clbf.systems.adaptive import AdaptivePusherSliderStickingForceInput
 from neural_clbf.datamodules import EpisodicDataModuleAdaptive
 from neural_clbf.experiments import (
     AdaptiveCLFContourExperiment, RolloutStateParameterSpaceExperiment,
@@ -57,7 +58,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     Theta = pc.box2poly(np.array([lb, ub]).T)
 
     # Define the dynamics model
-    dynamics_model = PusherSliderStickingForceInput(
+    dynamics_model = AdaptivePusherSliderStickingForceInput(
         nominal_scenario,
         Theta,
         dt=simulation_dt,
@@ -92,11 +93,11 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
-        x_domain=[(x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X])],  # plotting domain
+        x_domain=[(x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X])],  # plotting domain
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,
-        x_axis_index=PusherSliderStickingForceInput.S_X,
-        theta_axis_index=PusherSliderStickingForceInput.C_X,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+        theta_axis_index=AdaptivePusherSliderStickingForceInput.C_X,
         x_axis_label="$p_x$",
         theta_axis_label="$\\hat{c}_x$",  # "$\\dot{\\theta}$",
         plot_unsafe_region=False,
@@ -104,9 +105,9 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
         "Rollout (Multiple Slices)",
         hyperparams["start_x"],
-        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_X],
+        [AdaptivePusherSliderStickingForceInput.S_X, AdaptivePusherSliderStickingForceInput.S_Y, AdaptivePusherSliderStickingForceInput.S_X],
         ["$r_1$", "$v_1$", "$r_2$"],
-        [PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_Y],
+        [AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_Y],
         ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -115,7 +116,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     rollout_experiment3 = RolloutManipulatorConvergenceExperiment(
         "Rollout Manipulator Convergence",
         hyperparams["start_x"],
-        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_THETA],
+        [AdaptivePusherSliderStickingForceInput.S_X, AdaptivePusherSliderStickingForceInput.S_Y, AdaptivePusherSliderStickingForceInput.S_THETA],
         ["$s_x$", "$s_y$", "$s_{\\theta}$"],
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -129,7 +130,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     rollout_experiment6 = RolloutManipulatorConvergenceExperiment(
         "Rollout Manipulator Convergence (Shorter travel time)",
         start_x4,
-        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_THETA],
+        [AdaptivePusherSliderStickingForceInput.S_X, AdaptivePusherSliderStickingForceInput.S_Y, AdaptivePusherSliderStickingForceInput.S_THETA],
         ["$s_x$", "$s_y$", "$s_{\\theta}$"],
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -143,9 +144,9 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     rollout_experiment5 = RolloutStateParameterSpaceExperimentMultiple(
         "Rollout (Multiple Slices)",
         start_x5,
-        [PusherSliderStickingForceInput.S_X, PusherSliderStickingForceInput.S_Y, PusherSliderStickingForceInput.S_X],
+        [AdaptivePusherSliderStickingForceInput.S_X, AdaptivePusherSliderStickingForceInput.S_Y, AdaptivePusherSliderStickingForceInput.S_X],
         ["$r_1$", "$v_1$", "$r_2$"],
-        [PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_X, PusherSliderStickingForceInput.C_Y],
+        [AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_X, AdaptivePusherSliderStickingForceInput.C_Y],
         ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -155,40 +156,40 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     V_contour_experiment5 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
         x_domain=[
-            (x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X]),
-            (x_lb[PusherSliderStickingForceInput.S_Y], x_ub[PusherSliderStickingForceInput.S_Y])
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
         ],  # plotting domain
         n_grid=50,
-        x_axis_index=PusherSliderStickingForceInput.S_X,
-        y_axis_index=PusherSliderStickingForceInput.S_Y,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+        y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((PusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
         x_domain=[
-            (x_lb[PusherSliderStickingForceInput.S_X], x_ub[PusherSliderStickingForceInput.S_X]),
-            (x_lb[PusherSliderStickingForceInput.S_Y], x_ub[PusherSliderStickingForceInput.S_Y])
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
         ],  # plotting domain
         n_grid=50,
-        x_axis_index=PusherSliderStickingForceInput.S_X,
-        y_axis_index=PusherSliderStickingForceInput.S_Y,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+        y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
         default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((PusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     rollout_experiment4 = ACLFRolloutTimingExperiment(
         "aCLF Rollout Timing",
         start_x,
-        PusherSliderStickingForceInput.S_X,
+        AdaptivePusherSliderStickingForceInput.S_X,
         "$x$",
-        PusherSliderStickingForceInput.C_X,
+        AdaptivePusherSliderStickingForceInput.C_X,
         "$\\hat{c}_x$",
         scenarios=scenarios,
         n_sims_per_start=1,
@@ -204,18 +205,18 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
-def plot_pusher_slider_data():
+def plot_pusher_slider_data(args):
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
     scalar_capa2_log_file_dir = "../../training/adaptive/logs/pusher_slider_sticking_force_input/"
     # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
-    commit_name = 'supercloud1'
-    version_to_load = 2
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/hyperparams.pt"
+    commit_prefix = args.commit_prefix
+    version_to_load = args.version_number
+    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/hyperparams.pt"
 
     saved_Vnn = torch.load(
-        scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt",
+        scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/Vnn.pt",
         map_location=torch.device('cpu'),
     )
     saved_hyperparams = torch.load(
@@ -226,7 +227,7 @@ def plot_pusher_slider_data():
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
     aclbf_controller = torch.load(
-        scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/controller.pt",
+        scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/controller.pt",
         map_location=torch.device('cpu'),
     )
     aclbf_controller.experiment_suite = experiment_suite
@@ -266,4 +267,17 @@ def plot_pusher_slider_data():
 
 if __name__ == "__main__":
     # eval_inverted_pendulum()
-    plot_pusher_slider_data()
+    parser = ArgumentParser(
+        description="This script evaluates a trained aCLBF controller for the AdaptivePusherSliderStickingForceInput system.",
+    )
+    parser.add_argument(
+        '--commit_prefix', type=str, default="supercloud3",
+        help='First seven letters of the commit id of the code used to generate the data (default: "supercloud1")'
+    )
+    parser.add_argument(
+        '--version_number', type=int, default=1,
+        help='Number of the experiment that was run under this commit (default: 1)',
+    )
+    args = parser.parse_args()
+
+    plot_pusher_slider_data(args)
