@@ -130,14 +130,10 @@ class ACLFRolloutTimingExperiment(Experiment):
                 x_mpc_sim_start[i * self.n_sims_per_start + j, :] = self.start_x[i, :]
 
         theta_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
-        )
+        theta_sim_start[:, :] = controller_under_test.dynamics_model.sample_Theta_space(n_sims)
 
         theta_hat_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_hat_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
-        )
+        theta_hat_sim_start[:, :] = controller_under_test.dynamics_model.sample_Theta_space(n_sims)
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -273,7 +269,7 @@ class ACLFRolloutTimingExperiment(Experiment):
                 x_mpc_current[i, :] = x_mpc_current[i, :] + delta_t + xdot_mpc.squeeze()
 
                 theta_hat_dot = controller_under_test.closed_loop_estimator_dynamics(
-                    x_current[i, :], theta_current[i, :], u_current[i, :],
+                    x_current[i, :].reshape((1, n_dims)), theta_current[i, :].reshape((1, n_theta)), u_current[i, :].reshape((1, n_controls)),
                     random_scenarios[i],
                 )
                 theta_hat_current[i, :] = theta_hat_current[i, :] + delta_t * theta_hat_dot.squeeze()
@@ -457,6 +453,9 @@ class ACLFRolloutTimingExperiment(Experiment):
         # Constants
         n_controls = controller_under_test.dynamics_model.n_controls
         u_fig, u_axs = plt.subplots(n_controls, 1)
+
+        if n_controls == 1:
+            u_axs = [u_axs]
 
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index

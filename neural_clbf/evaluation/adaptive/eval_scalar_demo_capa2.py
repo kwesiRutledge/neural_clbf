@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import matplotlib
+from argparse import ArgumentParser
 
 from neural_clbf.controllers import (
     NeuralaCLBFController, NeuralCLBFController
@@ -118,29 +119,42 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
-def plot_controlled_scalar_capa2():
+def plot_controlled_scalar_capa2(args):
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
     scalar_capa2_log_file_dir = "../../training/adaptive/logs/scalar_demo_capa2_system/"
-    ckpt_file = scalar_capa2_log_file_dir + "commit_98c4671/version_25/checkpoints/epoch=5-step=845.ckpt"
+    # ckpt_file = scalar_capa2_log_file_dir + "commit_98c4671/version_25/checkpoints/epoch=5-step=845.ckpt"
 
-    version_to_load = 43
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_98c4671/version_" + str(version_to_load) + "/hyperparams.pt"
+    commit_prefix = args.commit_prefix
+    version_to_load = args.version_number
+    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(
+        version_to_load) + "/hyperparams.pt"
 
-    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_98c4671/version_" + str(version_to_load) + "/Vnn.pt")
+    saved_Vnn = torch.load(
+        scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/Vnn.pt",
+        map_location=torch.device('cpu'),
+    )
+    saved_hyperparams = torch.load(
+        hyperparam_log_file,
+        map_location=torch.device('cpu'),
+    )
+
+    hyperparam_log_file = scalar_capa2_log_file_dir + \
+                          "commit_" + commit_prefix + \
+                          "/version_" + str(version_to_load) + "/hyperparams.pt"
+
+    saved_Vnn = torch.load(scalar_capa2_log_file_dir +
+                           "commit_" + commit_prefix +
+                           "/version_" + str(version_to_load) + "/Vnn.pt")
     saved_hyperparams = torch.load(hyperparam_log_file)
-
-    # print(saved_hyperparams)
-    # print(saved_Vnn)
-    # print(saved_Vnn[0])
-    # for layer in saved_Vnn:
-    #     print("layer: ", layer)
-    #     if isinstance(layer, nn.Linear):
-    #         print("layer.weight: ", layer.weight)
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
-    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_98c4671/version_" + str(version_to_load) + "/controller.pt")
+    aclbf_controller = torch.load(
+        scalar_capa2_log_file_dir +
+        "commit_" + commit_prefix +
+        "/version_" + str(version_to_load) + "/controller.pt"
+    )
     aclbf_controller.experiment_suite = experiment_suite
 
     # aclbf_controller = NeuralaCLBFController(
@@ -185,9 +199,23 @@ def plot_controlled_scalar_capa2():
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)
-        matplotlib.pyplot.savefig("datafiles/scalar_demo_capa2/" + fig_titles[fh_idx] + ".png")
+        matplotlib.pyplot.savefig("../datafiles/scalar_demo_capa2/" + fig_titles[fh_idx] + ".png")
 
 
 if __name__ == "__main__":
-    # eval_inverted_pendulum()
-    plot_controlled_scalar_capa2()
+    #Parse command line arguments
+    parser = ArgumentParser(
+        description="This script evaluates a trained aCLBF controller for the AdaptivePusherSliderStickingForceInput system.",
+    )
+    parser.add_argument(
+        '--commit_prefix', type=str, default="supercloud3",
+        help='First seven letters of the commit id of the code used to generate the data (default: "supercloud1")'
+    )
+    parser.add_argument(
+        '--version_number', type=int, default=1,
+        help='Number of the experiment that was run under this commit (default: 1)',
+    )
+    args = parser.parse_args()
+
+    # Begin plotting!
+    plot_controlled_scalar_capa2(args)

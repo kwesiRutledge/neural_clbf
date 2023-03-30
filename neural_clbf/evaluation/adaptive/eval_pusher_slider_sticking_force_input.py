@@ -199,7 +199,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         default_state=torch.tensor([0.0, 0.0, torch.pi / 4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([ub[0] * 0.5, dynamics_model.s_width / 2.0]).reshape(
+        default_param_estimate=torch.tensor([ub[0] * 0.9, dynamics_model.s_width / 2.0]).reshape(
             (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     rollout_experiment4 = ACLFRolloutTimingExperiment(
@@ -228,15 +228,15 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 def plot_pusher_slider_data(args):
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
-    scalar_capa2_log_file_dir = "../../training/adaptive/logs/pusher_slider_sticking_force_input/"
-    # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
+    pusher_slider_log_file_dir = "../../training/adaptive/logs/pusher_slider_sticking_force_input/"
+    # ckpt_file = pusher_slider_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
 
     commit_prefix = args.commit_prefix
     version_to_load = args.version_number
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/hyperparams.pt"
+    hyperparam_log_file = pusher_slider_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/hyperparams.pt"
 
     saved_Vnn = torch.load(
-        scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/Vnn.pt",
+        pusher_slider_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/Vnn.pt",
         map_location=torch.device('cpu'),
     )
     saved_hyperparams = torch.load(
@@ -247,7 +247,7 @@ def plot_pusher_slider_data(args):
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
 
     aclbf_controller = torch.load(
-        scalar_capa2_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/controller.pt",
+        pusher_slider_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/controller.pt",
         map_location=torch.device('cpu'),
     )
     aclbf_controller.experiment_suite = experiment_suite
