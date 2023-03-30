@@ -165,7 +165,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, dynamics_model.s_width/2]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
         "V_Contour (state slices only)",
@@ -182,7 +182,25 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([lb[0]*0.5, dynamics_model.s_width/2.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+    )
+    V_contour_experiment7 = aCLFCountourExperiment_StateSlices(
+        "V_Contour (state slices only)",
+        x_domain=[
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
+            (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
+        ],  # plotting domain
+        n_grid=50,
+        x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+        y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
+        x_axis_label="$s_x$",
+        y_axis_label="$s_y$",
+        plot_unsafe_region=False,
+        default_state=torch.tensor([0.0, 0.0, torch.pi / 4]).reshape(
+            (dynamics_model.n_dims, 1),
+        ),
+        default_param_estimate=torch.tensor([ub[0] * 0.5, dynamics_model.s_width / 2.0]).reshape(
+            (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
     )
     rollout_experiment4 = ACLFRolloutTimingExperiment(
         "aCLF Rollout Timing",
@@ -200,7 +218,9 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     #experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, rollout_experiment3, rollout_experiment4])
     experiment_suite = ExperimentSuite(
-        [V_contour_experiment, V_contour_experiment5, V_contour_experiment6, rollout_experiment2, rollout_experiment3, rollout_experiment5, rollout_experiment6]
+        [V_contour_experiment,
+         V_contour_experiment5, V_contour_experiment6, V_contour_experiment7,
+         rollout_experiment2, rollout_experiment3, rollout_experiment5, rollout_experiment6]
     )
 
     return dynamics_model, scenarios, data_module, experiment_suite
@@ -253,7 +273,8 @@ def plot_pusher_slider_data(args):
     fig_titles = [
         "V-contour",
         "V-contour-xSlices-only-theta0",
-        "V-contour-xSlices-only-theta_pi4",
+        "V-contour-xSlices-only-theta_minus",
+        "V-contour-xSlices-only-theta_plus",
         "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories",
         "x-convergence",
         "V-trajectories4", "V-trajectories5", "V-trajectories6", "u-trajectories4",

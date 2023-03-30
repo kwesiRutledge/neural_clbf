@@ -84,7 +84,7 @@ def create_training_hyperparams(args)-> Dict:
         "Theta_lb": [-0.03, -0.03 + s_width/2.0],
         "Theta_ub": [0.03, 0.03 + s_width/2.0],
         "clf_lambda": args.clf_lambda,
-        "Gamma_factor": 0.01,
+        "Gamma_factor": 0.001,
         "safe_level": 10.0,
         # layer specifications
         "clbf_hidden_size": 64,
@@ -242,25 +242,6 @@ def main(args):
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
     )
-
-    # for layer_idx in range(len(aclbf_controller.V_nn)):
-    #     layer = aclbf_controller.V_nn[layer_idx]
-    #     print(layer)
-    #
-    #     if isinstance(layer, torch.nn.Linear):
-    #         print("layer.weight \n", layer.weight)
-    #         print("layer.bias\n", layer.bias)
-    #
-    # x0 = torch.tensor([
-    #     [-0.25, 0.25, torch.pi/2]
-    # ])
-    # thetahat0 = torch.tensor([
-    #     [0.03, 0.03]
-    # ])
-    # print("aclbf_controller.V_with_jacobian(x0,thetahat0) =", aclbf_controller.V_with_jacobian(x0,thetahat0))
-
-    # print("Reached end")
-    # exit(0)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(

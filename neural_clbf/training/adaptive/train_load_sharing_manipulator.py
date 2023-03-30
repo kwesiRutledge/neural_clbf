@@ -44,16 +44,6 @@ def create_training_hyperparams(args)-> Dict:
         Neural aCLBF training.
     """
 
-    # Get initial conditions for the experiment
-    start_x = torch.tensor(
-        [
-            [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-            [-0.2, 1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
-            [-0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
-        ]
-    )
-
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
     accelerator = "cpu"
     if torch.cuda.is_available():
@@ -62,6 +52,16 @@ def create_training_hyperparams(args)-> Dict:
         torch.set_default_dtype(torch.float32)
         accelerator = "mps"
         # accelerator = "cpu"
+
+    # Get initial conditions for the experiment
+    start_x = torch.tensor(
+        [
+            [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+            [-0.2, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+            [-0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+    ).to(accelerator)
 
     nominal_scenario = {
         "obstacle_center_x": 0.25,
@@ -167,7 +167,8 @@ def main(args):
     V_contour_experiment = AdaptiveCLFContourExperiment(
         "V_Contour",
         x_domain=[
-            (dynamics_model.state_limits[1][LoadSharingManipulator.P_X], dynamics_model.state_limits[0][LoadSharingManipulator.P_X]),
+            (dynamics_model.state_limits[1][LoadSharingManipulator.P_X],
+             dynamics_model.state_limits[0][LoadSharingManipulator.P_X]),
         ],
         theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
         n_grid=30,

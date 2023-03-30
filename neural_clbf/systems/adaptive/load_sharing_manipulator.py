@@ -183,7 +183,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             allowable control inputs for the system.
         """
         # Define U
-        U = pc.Polytope.box2poly([(-250.0, 250.0) for i in range(self.n_controls)])
+        U = pc.box2poly([(-250.0, 250.0) for i in range(self.n_controls)])
 
         return U
 

@@ -18,5 +18,5 @@ source activate neural_clbf
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_load_sharing_manipulator.py \
-  --max_epochs 31 \
+  --max_epochs 31 --clf_lambda 1.0 \
   --use_oracle True --barrier True

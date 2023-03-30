@@ -429,9 +429,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                     loss.append(("CLBF safe region accuracy", safe_V_acc))
             else:
                 # No safe points found in data
-                loss.append(("CLBF safe region term", torch.tensor(0.0)))
+                loss.append(("CLBF safe region term", torch.tensor(0.0, device=x.device)))
                 if accuracy:
-                    loss.append(("CLBF safe region accuracy", torch.tensor(1.0)))
+                    loss.append(("CLBF safe region accuracy", torch.tensor(1.0, device=x.device)))
 
             #   3.) V >= unsafe_level in the unsafe region
             V_unsafe = V[unsafe_mask]
@@ -447,9 +447,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                     loss.append(("CLBF unsafe region accuracy", unsafe_V_acc))
             else:
                 # No unsafe points found in data
-                loss.append(("CLBF unsafe region term", torch.tensor(0.0)))
+                loss.append(("CLBF unsafe region term", torch.tensor(0.0, device=x.device)))
                 if accuracy:
-                    loss.append(("CLBF unsafe region accuracy", torch.tensor(1.0)))
+                    loss.append(("CLBF unsafe region accuracy", torch.tensor(1.0, device=x.device)))
 
         return loss
 
@@ -705,7 +705,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         V = self.V(x, theta_hat)
         V_corners = []
         for v_Theta_np in V_Theta:
-            v_Theta = torch.Tensor(v_Theta_np.T)
+            v_Theta = torch.tensor(v_Theta_np.T, device=x.device, dtype=torch.get_default_dtype())
             v_Theta = v_Theta.reshape((1, n_params))
             v_Theta = v_Theta.repeat((bs, 1))
             V_corners.append(self.V(x, v_Theta))
@@ -820,7 +820,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         component_losses.update(self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask))
 
         # Compute the overall loss by summing up the individual losses
-        total_loss = torch.tensor(0.0).type_as(x)
+        total_loss = torch.tensor(0.0, device=x.device).type_as(x)
         # For the objectives, we can just sum them
         for _, loss_value in component_losses.items():
             if not torch.isnan(loss_value):
@@ -863,6 +863,9 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         # Average all the losses
         avg_losses = {}
         for key in losses.keys():
+            print("key: ", key)
+            print("losses[key]: ", losses[key])
+
             key_losses = torch.stack(losses[key])
             avg_losses[key] = torch.nansum(key_losses) / key_losses.shape[0]
 
