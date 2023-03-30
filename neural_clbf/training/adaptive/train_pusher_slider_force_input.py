@@ -84,7 +84,7 @@ def create_training_hyperparams(args)-> Dict:
         "Theta_lb": [-0.03, -0.03 + s_width/2.0],
         "Theta_ub": [0.03, 0.03 + s_width/2.0],
         "clf_lambda": args.clf_lambda,
-        "Gamma_factor": 0.001,
+        "Gamma_factor": 0.0001,
         "safe_level": 10.0,
         # layer specifications
         "clbf_hidden_size": 64,
