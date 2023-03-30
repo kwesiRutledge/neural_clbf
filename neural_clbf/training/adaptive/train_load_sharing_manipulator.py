@@ -90,6 +90,7 @@ def create_training_hyperparams(args)-> Dict:
         "accelerator": accelerator,
         "use_oracle_loss": True,
         "barrier": args.barrier,
+        "gradient_clip_val": args.gradient_clip_val,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
@@ -232,6 +233,7 @@ def main(args):
         # reload_dataloaders_every_epoch=True,
         max_epochs=t_hyper["max_epochs"],
         accelerator=t_hyper["accelerator"],
+        gradient_clip_val=t_hyper["gradient_clip_val"],
     )
 
     # Train
@@ -305,6 +307,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--clf_lambda', type=float, default=1.0,
         help='Desired decay rate for the CLBF (default: 1.0)',
+    )
+    parser.add_argument(
+        '--gradient_clip_val', type=float, default=10000.0,
+        help='Gradient clipping value (default: 10000.0)',
     )
     args = parser.parse_args()
 

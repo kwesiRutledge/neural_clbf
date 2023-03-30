@@ -19,4 +19,5 @@ source activate neural_clbf
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_load_sharing_manipulator.py \
   --max_epochs 31 --clf_lambda 1.0 \
-  --use_oracle True --barrier True
+  --use_oracle True --barrier True \
+  --gradient_clip_val 100.0
