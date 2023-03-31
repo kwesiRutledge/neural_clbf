@@ -39,7 +39,6 @@ class aCLFCountourExperiment_StateSlices(Experiment):
         plot_unsafe_region: bool = True,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
-            safe_level:
     ):
         """
         Description:
