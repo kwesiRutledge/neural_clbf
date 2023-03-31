@@ -62,12 +62,13 @@ def create_hyperparam_struct(args)-> Dict:
         "nominal_scenario_wall_pos": -0.5,
         "Theta_lb": -2.5,
         "Theta_ub": -1.5,
-        "clf_lambda": 1.0,
+        "clf_lambda": args.clf_lambda,
         # Training Parameters
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
         "use_oracle": args.use_oracle,
         "barrier": args.barrier,
         "safe_level": args.safe_level,
+        "use_estim_err_loss":args.use_estim_err_loss,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
@@ -120,7 +121,7 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (1.0, 3.0),# p_x
+        (1.0, 3.0), # p_x
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
@@ -133,7 +134,6 @@ def main(args):
         batch_size=batch_size,
         quotas=hyperparams["sample_quotas"],
         device=hyperparams["accelerator"],
-        # quotas={"safe": 0.2, "unsafe": 0.2, "goal": 0.4},
     )
 
     # Define the experiment suite
@@ -184,12 +184,16 @@ def main(args):
             barrier=hyperparams["barrier"],
             Gamma_factor=0.1,
             include_oracle_loss=hyperparams["use_oracle"],
+            include_estimation_error_loss=hyperparams["use_estim_err_loss"]
         )
     else:
 
         aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
             args.checkpoint_path,
         )
+        print(f"Loaded controller from {args.checkpoint_path}", "green")
+
+        exit(0)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -281,6 +285,14 @@ if __name__ == "__main__":
     parser.add_argument(
         '--safe_level', type=float, default=0.5,
         help='Safe level for the CLBF (default: 0.5)',
+    )
+    parser.add_argument(
+        '--clf_lambda', type=float, default=1.0,
+        help='Lambda for the CLF (default: 1.0)',
+    )
+    parser.add_argument(
+        '--use_estim_err_loss', type=bool, default=False,
+        help='Whether to use the estimation error loss in training(default: False)',
     )
     args = parser.parse_args()
 

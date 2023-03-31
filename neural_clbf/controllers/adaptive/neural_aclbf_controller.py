@@ -60,6 +60,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         saved_Vnn: torch.nn.Sequential = None,
         Gamma_factor: float = None,
         include_oracle_loss: bool = True,
+        include_estimation_error_loss: bool = False,
     ):
         """Initialize the controller.
 
@@ -121,6 +122,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         self.normalize_V_nominal = normalize_V_nominal
         self.V_nominal_mean = 1.0
         self.include_oracle_loss = include_oracle_loss
+        self.include_estimation_error_loss = include_estimation_error_loss
 
         # Compute and save the center and range of the state variables
         x_max, x_min = dynamics_model.state_limits
@@ -561,6 +563,10 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         eps = 1.0
         clbf_descent_term_sim = torch.tensor(0.0).type_as(x)
         clbf_descent_acc_sim = torch.tensor(0.0).type_as(x)
+
+        aclbf_estimation_error_term_sim = torch.tensor(0.0).type_as(x)
+        aclbf_estimation_error_acc_sim = torch.tensor(0.0).type_as(x)
+
         for s in self.scenarios:
             xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
             x_next = x + self.dynamics_model.dt * xdot
@@ -575,9 +581,24 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             clbf_descent_acc_sim = clbf_descent_acc_sim + (violation <= eps).sum() / (
                 violation.nelement() * self.n_scenarios
             )
-        loss.append(("CLBF descent term (simulated)", clbf_descent_term_sim))
-        if accuracy:
-            loss.append(("CLBF descent accuracy (simulated)", clbf_descent_acc_sim))
+
+            # Compute the estimation error
+            theta_err = theta - theta_hat
+            theta_err_norm = torch.norm(theta_err, dim=1)
+            theta_err_next = theta - theta_hat_next
+            theta_err_next_norm = torch.norm(theta_err_next, dim=1)
+            violation = F.relu(eps + (theta_err_next_norm - theta_err_norm))
+            violation = violation * condition_active
+
+            aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation.mean()
+            aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation <= eps).sum() / (
+                violation.nelement() * self.n_scenarios
+            )
+
+        if self.include_estimation_error_loss:
+            loss.append(("aCLBF estimation error term (simulated)", aclbf_estimation_error_term_sim))
+            if accuracy:
+                loss.append(("aCLBF estimation error accuracy (simulated)", aclbf_estimation_error_acc_sim))
 
         # Oracle Loss
         oracle_weight = float(V_Theta.shape[0]) # Number of vertices in the polytope
@@ -863,8 +884,8 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         # Average all the losses
         avg_losses = {}
         for key in losses.keys():
-            print("key: ", key)
-            print("losses[key]: ", losses[key])
+            # print("key: ", key)
+            # print("losses[key]: ", losses[key])
 
             key_losses = torch.stack(losses[key])
             avg_losses[key] = torch.nansum(key_losses) / key_losses.shape[0]

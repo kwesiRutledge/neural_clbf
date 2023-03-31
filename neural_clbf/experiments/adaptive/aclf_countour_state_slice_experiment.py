@@ -39,6 +39,7 @@ class aCLFCountourExperiment_StateSlices(Experiment):
         plot_unsafe_region: bool = True,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
+            safe_level:
     ):
         """
         Description:
@@ -275,7 +276,7 @@ class aCLFCountourExperiment_StateSlices(Experiment):
                 results_df[self.y_axis_label],
                 results_df["Safe region"],
                 colors=["green"],
-                levels=[0.5],
+                levels=[controller_under_test.safe_level],
             )
             ax.plot([], [], c="magenta", label="Unsafe Region")
             ax.tricontour(
@@ -283,7 +284,7 @@ class aCLFCountourExperiment_StateSlices(Experiment):
                 results_df[self.y_axis_label],
                 results_df["Unsafe region"],
                 colors=["magenta"],
-                levels=[0.5],
+                levels=[controller_under_test.safe_level],
             )
 
             ax.plot([], [], c="blue", label="V(x) = c")

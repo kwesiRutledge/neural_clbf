@@ -181,7 +181,7 @@ class RolloutParameterConvergenceExperiment(Experiment):
             V: Optional[torch.Tensor] = None
             if hasattr(controller_under_test, "V") and h is None:
                 V = controller_under_test.V(x_current, theta_hat_current)  # type: ignore
-                V_oracle = controller_under_test.V_oracle(x_current, theta_current, theta_current)  # type: ignore
+                V_oracle = controller_under_test.V_oracle(x_current, theta_hat_current, theta_current)  # type: ignore
 
             # Log the current state and control for each simulation
             for sim_index in range(n_sims):
@@ -208,7 +208,7 @@ class RolloutParameterConvergenceExperiment(Experiment):
                 log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
-                log_packet["theta_error_norm"] = torch.norm(theta_error)
+                log_packet["theta_error_norm"] = torch.linalg.vector_norm(theta_error)
 
                 # Log the barrier function if applicable
                 if h is not None:
@@ -515,4 +515,3 @@ class RolloutParameterConvergenceExperiment(Experiment):
                 markersize=5,
                 color=sns.color_palette()[plot_idx],
             )
-
