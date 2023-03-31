@@ -150,6 +150,7 @@ def main(args):
         theta_domain=[(lb[0], ub[0])], # plotting domain for theta
         theta_axis_label="$\\theta$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
+        safe_level=hyperparams["safe_level"],
     )
     rollout_experiment = RolloutStateParameterSpaceExperiment(
         "Rollout",

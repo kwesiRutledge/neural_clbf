@@ -36,6 +36,8 @@ def copy_directory_using_scp(args):
         source_directory += "pusher_slider_sticking_force_input/"
     elif args.system == "scalar":
         source_directory += "scalar_demo_capa2_system/"
+    elif args.system == "ls":
+        source_directory += "load_sharing_manipulator/"
     else:
         raise ValueError("System {} not recognized.".format(args.system))
 

@@ -10,7 +10,10 @@ from neural_clbf.systems.adaptive import ScalarCAPA2Demo
 from neural_clbf.datamodules import EpisodicDataModuleAdaptive
 from neural_clbf.experiments import (
     AdaptiveCLFContourExperiment, RolloutStateParameterSpaceExperiment,
-    ExperimentSuite, ACLFRolloutTimingExperiment
+    ExperimentSuite, ACLFRolloutTimingExperiment,
+)
+from neural_clbf.experiments.adaptive import (
+    RolloutParameterConvergenceExperiment,
 )
 
 import numpy as np
@@ -40,7 +43,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
             [0.9],
             [1.5],
             [-0.5],
-            [-0.7]
+            # [-0.7]
         ]
     )
 
@@ -115,7 +118,15 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         n_sims_per_start=1,
         t_sim=5.0,
     )
-    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2])
+    rollout_experiment3 = RolloutParameterConvergenceExperiment(
+        "Rollout (Parameter Convergence)",
+        start_x,
+        [ScalarCAPA2Demo.X_DEMO],
+        ["$s$"],
+        n_sims_per_start=1,
+        hide_state_rollouts=True,
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, rollout_experiment3])
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
@@ -195,7 +206,11 @@ def plot_controlled_scalar_capa2(args):
         aclbf_controller, display_plots=False
     )
 
-    fig_titles = ["V-contour", "V-trajectories", "u-trajectories", "pt-comparison-cloud1"]
+    fig_titles = [
+        "V-contour",
+        "V-trajectories", "u-trajectories", "pt-comparison-cloud1",
+        "x-convergence",
+    ]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)

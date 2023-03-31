@@ -40,6 +40,8 @@ class AdaptiveCLFContourExperiment(Experiment):
         plot_unsafe_region: bool = True,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
+        safe_level: float = 0.5,
+        unsafe_level: float = 0.6,
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
         state dimensions.
@@ -80,6 +82,8 @@ class AdaptiveCLFContourExperiment(Experiment):
         self.plot_unsafe_region = plot_unsafe_region
         self.plot_linearized_V = plot_linearized_V
         self.plot_relaxation = plot_relaxation
+        self.safe_level = safe_level
+        self.unsafe_level = unsafe_level
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -276,7 +280,7 @@ class AdaptiveCLFContourExperiment(Experiment):
                 results_df[self.theta_axis_label],
                 results_df["Safe region"],
                 colors=["green"],
-                levels=[0.5],
+                levels=[self.safe_level],
             )
             ax.plot([], [], c="magenta", label="Unsafe Region")
             ax.tricontour(
@@ -284,7 +288,7 @@ class AdaptiveCLFContourExperiment(Experiment):
                 results_df[self.theta_axis_label],
                 results_df["Unsafe region"],
                 colors=["magenta"],
-                levels=[0.5],
+                levels=[self.unsafe_level],
             )
 
             ax.plot([], [], c="blue", label="V(x) = c")
