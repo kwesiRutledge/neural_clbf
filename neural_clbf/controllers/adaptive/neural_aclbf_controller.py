@@ -595,6 +595,11 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 violation.nelement() * self.n_scenarios
             )
 
+        # Add all of these losses to the loss struct
+        loss.append(("CLBF descent term (simulated)", clbf_descent_term_sim))
+        if accuracy:
+            loss.append(("CLBF descent accuracy (simulated)", clbf_descent_acc_sim))
+
         if self.include_estimation_error_loss:
             loss.append(("aCLBF estimation error term (simulated)", aclbf_estimation_error_term_sim))
             if accuracy:
@@ -628,10 +633,6 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             loss.append(("Oracle CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
             if accuracy:
                 loss.append(("Oracle CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
-        else:
-            loss.append(("Oracle CLBF descent term (simulated)", torch.Tensor([0.0])))
-            if accuracy:
-                loss.append(("Oracle CLBF descent accuracy (simulated)", torch.Tensor([0.0])))
 
 
         return loss
