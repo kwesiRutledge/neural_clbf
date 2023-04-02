@@ -34,11 +34,20 @@ class aCLFCountourExperiment_StateSlices(Experiment):
         y_axis_index: int = 0,
         x_axis_label: str = "$x_0$",
         y_axis_label: str = "$x_0$",
+        # Defaults
         default_state: Optional[torch.Tensor] = None,
         default_param_estimate: Optional[torch.Tensor] = None,
-        plot_unsafe_region: bool = True,
+        default_safe_level: float = 0.5,
+        default_unsafe_level: float = 0.6,
+        default_highlight_level: float = 10.0,
+        # Plotting flags
+        plot_safe_region: bool = False,
+        plot_safe_region_boundary: bool = True,
+        plot_unsafe_region: bool = False,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
+        plot_highlight_region: bool = False,
+        plot_goal_region: bool = False,
     ):
         """
         Description:
@@ -74,13 +83,20 @@ class aCLFCountourExperiment_StateSlices(Experiment):
         self.y_axis_index = y_axis_index
         self.y_axis_label = y_axis_label
 
-
+        # Set defaults
         self.default_state = default_state
         self.default_param_estimate = default_param_estimate
+        self.default_safe_level = default_safe_level
+        self.default_unsafe_level = default_unsafe_level
+        self.default_highlight_level = default_highlight_level
         # Extra plotting flags
+        self.plot_safe_region = plot_safe_region
+        self.plot_safe_region_boundary = plot_safe_region_boundary
         self.plot_unsafe_region = plot_unsafe_region
         self.plot_linearized_V = plot_linearized_V
         self.plot_relaxation = plot_relaxation
+        self.plot_highlight_region = plot_highlight_region
+        self.plot_goal_region = plot_goal_region
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -219,8 +235,22 @@ class aCLFCountourExperiment_StateSlices(Experiment):
         returns: a list of tuples containing the name of each figure and the figure
                  object.
         """
+        # Constants
+        # =========
+        # Set default aCLF levels
+        safe_level = self.default_safe_level
+        if hasattr(controller_under_test, "safe_level"):
+            safe_level = controller_under_test.safe_level
+
+        unsafe_level = self.default_unsafe_level
+
+        highlight_level = self.default_highlight_level # We can target an arbitrary level to show on the plot with this flag.
+
         # Set the color scheme
         sns.set_theme(context="talk", style="white")
+
+        # Plotting
+        # ========
 
         # Plot a contour of V
         fig, ax = plt.subplots(1, 1)
@@ -268,41 +298,72 @@ class aCLFCountourExperiment_StateSlices(Experiment):
             )
 
         # And the safe/unsafe regions (if specified)
-        if self.plot_unsafe_region:
+        if self.plot_safe_region:
             ax.plot([], [], c="green", label="Safe Region")
             ax.tricontour(
                 results_df[self.x_axis_label],
                 results_df[self.y_axis_label],
                 results_df["Safe region"],
                 colors=["green"],
-                levels=[controller_under_test.safe_level],
             )
+
+        if self.plot_safe_region_boundary:
+            ax.plot([], [], c="green", label="Safe Region Boundary")
+            ax.tricontour(
+                results_df[self.x_axis_label],
+                results_df[self.y_axis_label],
+                results_df["V"],
+                colors=["green"],
+                levels=[safe_level],
+                linestyles="--",
+            )
+
+        if self.plot_unsafe_region:
             ax.plot([], [], c="magenta", label="Unsafe Region")
             ax.tricontour(
                 results_df[self.x_axis_label],
                 results_df[self.y_axis_label],
                 results_df["Unsafe region"],
                 colors=["magenta"],
-                levels=[controller_under_test.safe_level],
+                levels=[1.0],
             )
 
-            ax.plot([], [], c="blue", label="V(x) = c")
-            if hasattr(controller_under_test, "safe_level"):
-                ax.tricontour(
-                    results_df[self.x_axis_label],
-                    results_df[self.y_axis_label],
-                    results_df["V"],
-                    colors=["blue"],
-                    levels=[controller_under_test.safe_level],  # type: ignore
-                )
-            else:
-                ax.tricontour(
-                    results_df[self.x_axis_label],
-                    results_df[self.y_axis_label],
-                    results_df["V"],
-                    colors=["blue"],
-                    levels=[0.0],
-                )
+        if self.plot_highlight_region:
+            ax.plot([], [], c="magenta", label="Unsafe Region")
+            ax.tricontour(
+                results_df[self.x_axis_label],
+                results_df[self.y_axis_label],
+                results_df["V"],
+                colors=["blue"],
+                levels=[highlight_level],
+            )
+
+        if self.plot_goal_region:
+            ax.plot([], [], c="orange", label="Goal Region")
+            ax.tricontour(
+                results_df[self.x_axis_label],
+                results_df[self.y_axis_label],
+                results_df["Goal region"],
+                colors=["orange"],
+            )
+
+        # And the ?? region
+        #     ax.plot([], [], c="blue", label="V(x) = c")
+        #     if hasattr(controller_under_test, "safe_level"):
+        #         ax.tricontour(
+        #             results_df[self.x_axis_label],
+        #             results_df[self.y_axis_label],
+        #             results_df["V"],
+        #             colors=["blue"],
+        #             levels=[controller_under_test.safe_level],  # type: ignore
+        #         )
+        ax.tricontour(
+            results_df[self.x_axis_label],
+            results_df[self.y_axis_label],
+            results_df["V"],
+            colors=["blue"],
+            levels=[0.0],
+        )
 
         # Make the legend
         # ax.legend(

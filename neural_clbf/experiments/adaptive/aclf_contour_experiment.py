@@ -35,13 +35,17 @@ class AdaptiveCLFContourExperiment(Experiment):
         theta_axis_index: int = 0,
         x_axis_label: str = "$x$",
         theta_axis_label: str = "$\theta$",
+        # Defaults
+        default_safe_level: float = 0.5,
+        default_unsafe_level: float = 0.6,
         default_state: Optional[torch.Tensor] = None,
         default_param_estimate: Optional[torch.Tensor] = None,
-        plot_unsafe_region: bool = True,
+        # Plotting Flags
+        plot_safe_region: bool = False,
+        plot_safe_region_boundary: bool = True,
+        plot_unsafe_region: bool = False,
         plot_linearized_V: bool = False,
         plot_relaxation: bool = False,
-        safe_level: float = 0.5,
-        unsafe_level: float = 0.6,
     ):
         """Initialize an experiment for plotting the value of the aCLF over selected
         state dimensions.
@@ -76,14 +80,17 @@ class AdaptiveCLFContourExperiment(Experiment):
         self.theta_axis_index = theta_axis_index
         self.x_axis_label = x_axis_label
         self.theta_axis_label = theta_axis_label
+        # Defaults
         self.default_state = default_state
         self.default_param_estimate = default_param_estimate
+        self.default_safe_level = default_safe_level
+        self.default_unsafe_level = default_unsafe_level
         # Extra plotting flags
+        self.plot_safe_region = plot_safe_region
+        self.plot_safe_region_boundary = plot_safe_region_boundary
         self.plot_unsafe_region = plot_unsafe_region
         self.plot_linearized_V = plot_linearized_V
         self.plot_relaxation = plot_relaxation
-        self.safe_level = safe_level
-        self.unsafe_level = unsafe_level
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -224,6 +231,13 @@ class AdaptiveCLFContourExperiment(Experiment):
         returns: a list of tuples containing the name of each figure and the figure
                  object.
         """
+        # Get constants from controller
+        safe_level = self.default_safe_level
+        if hasattr(controller_under_test, "safe_level"):
+            safe_level = controller_under_test.safe_level
+
+        unsafe_level = self.default_unsafe_level
+
         # Set the color scheme
         sns.set_theme(context="talk", style="white")
 
@@ -273,40 +287,34 @@ class AdaptiveCLFContourExperiment(Experiment):
             )
 
         # And the safe/unsafe regions (if specified)
-        if self.plot_unsafe_region:
-            ax.plot([], [], c="green", label="Safe Region")
+        if self.plot_safe_region:
+            ax.plot([], [], c="blue", label="V(x) = c")
             ax.tricontour(
                 results_df[self.x_axis_label],
                 results_df[self.theta_axis_label],
-                results_df["Safe region"],
+                results_df["V"],
                 colors=["green"],
-                levels=[self.safe_level],
+                levels=[safe_level],  # type: ignore
             )
+
+        if self.plot_unsafe_region:
             ax.plot([], [], c="magenta", label="Unsafe Region")
             ax.tricontour(
                 results_df[self.x_axis_label],
                 results_df[self.theta_axis_label],
                 results_df["Unsafe region"],
                 colors=["magenta"],
-                levels=[self.unsafe_level],
+                levels=[unsafe_level],
             )
 
-            ax.plot([], [], c="blue", label="V(x) = c")
-            if hasattr(controller_under_test, "safe_level"):
-                ax.tricontour(
-                    results_df[self.x_axis_label],
-                    results_df[self.theta_axis_label],
-                    results_df["V"],
-                    colors=["blue"],
-                    levels=[controller_under_test.safe_level],  # type: ignore
-                )
-            else:
-                ax.tricontour(
-                    results_df[self.x_axis_label],
-                    results_df[self.theta_axis_label],
-                    results_df["V"],
-                    colors=["blue"],
-                    levels=[0.0],
+        ax.plot([], [], c="blue", label="V(x) = c")
+        if not hasattr(controller_under_test, "safe_level"):
+            ax.tricontour(
+                results_df[self.x_axis_label],
+                results_df[self.theta_axis_label],
+                results_df["V"],
+                colors=["blue"],
+                levels=[0.0],
                 )
 
         # Make the legend
