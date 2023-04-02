@@ -26,7 +26,7 @@ import polytope as pc
 
 matplotlib.use('TkAgg')
 
-def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFController:
+def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFController:
     """
     inflate_context_using_hyperparameters
     Description
@@ -100,7 +100,6 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         theta_axis_index=AdaptivePusherSliderStickingForceInput.C_X,
         x_axis_label="$p_x$",
         theta_axis_label="$\\hat{c}_x$",  # "$\\dot{\\theta}$",
-        plot_unsafe_region=False,
     )
     rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
         "Rollout (Multiple Slices)",
@@ -154,7 +153,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     )
 
     V_contour_experiment5 = aCLFCountourExperiment_StateSlices(
-        "V_Contour (state slices only)",
+        "V_Contour (state slices only) 1",
         x_domain=[
             (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
             (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
@@ -164,11 +163,14 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
-        plot_unsafe_region=False,
-        default_param_estimate=torch.tensor([0.0, dynamics_model.s_width/2]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, dynamics_model.s_width/2]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape((AdaptivePusherSliderStickingForceInput.N_DIMS, 1)),
+        plot_highlight_region=args.highlight_level is not None,
+        default_highlight_level=args.highlight_level,
+        plot_goal_region=True,
     )
     V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
-        "V_Contour (state slices only)",
+        "V_Contour (state slices only) 2",
         x_domain=[
             (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
             (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
@@ -182,10 +184,13 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([lb[0]*0.5, dynamics_model.s_width/2.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([lb[0]*0.5, dynamics_model.s_width/2.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        plot_highlight_region=args.highlight_level is not None,
+        default_highlight_level=args.highlight_level,
+        plot_goal_region=True,
     )
     V_contour_experiment7 = aCLFCountourExperiment_StateSlices(
-        "V_Contour (state slices only)",
+        "V_Contour (state slices only) 3",
         x_domain=[
             (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
             (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
@@ -200,7 +205,10 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
             (dynamics_model.n_dims, 1),
         ),
         default_param_estimate=torch.tensor([ub[0] * 0.9, dynamics_model.s_width / 2.0]).reshape(
-            (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+            (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        plot_highlight_region=args.highlight_level is not None,
+        default_highlight_level=args.highlight_level,
+        plot_goal_region=True,
     )
     rollout_experiment4 = ACLFRolloutTimingExperiment(
         "aCLF Rollout Timing",
@@ -244,7 +252,7 @@ def plot_pusher_slider_data(args):
         map_location=torch.device('cpu'),
     )
 
-    dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
+    dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams, args)
 
     aclbf_controller = torch.load(
         pusher_slider_log_file_dir + "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/controller.pt",
@@ -255,15 +263,13 @@ def plot_pusher_slider_data(args):
 
     # Update parameters
     for experiment_idx in range(1, 3 +1):
-        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = 50.0* torch.tensor(
-        [
-            [0.5, 0.0, 0.0],
-            [0.0, 0.5, 0.0],
-            [0.0, 0.5, -0.4],
-        ]
-    )
+    #     aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = 50.0* torch.tensor([
+    #         [0.5, 0.0, 0.0],
+    #         [0.0, 0.5, 0.0],
+    #         [0.0, 0.5, -0.4],
+    #     ])
 
-        aclbf_controller.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
+        aclbf_controller.experiment_suite.experiments[experiment_idx].t_sim = 15.0 #saved_hyperparams["rollout_experiment_horizon"]
 
     # Run the experiments and save the results
     fig_handles = aclbf_controller.experiment_suite.run_all_and_plot(
@@ -298,6 +304,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--version_number', type=int, default=1,
         help='Number of the experiment that was run under this commit (default: 1)',
+    )
+    parser.add_argument(
+        '--highlight_level', type=float, default=None,
+        help='Level to highlight in the V-contour plot (default: None)',
     )
     args = parser.parse_args()
 

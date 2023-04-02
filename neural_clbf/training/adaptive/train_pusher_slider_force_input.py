@@ -30,6 +30,7 @@ from neural_clbf.experiments.adaptive import (
     aCLFCountourExperiment_StateSlices
 )
 from neural_clbf.training.utils import current_git_hash
+from neural_clbf.training.utils import initialize_training_arg_parser
 import polytope as pc
 
 from typing import Dict
@@ -83,19 +84,19 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.03, -0.03 + s_width/2.0],
         "Theta_ub": [0.03, 0.03 + s_width/2.0],
-        "clf_lambda": args.clf_lambda,
+        # "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.0001,
-        "safe_level": 10.0,
+        # "safe_level": args.safe_level,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": args.max_epochs,
+        # "max_epochs": args.max_epochs,
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "n_fixed_samples": 90000,
-        "include_oracle_loss": True,
-        "barrier": args.barrier,
+        # "include_oracle_loss": True,
+        # "barrier": args.barrier,
         "gradient_clip_val": args.gradient_clip_val,
         "checkpoint_path": args.checkpoint_path,
         # Contour Experiment Parameters
@@ -110,6 +111,9 @@ def create_training_hyperparams(args)-> Dict:
         "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
+
+    for k in args.__dict__:
+        hyperparams_for_evaluation[k] = args.__dict__[k]
 
     # Set default datatype
     # torch.set_default_dtype(torch.float64)
@@ -218,8 +222,7 @@ def main(args):
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
-        plot_unsafe_region=False,
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1))
+        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
@@ -302,44 +305,6 @@ def main(args):
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="This script trains the AdaptivePusherSliderStickingForceInput controller based on adaptive control Lyapunov function principles.")
-
-    # training params
-    # TODO: Add multi-GPU at some point?
-    parser.add_argument(
-        '--pt_random_seed', type=int, default=361,
-        help='Integer used as PyTorch\'s random seed (default: 361)',
-    ),
-    parser.add_argument(
-        '--np_random_seed', type=int, default=30,
-        help='Integer used as Numpy\'s random seed (default: 30)'
-    )
-    # parser.add_argument('--gpus', type=int, default=1)
-    parser.add_argument('--max_epochs', type=int, default=6)
-    parser.add_argument(
-        '--checkpoint_path', type=str, default=None,
-        help='Path to checkpoint to load from (default: None)',
-    )
-    parser.add_argument(
-        '--use_oracle', type=bool, default=False,
-        help='Whether to use the oracle loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--barrier', type=bool, default=False,
-        help='Whether to use the barrier loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--safe_level', type=float, default=0.5,
-        help='Safe level for the CLBF (default: 0.5)',
-    )
-    parser.add_argument(
-        '--clf_lambda', type=float, default=0.01,
-        help='Lambda for the CLF (default: 0.01)',
-    )
-    parser.add_argument(
-        '--gradient_clip_val', type=float, default=0.5,
-        help='Gradient clipping value (default: 0.5)',
-    )
-
+    initialize_training_arg_parser(parser)
     args = parser.parse_args()
-
     main(args)
