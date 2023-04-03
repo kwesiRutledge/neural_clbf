@@ -29,8 +29,9 @@ from neural_clbf.experiments import (
 from neural_clbf.experiments.adaptive import (
     aCLFCountourExperiment_StateSlices
 )
-from neural_clbf.training.utils import current_git_hash
-from neural_clbf.training.utils import initialize_training_arg_parser
+from neural_clbf.training.utils import (
+    current_git_hash, initialize_training_arg_parser
+)
 import polytope as pc
 
 from typing import Dict

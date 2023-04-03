@@ -17,4 +17,4 @@ source activate neural_clbf
 
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
-python train_scalar_demo_capa2_system.py --max_epochs 41 --np_random_seed 11 --use_oracle True --barrier True
+python train_scalar_demo_capa2_system.py --max_epochs 41 --np_random_seed 11 --include_oracle_loss True --barrier True

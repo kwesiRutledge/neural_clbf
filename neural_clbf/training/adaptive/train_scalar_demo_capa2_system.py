@@ -25,7 +25,9 @@ from neural_clbf.experiments import (
     AdaptiveCLFContourExperiment,
     RolloutStateParameterSpaceExperiment
 )
-from neural_clbf.training.utils import current_git_hash
+from neural_clbf.training.utils import (
+    current_git_hash, initialize_training_arg_parser
+)
 import polytope as pc
 
 torch.multiprocessing.set_sharing_strategy("file_system")
@@ -65,20 +67,24 @@ def create_hyperparam_struct(args)-> Dict:
         "clf_lambda": args.clf_lambda,
         # Training Parameters
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
-        "use_oracle": args.use_oracle,
-        "barrier": args.barrier,
-        "safe_level": args.safe_level,
-        "use_estim_err_loss":args.use_estim_err_loss,
+        # "use_oracle": args.use_oracle,
+        # "barrier": args.barrier,
+        # "safe_level": args.safe_level,
+        # "use_estim_err_loss":args.use_estim_err_loss,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
-        "max_epochs": args.max_epochs,
+        # "max_epochs": args.max_epochs,
         # Random Seed Info
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
         # Device
         "accelerator": accelerator_name,
     }
+
+    #Append the arguments to the hyperparams
+    for k in args.__dict__:
+        hyperparams_for_evaluation[k] = args.__dict__[k]
 
     return hyperparams_for_evaluation
 
@@ -121,7 +127,7 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (1.0, 3.0), # p_x
+        (1.0, 3.0),  # p_x
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
@@ -150,7 +156,6 @@ def main(args):
         theta_domain=[(lb[0], ub[0])], # plotting domain for theta
         theta_axis_label="$\\theta$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
-        safe_level=hyperparams["safe_level"],
     )
     rollout_experiment = RolloutStateParameterSpaceExperiment(
         "Rollout",
@@ -183,7 +188,7 @@ def main(args):
             epochs_per_episode=100,
             barrier=hyperparams["barrier"],
             Gamma_factor=0.1,
-            include_oracle_loss=hyperparams["use_oracle"],
+            include_oracle_loss=hyperparams["include_oracle_loss"],
             include_estimation_error_loss=hyperparams["use_estim_err_loss"]
         )
     else:
@@ -192,8 +197,6 @@ def main(args):
             args.checkpoint_path,
         )
         print(f"Loaded controller from {args.checkpoint_path}", "green")
-
-        exit(0)
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -209,9 +212,6 @@ def main(args):
     trainer = pl.Trainer(
         logger=tb_logger,
         max_epochs=hyperparams["max_epochs"],
-        # reload_dataloaders_every_n_epochs=1,
-        # val_check_interval=1.0,
-        # log_every_n_steps=1,
         accelerator=hyperparams["accelerator"],
     )
 
@@ -259,41 +259,10 @@ def main(args):
     )
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument(
-        '--pt_random_seed', type=int, default=31,
-        help='Integer used as PyTorch\'s random seed (default: 31)',
-    ),
-    parser.add_argument(
-        '--np_random_seed', type=int, default=30,
-        help='Integer used as Numpy\'s random seed (default: 30)'
+    parser = ArgumentParser(
+        description="Train a neural network that will be the aCLBF for a scalar CAPA2 system."
     )
-    # parser.add_argument('--gpus', type=int, default=1)
-    parser.add_argument('--max_epochs', type=int, default=6)
-    parser.add_argument(
-        '--checkpoint_path', type=str, default=None,
-        help='Path to checkpoint to load from (default: None)',
-    )
-    parser.add_argument(
-        '--use_oracle', type=bool, default=False,
-        help='Whether to use the oracle loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--barrier', type=bool, default=False,
-        help='Whether to use the barrier loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--safe_level', type=float, default=0.5,
-        help='Safe level for the CLBF (default: 0.5)',
-    )
-    parser.add_argument(
-        '--clf_lambda', type=float, default=1.0,
-        help='Lambda for the CLF (default: 1.0)',
-    )
-    parser.add_argument(
-        '--use_estim_err_loss', type=bool, default=False,
-        help='Whether to use the estimation error loss in training(default: False)',
-    )
+    initialize_training_arg_parser(parser)
     args = parser.parse_args()
 
     main(args)
