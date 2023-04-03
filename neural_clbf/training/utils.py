@@ -58,6 +58,6 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     )
     # Including Certain Losses
     ap.add_argument(
-        '--use_estim_err_loss', type=bool, default=False,
-        help='Whether to use the estimation error loss in training(default: False)',
+        '--include_estimation_error_loss', type=bool, default=False,
+        help='Whether to use the estimation error loss in training (default: False)',
     )

@@ -20,5 +20,5 @@ cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_pusher_slider_force_input.py \
   --max_epochs 51 --clf_lambda 0.1 \
   --include_oracle_loss True --barrier True \
-  --use_estim_err_loss True \
+  --include_estimation_error_loss True \
   --gradient_clip_val 1000.0
