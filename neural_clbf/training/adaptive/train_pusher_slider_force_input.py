@@ -97,6 +97,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 20,
         "n_fixed_samples": 90000,
         # "include_oracle_loss": True,
+        "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
         "gradient_clip_val": args.gradient_clip_val,
         "checkpoint_path": args.checkpoint_path,
@@ -245,6 +246,7 @@ def main(args):
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
+        include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
     )
 
     # Initialize the logger and trainer
