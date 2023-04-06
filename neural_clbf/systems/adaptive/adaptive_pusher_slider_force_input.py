@@ -414,8 +414,10 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         g = g.type_as(x)
 
         f_max, tau_max = self.limit_surface_bounds()
-        a = (1/10.0)*(1/(f_max ** 2))
-        b = (1/10.0)*(1/(tau_max ** 2))
+        # a = (1/10.0)*(1/(f_max ** 2))
+        # b = (1/10.0)*(1/(tau_max ** 2))
+        a = 1.0537  # Copied from paper
+        b = 1.5087  # Copied from paper
 
         # States
         s_x = x[:, AdaptivePusherSliderStickingForceInput.S_X]
@@ -446,8 +448,10 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         batch_size = x.shape[0]
 
         f_max, tau_max = self.limit_surface_bounds()
-        a = (1 / 10.0) * (1 / (f_max ** 2))
-        b = (1 / 10.0) * (1 / (tau_max ** 2))
+        # a = (1 / 10.0) * (1 / (f_max ** 2))
+        # b = (1 / 10.0) * (1 / (tau_max ** 2))
+        a = 1.0537  # Copied from paper
+        b = 1.5087  # Copied from paper
 
         # States
         s_x = x[:, AdaptivePusherSliderStickingForceInput.S_X]
@@ -1141,9 +1145,10 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
                 show_geometric_center=show_geometric_center,
                 show_CoM=show_CoM,
                 show_friction_cone_vectors=show_friction_cone_vectors,
+                show_goal=show_goal and (batch_index == 0),
                 show_obstacle=show_obstacle and (batch_index == 0),
                 current_force=f_bi,
-                        )
+            )
 
             plot_objects_collection.append(plot_objects_bi)
 
