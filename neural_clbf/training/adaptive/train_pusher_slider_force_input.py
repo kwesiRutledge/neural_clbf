@@ -230,24 +230,32 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    aclbf_controller = NeuralaCLBFController(
-        dynamics_model,
-        scenarios,
-        data_module,
-        experiment_suite=experiment_suite,
-        clbf_hidden_layers=2,
-        clbf_hidden_size=64,
-        clf_lambda=t_hyper["clf_lambda"],
-        safe_level=t_hyper["safe_level"],
-        controller_period=t_hyper["controller_period"],
-        clf_relaxation_penalty=1e2,
-        num_init_epochs=15,
-        epochs_per_episode=100,
-        barrier=t_hyper["barrier"],
-        Gamma_factor=t_hyper["Gamma_factor"],
-        include_oracle_loss=t_hyper["include_oracle_loss"],
-        include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
-    )
+    if args.checkpoint_path is None:
+        aclbf_controller = NeuralaCLBFController(
+            dynamics_model,
+            scenarios,
+            data_module,
+            experiment_suite=experiment_suite,
+            clbf_hidden_layers=2,
+            clbf_hidden_size=64,
+            clf_lambda=t_hyper["clf_lambda"],
+            safe_level=t_hyper["safe_level"],
+            controller_period=t_hyper["controller_period"],
+            clf_relaxation_penalty=1e2,
+            num_init_epochs=15,
+            epochs_per_episode=100,
+            barrier=t_hyper["barrier"],
+            Gamma_factor=t_hyper["Gamma_factor"],
+            include_oracle_loss=t_hyper["include_oracle_loss"],
+            include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
+        )
+    else:
+        aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
+            args.checkpoint_path,
+            map_location=torch.device(t_hyper["accelerator"]),
+        )
+        print(aclbf_controller)
+        print(f"Loaded controller from {args.checkpoint_path}", "green")
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(
@@ -260,7 +268,7 @@ def main(args):
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=t_hyper["max_epochs"],
     # )
-    if t_hyper["number_of_gpus"] == 1:
+    if t_hyper["number_of_gpus"] <= 1:
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=t_hyper["max_epochs"],

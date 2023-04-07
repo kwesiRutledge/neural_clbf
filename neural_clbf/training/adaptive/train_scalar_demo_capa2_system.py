@@ -203,28 +203,22 @@ def main(args):
         "logs/scalar_demo_capa2_system",
         name=f"commit_{current_git_hash()}",
     )
-    # trainer = pl.Trainer.from_argparse_args(
-    #     args,
-    #     logger=tb_logger,
-    #     reload_dataloaders_every_epoch=True,
-    #     max_epochs=hyperparams["max_epochs"],
-    # )
-    if hyperparams["number_of_gpus"] == 1:
-        trainer = pl.Trainer(
-            logger=tb_logger,
-            max_epochs=hyperparams["max_epochs"],
-            accelerator=hyperparams["accelerator"],
-            gradient_clip_val=hyperparams["gradient_clip_val"],
-        )
-    else:
-        trainer = pl.Trainer(
-            logger=tb_logger,
-            max_epochs=hyperparams["max_epochs"],
-            accelerator=hyperparams["accelerator"],
-            gradient_clip_val=hyperparams["gradient_clip_val"],
-            devices=hyperparams["number_of_gpus"],
-            strategy="ddp",
-        )
+    #if hyperparams["number_of_gpus"] == 1:
+    trainer = pl.Trainer(
+        logger=tb_logger,
+        max_epochs=hyperparams["max_epochs"],
+        accelerator=hyperparams["accelerator"],
+        gradient_clip_val=hyperparams["gradient_clip_val"],
+    )
+    # else:
+    #     trainer = pl.Trainer(
+    #         logger=tb_logger,
+    #         max_epochs=hyperparams["max_epochs"],
+    #         accelerator=hyperparams["accelerator"],
+    #         gradient_clip_val=hyperparams["gradient_clip_val"],
+    #         devices=hyperparams["number_of_gpus"],
+    #         strategy="ddp",
+    #     )
 
     # Train
     torch.autograd.set_detect_anomaly(True)

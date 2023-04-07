@@ -63,7 +63,12 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     )
 
     # GPU / Multi-GPU Setups
+    # This doesn't currently work. I get this error whenever I try to use more than 1 GPU:
+    #   AttributeError: 'EpisodicDataModuleAdaptive' object has no attribute 'validation_data'
+    # which indicates that the data module is not being properly distributed across the GPUs. This might require a
+    # specific type of dataloader or sampler to be used in order to overcome this. Consider this one:
+    #   https://pytorch.org/docs/stable/data.html#torch.utils.data.distributed.DistributedSampler
     ap.add_argument(
         '--number_of_gpus', type=int, default=1,
-        help='Number of GPUs to use (default: 1)',
+        help='Number of GPUs to use (default: 1). TODO: Test how well this works? (See comment in utils.py for more details)',
     )
