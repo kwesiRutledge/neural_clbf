@@ -53,8 +53,8 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         help='Lambda for the CLF (default: 0.01)',
     )
     ap.add_argument(
-        '--gradient_clip_val', type=float, default=0.5,
-        help='Gradient clipping value (default: 0.5)',
+        '--gradient_clip_val', type=float, default=float('Inf'),
+        help='Gradient clipping value (default: Inf)',
     )
     # Including Certain Losses
     ap.add_argument(
