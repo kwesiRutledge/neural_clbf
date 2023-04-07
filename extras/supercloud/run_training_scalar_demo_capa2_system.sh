@@ -4,7 +4,7 @@
 #SBATCH -o outputs/scalar-%j.stdout
 #SBATCH -e outputs/scalar-%j.stderr
 #SBATCH -c 20
-#SBATCH --gres=gpu:volta:1
+#SBATCH --gres=gpu:volta:2
 #SBATCH --time=24:00:00
 
 # Write your commands here
@@ -17,4 +17,7 @@ source activate neural_clbf
 
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
-python train_scalar_demo_capa2_system.py --max_epochs 41 --np_random_seed 11 --include_oracle_loss True --barrier True
+python train_scalar_demo_capa2_system.py --max_epochs 61 \
+  --np_random_seed 11 --include_oracle_loss True --barrier True \
+  --include_estimation_error_loss True --gradient_clip_val 1000.0 \
+  --number_of_gpus 2
