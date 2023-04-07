@@ -61,3 +61,9 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--include_estimation_error_loss', type=bool, default=False,
         help='Whether to use the estimation error loss in training (default: False)',
     )
+
+    # GPU / Multi-GPU Setups
+    ap.add_argument(
+        '--number_of_gpus', type=int, default=1,
+        help='Number of GPUs to use (default: 1)',
+    )

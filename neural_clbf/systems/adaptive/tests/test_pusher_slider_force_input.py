@@ -476,6 +476,75 @@ class TestStringMethods(unittest.TestCase):
             # Only save if we are running from inside tests directory
             p6.savefig("figures/pusherslider-test_plot8.png", dpi=300)
 
+    def test_plot9(self):
+        """
+        test_plot8
+        Description:
+            Verifies that we can successfully plot:
+            - the obstacle AND
+            - the goal
+            along with the current state.
+        Notes:
+            Used on an update meeting on April 3, 2023.
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_center_x": 0.0,
+            "obstacle_center_y": 0.0,
+            "obstacle_radius": 0.2,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        ps = AdaptivePusherSliderStickingForceInput(
+            nominal_scenario,
+            Theta1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 1
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.tensor([-0.8, -0.8, torch.pi/4])
+        # x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        # x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        # limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p9 = plt.figure()
+        ax = p9.add_subplot(111)
+        ps.plot(x, th,
+                ax=ax, hide_axes=False, current_force=f,
+                show_friction_cone_vectors=False,
+                limits=[[-1.0, 1.0], [-1.0, 1.0]],
+                )
+
+        goal_point = torch.tensor([0.0, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p9.savefig("figures/pusherslider-test_plot9.png", dpi=300)
+
     def test_animate1(self):
         # Constants
         nominal_scenario = {
