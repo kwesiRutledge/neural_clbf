@@ -4,7 +4,7 @@
 #SBATCH -o outputs/pusher-slider-%j.stdout
 #SBATCH -e outputs/pusher-slider-%j.stderr
 #SBATCH -c 20
-#SBATCH --gres=gpu:volta:1
+#SBATCH --gres=gpu:volta:2
 #SBATCH --time=24:00:00
 
 # Write your commands here
@@ -21,4 +21,5 @@ python train_pusher_slider_force_input.py \
   --max_epochs 51 --clf_lambda 0.1 \
   --include_oracle_loss True --barrier True \
   --include_estimation_error_loss True \
-  --gradient_clip_val 1000.0
+  --gradient_clip_val 1000.0 \
+  --number_of_gpus 2
