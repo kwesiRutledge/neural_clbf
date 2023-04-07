@@ -189,7 +189,7 @@ def main(args):
             barrier=hyperparams["barrier"],
             Gamma_factor=0.1,
             include_oracle_loss=hyperparams["include_oracle_loss"],
-            include_estimation_error_loss=hyperparams["use_estim_err_loss"]
+            include_estimation_error_loss=hyperparams["include_estimation_error_loss"]
         )
     else:
 
@@ -209,7 +209,7 @@ def main(args):
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=hyperparams["max_epochs"],
     # )
-    if t_hyper["number_of_gpus"] == 1:
+    if hyperparams["number_of_gpus"] == 1:
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=hyperparams["max_epochs"],
