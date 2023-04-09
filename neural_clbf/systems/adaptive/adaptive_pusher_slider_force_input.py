@@ -413,11 +413,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         g = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
         g = g.type_as(x)
 
-        f_max, tau_max = self.limit_surface_bounds()
-        # a = (1/10.0)*(1/(f_max ** 2))
-        # b = (1/10.0)*(1/(tau_max ** 2))
-        a = 1.0537  # Copied from paper
-        b = 1.5087  # Copied from paper
+        a, b = self.compute_motion_cone_factors()
 
         # States
         s_x = x[:, AdaptivePusherSliderStickingForceInput.S_X]
@@ -447,11 +443,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         # Constants
         batch_size = x.shape[0]
 
-        f_max, tau_max = self.limit_surface_bounds()
-        # a = (1 / 10.0) * (1 / (f_max ** 2))
-        # b = (1 / 10.0) * (1 / (tau_max ** 2))
-        a = 1.0537  # Copied from paper
-        b = 1.5087  # Copied from paper
+        a, b = self.compute_motion_cone_factors()
 
         # States
         s_x = x[:, AdaptivePusherSliderStickingForceInput.S_X]
@@ -479,6 +471,30 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
 
         tau_max = self.st_cof * self.s_mass * g * (1 / slider_area) * circular_density_integral
         return f_max, tau_max
+
+    def compute_motion_cone_factors(self):
+        """
+        a, b = self.compute_motion_cone_factors()
+
+        """
+        # Constants
+
+        # Create output
+        f_max, tau_max = self.limit_surface_bounds()
+
+        # a = (1 / (f_max ** 2))
+        # b = (1 / (tau_max ** 2))
+
+        # a = 1.0537  # Copied from paper
+        # b = 1.5087  # Copied from paper
+
+        # a = (1 / jnp.sqrt(f_max ** 2 + self.ps_cof * f_max ** 2))
+        # b = (1 / (tau_max))
+
+        a = (1 / (f_max ** 2 + (self.ps_cof * f_max) ** 2))
+        b = (1 / (tau_max ** 2))
+
+        return a, b
 
     def u_nominal(
         self, x: torch.Tensor, theta_hat: torch.Tensor, params: Optional[Scenario] = None

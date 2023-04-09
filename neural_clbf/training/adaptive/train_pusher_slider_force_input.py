@@ -40,8 +40,6 @@ import time
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
-simulation_dt = 0.01
-
 def create_training_hyperparams(args)-> Dict:
     """
     create_hyperparams
@@ -79,23 +77,23 @@ def create_training_hyperparams(args)-> Dict:
     # Create default number of maximum epochs
     hyperparams_for_evaluation = {
         "batch_size": 128,
-        "controller_period": 0.05,
+        "controller_period": 0.1,
         "start_x": start_x,
-        "simulation_dt": 0.01,
+        "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [-0.03, -0.03 + s_width/2.0],
-        "Theta_ub": [0.03, 0.03 + s_width/2.0],
+        "Theta_lb": [-0.03 + s_width/2.0, -0.03],
+        "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
         # "clf_lambda": args.clf_lambda,
-        "Gamma_factor": 0.0001,
+        "Gamma_factor": 0.001,
         # "safe_level": args.safe_level,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
         # "max_epochs": args.max_epochs,
-        "trajectories_per_episode": 500,
+        "trajectories_per_episode": 250,
         "trajectory_length": 20,
-        "n_fixed_samples": 90000,
+        "n_fixed_samples": 20000,
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
@@ -149,7 +147,7 @@ def main(args):
     dynamics_model = AdaptivePusherSliderStickingForceInput(
         t_hyper["nominal_scenario"],
         Theta,
-        dt=simulation_dt,
+        dt=t_hyper["simulation_dt"],
         controller_dt=t_hyper["controller_period"],
         scenarios=scenarios,
         device=t_hyper["accelerator"],
@@ -230,7 +228,7 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    if args.checkpoint_path is None:
+    if (args.checkpoint_path is None) and (t_hyper["saved_Vnn_subpath"] is None):
         aclbf_controller = NeuralaCLBFController(
             dynamics_model,
             scenarios,
@@ -249,13 +247,25 @@ def main(args):
             include_oracle_loss=t_hyper["include_oracle_loss"],
             include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
         )
-    else:
+    elif args.checkpoint_path is not None:
         aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
             args.checkpoint_path,
-            map_location=torch.device(t_hyper["accelerator"]),
         )
         print(aclbf_controller)
         print(f"Loaded controller from {args.checkpoint_path}", "green")
+    elif t_hyper["saved_Vnn_subpath"] is not None:
+        pusher_slider_log_file_dir = "logs/pusher_slider_sticking_force_input/"
+        # Load V_nn
+        saved_Vnn = torch.load(
+            pusher_slider_log_file_dir + t_hyper["saved_Vnn_subpath"] + "/Vnn.pt",
+            map_location=torch.device(t_hyper["device"]),
+        )
+
+
+
+
+
+
 
     # Initialize the logger and trainer
     tb_logger = pl_loggers.TensorBoardLogger(

@@ -32,10 +32,16 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     )
     # ap.add_argument('--gpus', type=int, default=1)
     ap.add_argument('--max_epochs', type=int, default=6)
+    # Loading Data
     ap.add_argument(
         '--checkpoint_path', type=str, default=None,
         help='Path to checkpoint to load from (default: None)',
     )
+    ap.add_argument(
+        '--saved_Vnn_subpath', type=str, default=None,
+        help='Path to saved Vnn to load from (default: None)',
+    )
+
     ap.add_argument(
         '--include_oracle_loss', type=bool, default=False,
         help='Whether to use the oracle loss in training(default: False)',
