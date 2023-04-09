@@ -185,11 +185,11 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         """
         # Define the matrices which define the polytope
         H = np.array([
-            [1.0, -self.ps_cof],
-            [-1.0, -self.ps_cof],
+            [-self.ps_cof, 1.0],
+            [-self.ps_cof, -1.0],
             [1.0, 0.0],
             [0.0, 1.0],
-            [0.0, -1.0],
+            [-1.0, 0.0]
         ])
 
         h = np.zeros((5, 1))
