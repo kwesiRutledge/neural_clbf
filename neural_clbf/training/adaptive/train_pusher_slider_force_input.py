@@ -91,9 +91,9 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         # "max_epochs": args.max_epochs,
-        "trajectories_per_episode": 250,
+        "trajectories_per_episode": 500,
         "trajectory_length": 30,
-        "n_fixed_samples": 30000,
+        "n_fixed_samples": 60000,
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
