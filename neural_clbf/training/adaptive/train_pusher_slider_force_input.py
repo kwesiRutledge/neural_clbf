@@ -278,22 +278,22 @@ def main(args):
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=t_hyper["max_epochs"],
     # )
-    if t_hyper["number_of_gpus"] <= 1:
-        trainer = pl.Trainer(
-            logger=tb_logger,
-            max_epochs=t_hyper["max_epochs"],
-            accelerator=t_hyper["accelerator"],
-            gradient_clip_val=t_hyper["gradient_clip_val"],
-        )
-    else:
-        trainer = pl.Trainer(
-            logger=tb_logger,
-            max_epochs=t_hyper["max_epochs"],
-            accelerator=t_hyper["accelerator"],
-            gradient_clip_val=t_hyper["gradient_clip_val"],
-            devices=t_hyper["number_of_gpus"],
-            strategy="ddp",
-        )
+    # if t_hyper["number_of_gpus"] <= 1:
+    trainer = pl.Trainer(
+        logger=tb_logger,
+        max_epochs=t_hyper["max_epochs"],
+        accelerator=t_hyper["accelerator"],
+        gradient_clip_val=t_hyper["gradient_clip_val"],
+    )
+    # else:
+    #     trainer = pl.Trainer(
+    #         logger=tb_logger,
+    #         max_epochs=t_hyper["max_epochs"],
+    #         accelerator=t_hyper["accelerator"],
+    #         gradient_clip_val=t_hyper["gradient_clip_val"],
+    #         devices=t_hyper["number_of_gpus"],
+    #         strategy="ddp",
+    #     )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
