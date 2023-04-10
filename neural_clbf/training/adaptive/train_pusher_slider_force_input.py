@@ -222,7 +222,7 @@ def main(args):
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
-        default_param_estimate=torch.tensor([0.0, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        default_param_estimate=torch.tensor([ps.s_width, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])

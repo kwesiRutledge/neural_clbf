@@ -931,9 +931,10 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 relaxation_penalty = self.clf_relaxation_penalty
 
             # Use the models simulation function with this controller
-            def simulator_fn_wrapper(x_init: torch.Tensor, num_steps: int):
+            def simulator_fn_wrapper(x_init: torch.tensor, theta_init: torch.tensor, num_steps: int):
                 return self.simulator_fn(
                     x_init,
+                    theta_init,
                     num_steps,
                     relaxation_penalty=relaxation_penalty,
                 )
@@ -946,6 +947,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
     def simulator_fn(
         self,
         x_init: torch.Tensor,
+        theta_init: torch.Tensor,
         num_steps: int,
         relaxation_penalty: Optional[float] = None,
     ):
@@ -958,6 +960,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         return self.simulate(
             x_init,
+            theta_init,
             num_steps,
             self.u,
             guard=self.dynamics_model.out_of_bounds_mask,
