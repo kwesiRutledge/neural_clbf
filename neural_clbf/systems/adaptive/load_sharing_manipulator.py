@@ -499,7 +499,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         """
         pass
 
-    def basic_mpc1(self, x: torch.Tensor, dt: float, U: pc.Polytope = None, N_mpc: int = 5) -> torch.Tensor:
+    def basic_mpc1(self, x: torch.Tensor, dt: float, N_mpc: int = 5) -> torch.Tensor:
         """
         basic_mpc1
         Description:
@@ -509,6 +509,8 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # Constants
         n_controls = self.n_controls
         n_dims = self.n_dims
+
+        U = self.U
 
         obstacle_loc = np.array([
             self.nominal_scenario["obstacle_center_x"],
@@ -637,3 +639,21 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # S_K = np.dot(Bw_prefactor, S_K)
 
         return S_w, S_u, S_x0
+
+    def mpc_about_input_trajectory(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            X: torch.Tensor,
+            params: Scenario = None,
+            U: torch.Tensor = None,
+            horizon: int = 10,
+
+    ):
+        """
+        u = mpc_about_input_trajectory(x, theta_hat, X)
+        Description:
+            This function computes the mpc control that should steer the system
+            closer to the trajectory defined by X.
+        """
+        return self.basic_mpc1(x, self.controller_dt, horizon=horizon)

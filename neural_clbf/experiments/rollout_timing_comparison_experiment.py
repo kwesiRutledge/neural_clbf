@@ -77,6 +77,7 @@ class ACLFRolloutTimingExperiment(Experiment):
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
         """
+        Description:
         Run the experiment, likely by evaluating the controller, but the experiment
         has freedom to call other functions of the controller as necessary (if these
         functions are not supported by all controllers, then experiments will be
@@ -185,8 +186,7 @@ class ACLFRolloutTimingExperiment(Experiment):
                 u_mpc_current = controller_under_test.dynamics_model.basic_mpc1(
                     x_current,
                     0.01,
-                    U,
-                    N_mpc=5
+                    N_mpc=5,
                 )
                 end_time = time.time()
                 mpc_time_current_tstep = end_time - start_time

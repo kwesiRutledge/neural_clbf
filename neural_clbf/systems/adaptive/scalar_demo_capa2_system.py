@@ -373,9 +373,9 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         """
         pass
 
-    def basic_mpc1(self, x: torch.Tensor, dt: float, U: pc.Polytope = None, N_mpc: int = 5) -> torch.Tensor:
+    def basic_mpc1(self, x: torch.Tensor, dt: float, N_mpc: int = 5) -> torch.Tensor:
         """
-        basic_mpc1
+        u = self.basic_mpc1(x, dt, N_mpc)
         Description:
             From the set of batch states x, this function computes the batch of inputs
             that solve the basic linearized MPC.
@@ -385,6 +385,8 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         n_dims = self.n_dims
         wall_pos = self.nominal_scenario["wall_position"]
         S_w, S_u, S_x0 = self.get_mpc_matrices(N_mpc, dt=dt)
+
+        U = self.U
 
         U_T_A = np.kron(U.A, np.eye(N_mpc))
         U_T_b = np.kron(U.b, np.ones(N_mpc))
@@ -483,3 +485,21 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
         # S_K = np.dot(Bw_prefactor, S_K)
 
         return S_w, S_u, S_x0
+
+    def mpc_about_input_trajectory(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            X: torch.Tensor,
+            params: Scenario = None,
+            U: torch.Tensor = None,
+            horizon: int = 10,
+
+    ):
+        """
+        u = mpc_about_input_trajectory(x, theta_hat, X)
+        Description:
+            This function computes the mpc control that should steer the system
+            closer to the trajectory defined by X.
+        """
+        return self.basic_mpc1(x, self.controller_dt, N_mpc=horizon)

@@ -25,7 +25,10 @@ from neural_clbf.experiments import (
     RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment,
     RolloutStateParameterSpaceExperimentMultiple,
 )
-from neural_clbf.training.utils import current_git_hash
+from neural_clbf.training.utils import (
+    current_git_hash, initialize_training_arg_parser
+)
+
 import polytope as pc
 
 from typing import Dict
@@ -33,8 +36,6 @@ from typing import Dict
 import time
 
 torch.multiprocessing.set_sharing_strategy("file_system")
-
-simulation_dt = 0.01
 
 def create_training_hyperparams(args)-> Dict:
     """
@@ -50,8 +51,8 @@ def create_training_hyperparams(args)-> Dict:
         accelerator = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        accelerator = "mps"
-        # accelerator = "cpu"
+        # accelerator = "mps"
+        accelerator = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -85,12 +86,14 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
-        "max_epochs": 16,
+        #"max_epochs": args.max_epochs,
         "n_fixed_samples": 10000,
         "accelerator": accelerator,
-        "use_oracle_loss": True,
-        "barrier": args.barrier,
-        "gradient_clip_val": args.gradient_clip_val,
+        #"use_oracle_loss": args.use_oracle_loss,
+        #"barrier": args.barrier,
+        #"gradient_clip_val": args.gradient_clip_val,
+        # "gradient_clip_val": args.gradient_clip_val,
+        # "checkpoint_path": args.checkpoint_path,
         # Contour Experiment Parameters
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
@@ -102,6 +105,9 @@ def create_training_hyperparams(args)-> Dict:
         # Device
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
     }
+
+    for k in args.__dict__:
+        hyperparams_for_evaluation[k] = args.__dict__[k]
 
     return hyperparams_for_evaluation
 
@@ -133,7 +139,7 @@ def main(args):
     dynamics_model = LoadSharingManipulator(
         t_hyper["nominal_scenario"],
         Theta,
-        dt=simulation_dt,
+        dt=t_hyper["simulation_dt"],
         controller_dt=t_hyper["controller_period"],
         scenarios=scenarios,
         device=t_hyper["accelerator"],
@@ -220,7 +226,7 @@ def main(args):
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
-        include_oracle_loss=t_hyper["use_oracle_loss"],
+        include_oracle_loss=t_hyper["include_oracle_loss"],
     )
 
     # Initialize the logger and trainer
@@ -277,41 +283,10 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument(
-        '--pt_random_seed', type=int, default=31,
-        help='Integer used as PyTorch\'s random seed (default: 31)',
-    ),
-    parser.add_argument(
-        '--np_random_seed', type=int, default=30,
-        help='Integer used as Numpy\'s random seed (default: 30)'
+    parser = ArgumentParser(
+        description="Train a CLBF Controller to perform safe control of the load sharing manipulator task."
     )
-    # parser.add_argument('--gpus', type=int, default=1)
-    parser.add_argument('--max_epochs', type=int, default=6)
-    parser.add_argument(
-        '--checkpoint_path', type=str, default=None,
-        help='Path to checkpoint to load from (default: None)',
-    )
-    parser.add_argument(
-        '--use_oracle', type=bool, default=False,
-        help='Whether to use the oracle loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--barrier', type=bool, default=False,
-        help='Whether to use the barrier loss in training(default: False)',
-    )
-    parser.add_argument(
-        '--safe_level', type=float, default=0.5,
-        help='Safe level for the CLBF (default: 0.5)',
-    )
-    parser.add_argument(
-        '--clf_lambda', type=float, default=1.0,
-        help='Desired decay rate for the CLBF (default: 1.0)',
-    )
-    parser.add_argument(
-        '--gradient_clip_val', type=float, default=10000.0,
-        help='Gradient clipping value (default: 10000.0)',
-    )
+    initialize_training_arg_parser(parser)
     args = parser.parse_args()
 
     main(args)

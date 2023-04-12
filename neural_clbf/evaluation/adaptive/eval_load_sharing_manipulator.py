@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import matplotlib
+from argparse import ArgumentParser
 
-from neural_clbf.controllers import (
-    NeuralaCLBFController, NeuralCLBFController
+from neural_clbf.controllers.adaptive import (
+    NeuralaCLBFController,
 )
 from neural_clbf.systems.adaptive import LoadSharingManipulator
 from neural_clbf.datamodules import EpisodicDataModuleAdaptive
@@ -21,6 +22,57 @@ from typing import Dict
 import polytope as pc
 
 matplotlib.use('TkAgg')
+
+def extract_hyperparams_from_args(args):
+    """
+    controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt = extract_hyperparams_from_args(args)
+    Description:
+        Load the following from the log file associate with the commit and version #:
+        - Hyperparameters
+        - Vnn
+    Outputs:
+        - controller_from_checkpoint: The controller loaded from the checkpoint file.
+            If no checkpoint file name is given, then this will be none.
+        - saved_hyperparams: The hyperparameters used to train the controller.
+        - saved_Vnn: The Vnn used to define the controller.
+
+    """
+    # Constants
+    commit_prefix = args.commit_prefix
+    version_to_load = args.version_number
+
+    scalar_capa2_log_file_dir = "../../training/adaptive/logs/load_sharing_manipulator/"
+    scalar_capa2_log_file_dir += "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/"
+
+    # Load the checkpoint file. This should include the experiment suite used during
+    # training.
+    controller_from_checkpoint = None
+    if (args.checkpoint_filename is not None) and (args.checkpoint_filename != ""):
+        ckpt_file = scalar_capa2_log_file_dir + "checkpoints/" + args.checkpoint_filename
+        controller_from_checkpoint = NeuralaCLBFController.load_from_checkpoint(
+            ckpt_file,
+        )
+
+    # Load the hyperparameters
+    hyperparam_log_filename = scalar_capa2_log_file_dir + "hyperparams.pt"
+    saved_hyperparams = torch.load(
+        hyperparam_log_filename,
+        map_location=torch.device('cpu'),
+    )
+
+    # Load the Vnn
+    saved_Vnn = torch.load(
+        scalar_capa2_log_file_dir + "Vnn.pt",
+        map_location=torch.device('cpu'),
+    )
+
+    # Load the controller
+    aclbf_controller = torch.load(
+        scalar_capa2_log_file_dir + "controller.pt",
+        map_location=torch.device('cpu'),
+    )
+
+    return controller_from_checkpoint, saved_hyperparams, saved_Vnn, aclbf_controller
 
 def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFController:
     """
@@ -137,27 +189,15 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
-def plot_controlled_load_sharing():
-    # Load the checkpoint file. This should include the experiment suite used during
-    # training.
-    scalar_capa2_log_file_dir = "../../training/adaptive/logs/load_sharing_manipulator/"
-    # ckpt_file = scalar_capa2_log_file_dir + "commit_bd8ad31/version_25/checkpoints/epoch=5-step=845.ckpt"
-
-    commit_name = '1592648'
-    version_to_load = 14
-    hyperparam_log_file = scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/hyperparams.pt"
-
-    saved_Vnn = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/Vnn.pt")
-    saved_hyperparams = torch.load(hyperparam_log_file)
+def plot_controlled_load_sharing(args):
+    controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt = extract_hyperparams_from_args(args)
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
-
-    aclbf_controller = torch.load(scalar_capa2_log_file_dir + "commit_" + commit_name + "/version_" + str(version_to_load) + "/controller.pt")
-    aclbf_controller.experiment_suite = experiment_suite
+    controller_pt.experiment_suite = experiment_suite
 
     # Update parameters
     for experiment_idx in range(1, 1 +1):
-        aclbf_controller.experiment_suite.experiments[experiment_idx].start_x = start_x = 50.0* torch.tensor(
+        controller_pt.experiment_suite.experiments[experiment_idx].start_x = start_x = torch.tensor(
         [
             [0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
             # [0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -168,11 +208,11 @@ def plot_controlled_load_sharing():
         ]
     )
 
-        aclbf_controller.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
+        controller_pt.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
 
     # Run the experiments and save the results
-    fig_handles = aclbf_controller.experiment_suite.run_all_and_plot(
-        aclbf_controller, display_plots=False
+    fig_handles = controller_pt.experiment_suite.run_all_and_plot(
+        controller_pt, display_plots=False
     )
 
     fig_titles = ["V-contour", "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories", "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1"]
@@ -183,5 +223,20 @@ def plot_controlled_load_sharing():
 
 
 if __name__ == "__main__":
-    # eval_inverted_pendulum()
-    plot_controlled_load_sharing()
+    # Parse arguments
+    parser = ArgumentParser(description="Evaluating and plotting some data from the Load Sharing Manipulator Example.")
+    parser.add_argument(
+        "--commit_prefix", type=str, default="dfbf44c",
+        help='First seven letters of the commit id of the code used to generate the data (default: "dfbf44c")',
+    )
+    parser.add_argument(
+        '--version_number', type=int, default=0,
+        help='Version number of the data to load (default: 0)',
+    )
+    parser.add_argument(
+        '--checkpoint_filename', type=str, default="",
+        help='Checkpoint filename to load (default: ""). (Example: \'epoch=5-step=845.ckpt\')',
+    )
+    args = parser.parse_args()
+    # Plot controlled load sharing
+    plot_controlled_load_sharing(args)
