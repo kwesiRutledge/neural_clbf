@@ -140,9 +140,12 @@ neural_clbf/systems/tests/*.png
 
 # Experiments
 neural_clbf/evaluation/datafiles/load_sharing/*.png
+neural_clbf/evaluation/datafiles/load_sharing/*.txt
 neural_clbf/evaluation/datafiles/scalar_demo_capa2/*.png
+neural_clbf/evaluation/datafiles/scalar_demo_capa2/*.txt
 neural_clbf/evaluation/datafiles/tumbling_target/*.png
 neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.png
+neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.txt
 
 # Mac Temporary Files
 *.DS_Store
