@@ -163,8 +163,8 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
-        default_param_estimate=torch.tensor([0.0, dynamics_model.s_width/2]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
-        default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape((AdaptivePusherSliderStickingForceInput.N_DIMS, 1)),
+        default_param_estimate=torch.tensor([dynamics_model.s_width/2, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        default_state=torch.tensor([-0.5, -0.5, torch.pi/4]).reshape((AdaptivePusherSliderStickingForceInput.N_DIMS, 1)),
         plot_highlight_region=args.highlight_level is not None,
         default_highlight_level=args.highlight_level,
         plot_goal_region=True,
@@ -181,10 +181,10 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
-        default_state=torch.tensor([0.0, 0.0, torch.pi/4]).reshape(
+        default_state=torch.tensor([-0.5, -0.5, torch.pi/4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([lb[0]*0.5, dynamics_model.s_width/2.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        default_param_estimate=torch.tensor([dynamics_model.s_width/2.0, lb[1]*0.5]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
         plot_highlight_region=args.highlight_level is not None,
         default_highlight_level=args.highlight_level,
         plot_goal_region=True,
@@ -201,10 +201,10 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
         plot_unsafe_region=False,
-        default_state=torch.tensor([0.0, 0.0, torch.pi / 4]).reshape(
+        default_state=torch.tensor([-0.5, -0.5, torch.pi / 4]).reshape(
             (dynamics_model.n_dims, 1),
         ),
-        default_param_estimate=torch.tensor([ub[0] * 0.9, dynamics_model.s_width / 2.0]).reshape(
+        default_param_estimate=torch.tensor([dynamics_model.s_width / 2.0, ub[1] * 0.9]).reshape(
             (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
         plot_highlight_region=args.highlight_level is not None,
         default_highlight_level=args.highlight_level,

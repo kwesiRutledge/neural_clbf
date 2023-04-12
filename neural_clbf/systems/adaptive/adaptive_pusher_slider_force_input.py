@@ -1169,3 +1169,23 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
             plot_objects_collection.append(plot_objects_bi)
 
         return plot_objects_collection
+
+    def mpc_about_input_trajectory(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            X: torch.Tensor,
+            params: Scenario = None,
+            U: torch.Tensor = None,
+            horizon: int = 10,
+
+    ):
+        """
+        u = mpc_about_input_trajectory(x, theta_hat, X)
+        Description:
+            This function computes the mpc control that should steer the system
+            closer to the trajectory defined by X.
+        """
+        raise NotImplementedError("This function is not implemented yet.")
+
+        return 1

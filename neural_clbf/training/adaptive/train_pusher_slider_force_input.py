@@ -93,7 +93,7 @@ def create_training_hyperparams(args)-> Dict:
         # "max_epochs": args.max_epochs,
         "trajectories_per_episode": 500,
         "trajectory_length": 30,
-        "n_fixed_samples": 60000,
+        "n_fixed_samples": 80000,
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,

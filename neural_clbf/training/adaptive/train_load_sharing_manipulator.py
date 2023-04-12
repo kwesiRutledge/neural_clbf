@@ -65,29 +65,31 @@ def create_training_hyperparams(args)-> Dict:
     ).to(accelerator)
 
     nominal_scenario = {
-        "obstacle_center_x": 0.25,
-        "obstacle_center_y": 0.25,
-        "obstacle_center_z": 0.25,
-        "obstacle_width": 0.4,
+        "obstacle_center_x": 0.2,
+        "obstacle_center_y": 0.2,
+        "obstacle_center_z": 0.2,
+        "obstacle_width": 0.2,
     }
 
     hyperparams_for_evaluation = {
         "batch_size": 128,
-        "controller_period": 0.05,
+        "controller_period": 0.1,
         "start_x": start_x,
-        "simulation_dt": 0.01,
+        "simulation_dt": 0.05,
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.25, 0.25, 0.2],
         "Theta_ub": [0.0, 0.35, 0.25],
         "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
-        "safe_level": 10.0,
+        "safe_level": 1.0,
         # layer specifications
         "clbf_hidden_size": 64,
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
         "n_fixed_samples": 10000,
+        "trajectories_per_episode": 100,
+        "trajectory_length": 100,
         "accelerator": accelerator,
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
@@ -157,8 +159,8 @@ def main(args):
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
         initial_conditions,
-        trajectories_per_episode=1,
-        trajectory_length=1,
+        trajectories_per_episode=t_hyper["trajectories_per_episode"],
+        trajectory_length=t_hyper["trajectory_length"],
         fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
