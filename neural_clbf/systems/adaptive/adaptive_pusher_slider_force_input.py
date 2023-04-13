@@ -523,7 +523,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
 
         # Create simple, case-based controller:
         #   - if current difference vector between current position and goal position
-        #       has an angle within friction cone vector
+        #       has an angle within friction cone vector, then follow that line
         #   - otherwise
 
         f_l, f_u = self.friction_cone_extremes()
@@ -534,7 +534,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         goal = self.goal_point(theta_hat)
 
         des_direction = goal - x
-        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) + (np.pi/2 - s_th)
+        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) - (s_th)
 
         # Handle each case depending on where the desired motion vector is pointing.
         # 1. Vector points above upper friction cone vector

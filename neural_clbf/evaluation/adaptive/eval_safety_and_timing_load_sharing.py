@@ -98,9 +98,12 @@ def inflate_context_using_hyperparameters(hyperparams):
     start_x = torch.tensor(
         [
             [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-            [-0.2, 1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
-            [-0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+            [-0.2, 0.3, 0.2, 0.0, 0.0, 0.0],
+            [0.2, -0.3, 0.1, 0.0, 0.0, 0.0],
+            [-0.2, -0.3, 0.1, 0.0, 0.0, 0.0],
+            [-0.4, 0.1, 0.2, 0.0, 0.0, 0.0],
+            [0.2, 0.0, 0.2, 0.0, 0.0, 0.0],
+            [-0.2, -1.0, 0.1, 0.0, 0.0, 0.0],
         ]
     )
 
@@ -230,6 +233,9 @@ def main(args):
         "Safety Case Study",
         x0,
         n_sims_per_start=1,
+        t_sim=45.0,
+        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
+        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
     )
     controller_pt.experiment_suite = ExperimentSuite([safety_case_study_experiment])
 
@@ -283,6 +289,17 @@ def main(args):
         )
         # print(lines)
         f.writelines(lines)
+
+        # Run the experiments and save the results
+        fig_handles = controller_pt.experiment_suite.run_all_and_plot(
+            controller_pt, display_plots=False
+        )
+
+        fig_titles = ["case_study1-aclbf-perf", "case_study1-nominal-perf"]
+        for fh_idx, fh in enumerate(fig_handles):
+            fig_name, fig_obj = fh
+            matplotlib.pyplot.figure(fig_obj.number)
+            matplotlib.pyplot.savefig("../datafiles/load_sharing/" + fig_titles[fh_idx] + ".png")
 
 
 if __name__ == "__main__":

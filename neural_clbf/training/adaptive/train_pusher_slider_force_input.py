@@ -76,7 +76,7 @@ def create_training_hyperparams(args)-> Dict:
 
     # Create default number of maximum epochs
     hyperparams_for_evaluation = {
-        "batch_size": 32,
+        "batch_size": 64,
         "controller_period": 0.1,
         "start_x": start_x,
         "simulation_dt": 0.025,
@@ -93,7 +93,7 @@ def create_training_hyperparams(args)-> Dict:
         # "max_epochs": args.max_epochs,
         "trajectories_per_episode": 500,
         "trajectory_length": 30,
-        "n_fixed_samples": 80000,
+        "n_fixed_samples": 10000,
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
@@ -167,7 +167,7 @@ def main(args):
         fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
-        batch_size=64,
+        batch_size=t_hyper["batch_size"],
         quotas=t_hyper["sample_quotas"],
         device=t_hyper["accelerator"],
     )

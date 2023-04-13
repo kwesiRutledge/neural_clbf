@@ -68,19 +68,19 @@ def create_training_hyperparams(args)-> Dict:
         "obstacle_center_x": 0.2,
         "obstacle_center_y": 0.2,
         "obstacle_center_z": 0.2,
-        "obstacle_width": 0.2,
+        "obstacle_width": 0.1,
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 128,
+        "batch_size": 32,
         "controller_period": 0.1,
         "start_x": start_x,
-        "simulation_dt": 0.05,
+        "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.25, 0.25, 0.2],
         "Theta_ub": [0.0, 0.35, 0.25],
         "clf_lambda": args.clf_lambda,
-        "Gamma_factor": 0.01,
+        "Gamma_factor": 0.1,
         "safe_level": 1.0,
         # layer specifications
         "clbf_hidden_size": 64,
@@ -89,8 +89,9 @@ def create_training_hyperparams(args)-> Dict:
         #"max_epochs": args.max_epochs,
         "n_fixed_samples": 10000,
         "trajectories_per_episode": 100,
-        "trajectory_length": 100,
+        "trajectory_length": 10,
         "accelerator": accelerator,
+        "num_init_epochs": 20,
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
         #"gradient_clip_val": args.gradient_clip_val,
@@ -149,12 +150,12 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-np.pi / 4, np.pi / 4),# p_x
-        (-1.0, 1.0),            # p_y
-        (-np.pi / 4, np.pi / 4),# p_z
-        (-1.0, 1.0),            # v_x
-        (-1.0, 1.0),            # v_y
-        (-1.0, 1.0),            # v_z
+        (-0.4, 0.4),# p_x
+        (-0.4, 0.4),             # p_y
+        (0.0, 0.7),             # p_z
+        (-0.5, 0.5),            # v_x
+        (-0.5, 0.5),            # v_y
+        (-0.5, 0.5),            # v_z
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
@@ -164,7 +165,7 @@ def main(args):
         fixed_samples=t_hyper["n_fixed_samples"],
         max_points=100000,
         val_split=0.1,
-        batch_size=64,
+        batch_size=t_hyper["batch_size"],
         quotas=t_hyper["sample_quotas"],
         device=t_hyper["accelerator"],
     )
@@ -224,7 +225,7 @@ def main(args):
         safe_level=t_hyper["safe_level"],
         controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=1e2,
-        num_init_epochs=5,
+        num_init_epochs=t_hyper["num_init_epochs"],
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],

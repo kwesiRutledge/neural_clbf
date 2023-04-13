@@ -1025,8 +1025,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         th_sim[:, 0, :] = theta
 
         th_h_sim = torch.zeros(batch_size, num_steps, n_params).type_as(theta)
-        th_h_samples = dynamical_model.get_N_samples_from_polytope(dynamical_model.Theta, batch_size)
-        th_h_sim[:, 0, :] = torch.tensor(th_h_samples.T).type_as(theta)
+        th_h_sim[:, 0, :] = self.model.sample_Theta_space(batch_size)
 
         u = torch.zeros(x_init.shape[0], n_controls).type_as(x_init)
 

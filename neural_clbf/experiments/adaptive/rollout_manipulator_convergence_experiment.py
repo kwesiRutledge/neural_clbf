@@ -112,12 +112,12 @@ class RolloutManipulatorConvergenceExperiment(Experiment):
 
         theta_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
         theta_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
+            controller_under_test.dynamics_model.sample_Theta_space(n_sims)
         )
 
         theta_hat_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
         theta_hat_sim_start[:, :] = torch.Tensor(
-            controller_under_test.dynamics_model.get_N_samples_from_polytope(Theta, n_sims).T
+            controller_under_test.dynamics_model.sample_Theta_space(n_sims)
         )
 
         # Generate a random scenario for each rollout from the given scenarios
@@ -225,7 +225,7 @@ class RolloutManipulatorConvergenceExperiment(Experiment):
                 xdot = controller_under_test.dynamics_model.closed_loop_dynamics(
                     x_current[i, :].unsqueeze(0),
                     u_current[i, :].unsqueeze(0),
-                    theta_current[i, :].unsqueeze(0), # Theta should never change. Theta hat will.
+                    theta_current[i, :].unsqueeze(0),  # Theta should never change. Theta hat will.
                     random_scenarios[i],
                 )
                 x_current[i, :] = x_current[i, :] + delta_t * xdot.squeeze()
