@@ -34,13 +34,13 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct(args)-> Dict:
     # Device declaration
-    accelerator_name = "cpu"
+    accelerator = "cpu"
     if torch.cuda.is_available():
-        accelerator_name = "cuda"
+        accelerator = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        # accelerator_name = "mps"
-        accelerator_name = "cpu"
+        # accelerator = "mps"
+        accelerator = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -52,7 +52,7 @@ def create_hyperparam_struct(args)-> Dict:
             [-0.5],
             [-0.7]
         ]
-    ).to(accelerator_name)
+    ).to(accelerator)
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
 
@@ -79,7 +79,7 @@ def create_hyperparam_struct(args)-> Dict:
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
         # Device
-        "accelerator": accelerator_name,
+        "accelerator": accelerator,
     }
 
     #Append the arguments to the hyperparams
@@ -97,7 +97,6 @@ def main(args):
 
     device = torch.device(hyperparams["accelerator"])
 
-    batch_size = hyperparams["batch_size"]
     controller_period = hyperparams["controller_period"]
 
     start_x = hyperparams["start_x"]
@@ -137,7 +136,7 @@ def main(args):
         fixed_samples=10000,
         max_points=100000,
         val_split=0.1,
-        batch_size=batch_size,
+        batch_size=hyperparams["batch_size"],
         quotas=hyperparams["sample_quotas"],
         device=hyperparams["accelerator"],
     )
@@ -203,22 +202,23 @@ def main(args):
         "logs/scalar_demo_capa2_system",
         name=f"commit_{current_git_hash()}",
     )
-    #if hyperparams["number_of_gpus"] == 1:
-    trainer = pl.Trainer(
-        logger=tb_logger,
-        max_epochs=hyperparams["max_epochs"],
-        accelerator=hyperparams["accelerator"],
-        gradient_clip_val=hyperparams["gradient_clip_val"],
-    )
-    # else:
-    #     trainer = pl.Trainer(
-    #         logger=tb_logger,
-    #         max_epochs=hyperparams["max_epochs"],
-    #         accelerator=hyperparams["accelerator"],
-    #         gradient_clip_val=hyperparams["gradient_clip_val"],
-    #         devices=hyperparams["number_of_gpus"],
-    #         strategy="ddp",
-    #     )
+
+    if hyperparams["number_of_gpus"] == 1:
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            max_epochs=hyperparams["max_epochs"],
+            accelerator=hyperparams["accelerator"],
+            gradient_clip_val=hyperparams["gradient_clip_val"],
+        )
+    else:
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            max_epochs=hyperparams["max_epochs"],
+            accelerator=hyperparams["accelerator"],
+            gradient_clip_val=hyperparams["gradient_clip_val"],
+            devices=hyperparams["number_of_gpus"],
+            strategy="ddp",
+        )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
