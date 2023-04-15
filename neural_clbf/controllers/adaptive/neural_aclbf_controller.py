@@ -1031,8 +1031,8 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         # Compute controller update frequency
         if controller_period is None:
-            controller_period = self.dt
-        controller_update_freq = int(controller_period / self.dt)
+            controller_period = self.controller_period
+        controller_update_freq = int(controller_period / self.dynamics_model.dt)
 
         # Run the simulation until it's over or an error occurs
         t_sim_final = 0
@@ -1049,12 +1049,15 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
                 # Simulate forward using the dynamics
                 xdot = dynamical_model.closed_loop_dynamics(x_current, u, theta, params)
-                x_sim[:, tstep, :] = x_current + self.dt * xdot
+                x_sim[:, tstep, :] = x_current + self.dynamics_model.dt * xdot
                 th_sim[:, tstep, :] = theta_current
 
                 # Compute theta hat evolution
-                th_h_dot = self.closed_loop_estimator_dynamics(x, theta_hat_current, u)
-                th_h_sim[:, tstep, :] = theta_hat_current + self.dt * th_h_dot
+                th_h_dot = self.closed_loop_estimator_dynamics(
+                    x_current, theta_hat_current, u,
+                    self.dynamics_model.nominal_scenario,
+                )
+                th_h_sim[:, tstep, :] = theta_hat_current + self.dynamics_model.dt * th_h_dot
 
                 # If the guard is activated for any trajectory, reset that trajectory
                 # to a random state
