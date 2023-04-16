@@ -306,29 +306,29 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         print(f"\t{self.theta_h_training.shape[0]} training theta estimates")
         print(f"\t{self.theta_h_validation.shape[0]} validation theta estimates")
         print("\t----------------------")
-        print(f"\t{self.model.goal_mask(self.x_training).sum()} goal points")
-        print(f"\t({self.model.goal_mask(self.x_validation).sum()} val)")
-        print(f"\t{self.model.safe_mask(self.x_training).sum()} safe points")
-        print(f"\t({self.model.safe_mask(self.x_validation).sum()} val)")
-        print(f"\t{self.model.unsafe_mask(self.x_training).sum()} unsafe points")
-        print(f"\t({self.model.unsafe_mask(self.x_validation).sum()} val)")
+        print(f"\t{self.model.goal_mask(self.x_training, self.theta_training).sum()} goal points")
+        print(f"\t({self.model.goal_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.safe_mask(self.x_training, self.theta_training).sum()} safe points")
+        print(f"\t({self.model.safe_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.unsafe_mask(self.x_training, self.theta_training).sum()} unsafe points")
+        print(f"\t({self.model.unsafe_mask(self.x_validation, self.theta_validation).sum()} val)")
 
         # Save the new datasets
         self.training_data = TensorDataset(
             self.x_training.cpu(),
             self.theta_training.cpu(),
             self.theta_h_training.cpu(),
-            self.model.goal_mask(self.x_training).cpu(),
-            self.model.safe_mask(self.x_training).cpu(),
-            self.model.unsafe_mask(self.x_training).cpu(),
+            self.model.goal_mask(self.x_training, self.theta_training).cpu(),
+            self.model.safe_mask(self.x_training, self.theta_training).cpu(),
+            self.model.unsafe_mask(self.x_training, self.theta_training).cpu(),
         )
         self.validation_data = TensorDataset(
             self.x_validation.cpu(),
             self.theta_validation.cpu(),
             self.theta_h_validation.cpu(),
-            self.model.goal_mask(self.x_validation).cpu(),
-            self.model.safe_mask(self.x_validation).cpu(),
-            self.model.unsafe_mask(self.x_validation).cpu(),
+            self.model.goal_mask(self.x_validation, self.theta_validation).cpu(),
+            self.model.safe_mask(self.x_validation, self.theta_validation).cpu(),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).cpu(),
         )
 
     def setup(self, stage=None):
