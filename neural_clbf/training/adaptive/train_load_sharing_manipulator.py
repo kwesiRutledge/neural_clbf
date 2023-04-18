@@ -168,6 +168,7 @@ def main(args):
         batch_size=t_hyper["batch_size"],
         quotas=t_hyper["sample_quotas"],
         device=t_hyper["accelerator"],
+        num_workers=t_hyper["num_cpu_cores"],
     )
 
     # Define the experiment suite

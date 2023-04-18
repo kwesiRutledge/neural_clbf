@@ -139,6 +139,7 @@ def main(args):
         batch_size=hyperparams["batch_size"],
         quotas=hyperparams["sample_quotas"],
         device=hyperparams["accelerator"],
+        num_workers=hyperparams["num_cpu_cores"],
     )
 
     # Define the experiment suite
@@ -203,7 +204,7 @@ def main(args):
         name=f"commit_{current_git_hash()}",
     )
 
-    if hyperparams["number_of_gpus"] == 1:
+    if hyperparams["number_of_gpus"] <= 1:
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=hyperparams["max_epochs"],

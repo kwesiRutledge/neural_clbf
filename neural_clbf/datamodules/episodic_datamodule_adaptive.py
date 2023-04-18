@@ -34,6 +34,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         batch_size: int = 64,
         quotas: Optional[Dict[str, float]] = None,
         device: str = "cpu",
+        num_workers: int = 10,
     ):
         """Initialize the DataModule
 
@@ -86,8 +87,8 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         theta_limits = np.vstack((self.theta_max, self.theta_min))
         self.center = [np.mean(theta_limits[:, i]) for i in range(theta_limits.shape[1])]
 
-        # Save the device
-        self.device = device
+        self.device = device  # Save the device
+        self.num_workers = num_workers  # Save the number of workers (CPUs?)
 
     def sample_trajectories(
         self, simulator: Callable[[torch.Tensor, int], torch.Tensor]
@@ -340,7 +341,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         dl = DataLoader(
             self.training_data,
             batch_size=self.batch_size,
-            num_workers=4,
+            num_workers=self.num_workers,
         )
         for x in dl:
             for x_k in x:
@@ -353,7 +354,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         dl = DataLoader(
             self.validation_data,
             batch_size=self.batch_size,
-            num_workers=4,
+            num_workers=self.num_workers,
         )
         for x in dl:
             for x_k in x:

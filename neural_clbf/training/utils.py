@@ -43,10 +43,6 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     )
 
     ap.add_argument(
-        '--include_oracle_loss', type=bool, default=False,
-        help='Whether to use the oracle loss in training(default: False)',
-    )
-    ap.add_argument(
         '--barrier', type=bool, default=False,
         help='Whether to use the barrier loss in training(default: False)',
     )
@@ -67,6 +63,10 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--include_estimation_error_loss', type=bool, default=False,
         help='Whether to use the estimation error loss in training (default: False)',
     )
+    ap.add_argument(
+        '--include_oracle_loss', type=bool, default=False,
+        help='Whether to use the oracle loss in training(default: False)',
+    )
 
     # GPU / Multi-GPU Setups
     # This doesn't currently work. I get this error whenever I try to use more than 1 GPU:
@@ -77,4 +77,8 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     ap.add_argument(
         '--number_of_gpus', type=int, default=1,
         help='Number of GPUs to use (default: 1). TODO: Test how well this works? (See comment in utils.py for more details)',
+    )
+    ap.add_argument(
+        '--num_cpu_cores', type=int, default=10,
+        help='Number of CPU cores to use (default: 10)',
     )
