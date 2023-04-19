@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 
 class CaseStudySafetyExperiment(Experiment):
     """
+    experim = CaseStudySafetyExperiment("Case Study 1", start_x, n_sims_per_start=5, t_sim=5.0)
+    experim = CaseStudySafetyExperiment("Case Study 2", start_x, n_sims_per_start=5, t_sim=5.0, x_indices=[0, 1], x_labels=["x", "y"])
+
     Description:
         An experiment for plotting rollout performance of controllers.
 
@@ -41,8 +44,12 @@ class CaseStudySafetyExperiment(Experiment):
         start_x: torch.Tensor,
         n_sims_per_start: int = 5,
         t_sim: float = 5.0,
+        plot_x_indices: List[int] = [],
+        plot_x_labels: List[str] = [],
     ):
-        """Initialize an experiment for simulating controller performance.
+        """
+        Description:
+            Initialize an experiment for simulating controller performance.
 
         args:
             name: the name of this experiment
@@ -60,6 +67,9 @@ class CaseStudySafetyExperiment(Experiment):
         self.start_x = start_x
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
+
+        self.plot_x_indices = plot_x_indices
+        self.plot_x_labels = plot_x_labels
 
         # if "x" in self.plot_x_labels:
         #     raise "There could be a problem using the plot_x_label value x; try using a different value"
@@ -88,7 +98,6 @@ class CaseStudySafetyExperiment(Experiment):
         n_sims = self.n_sims_per_start * self.start_x.shape[0]
 
         # Create ics
-
         x_sim_start = torch.zeros(n_sims, n_dims).type_as(self.start_x)
         for i in range(0, self.start_x.shape[0]):
             for j in range(0, self.n_sims_per_start):
@@ -226,12 +235,13 @@ class CaseStudySafetyExperiment(Experiment):
                 log_packet["Parameters"] = param_string[:-2]
 
                 # Pick out the states to log and save them
-                # for x_idx in range(len(self.plot_x_indices)):
-                #     plot_x_index = self.plot_x_indices[x_idx]
-                #     plot_x_label = self.plot_x_labels[x_idx]
-                #
-                #     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
-                #     log_packet[plot_x_label] = x_value
+                for x_idx in range(len(self.plot_x_labels)):
+                    plot_x_index = self.plot_x_indices[x_idx]
+                    plot_x_label = self.plot_x_labels[x_idx]
+
+                    x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
+                    log_packet[plot_x_label] = x_value
+
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
@@ -810,7 +820,7 @@ class CaseStudySafetyExperiment(Experiment):
             nominal_counts: Dict[str, int] = None,
             trajopt_counts: Dict[str, int] = None,
             mpc_counts: Dict[str, int] = None,
-            comments: List[str] = None ,
+            comments: List[str] = None,
     ) -> str:
         """
         Description:
@@ -826,10 +836,10 @@ class CaseStudySafetyExperiment(Experiment):
 
         # Start formatting the table
         lines_of_table += [r"\begin{center}" + f"\n"]
-        lines_of_table += [r"\begin{tabular}{|c|c|c|}" + f"\n"]
-        lines_of_table += [r"\hline" + f"\n"]
-        lines_of_table += [r"Controller & Goal Reached & Safe \\" + f"\n"]
-        lines_of_table += [r"\hline" + f"\n"]
+        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|c|}" + f"\n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+        lines_of_table += [f"\t\t" + r"Controller & Goal Reached & Safe \\" + f"\n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # Format the counts
 
@@ -839,38 +849,38 @@ class CaseStudySafetyExperiment(Experiment):
             nominal_gr_percentage = "{:.2f}".format(nominal_counts['goal_reached_percentage'])
             nominal_s_percentage = "{:.2f}".format(1-nominal_counts['unsafe_percentage'])
             lines_of_table += [
-                f"Nominal & {nominal_gr_percentage} & {nominal_s_percentage} \\\\ \n"
+                f"\t\t" + f"Nominal & {nominal_gr_percentage} & {nominal_s_percentage} \\\\ \n"
             ]
-            lines_of_table += [r"\hline" + f"\n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # - Trajopt
         if trajopt_counts is not None:
             trajopt_gr_percentage = "{:.2f}".format(trajopt_counts['goal_reached_percentage'])
             trajopt_s_percentage = "{:.2f}".format(1 - trajopt_counts['unsafe_percentage'])
             lines_of_table += [
-                f"Trajopt (Trajax) & {trajopt_gr_percentage} & {trajopt_s_percentage} \\\\ \n"
+                f"\t\t" + f"Trajopt (Trajax) & {trajopt_gr_percentage} & {trajopt_s_percentage} \\\\ \n"
             ]
-            lines_of_table += [r"\hline" + f"\n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # - (Hybrid) MPC about optimized trajectory
         if mpc_counts is not None:
             mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
             mpc_s_percentage = "{:.2f}".format(1-mpc_counts['unsafe_percentage'])
             lines_of_table += [
-                f"MPC & {mpc_gr_percentage} & {mpc_s_percentage} \\\\ \n"
+                f"\t\t" + f"MPC & {mpc_gr_percentage} & {mpc_s_percentage} \\\\ \n"
             ]
-            lines_of_table += [r"\hline" + f"\n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # - aCLBF
         aclbf_gr_percentage = "{:.2f}".format(aclbf_counts['goal_reached_percentage'])
         aclbf_s_percentage = "{:.2f}".format(1-aclbf_counts['unsafe_percentage'])
-        lines_of_table += [f"Neural aCLBF & {aclbf_gr_percentage} & {aclbf_s_percentage} \\\\ \n"]
+        lines_of_table += [f"\t\t" + f"Neural aCLBF & {aclbf_gr_percentage} & {aclbf_s_percentage} \\\\ \n"]
 
 
 
         # End formatting the table
-        lines_of_table += [r"\hline" + f"\n"]
-        lines_of_table += [r"\end{tabular}" + f"\n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+        lines_of_table += [f"\t" + r"\end{tabular}" + f"\n"]
         lines_of_table += [r"\end{center}" + f"\n"]
 
         if comments != None:
@@ -884,7 +894,8 @@ class CaseStudySafetyExperiment(Experiment):
     def plot(
         self,
         controller_under_test: "Controller",
-        results_df: pd.DataFrame,
+        aclbf_results_df: pd.DataFrame,
+        nominal_results_df: pd.DataFrame = None,
         display_plots: bool = False,
     ) -> List[Tuple[str, figure]]:
         """
@@ -900,33 +911,51 @@ class CaseStudySafetyExperiment(Experiment):
                  object.
         """
 
-        raise NotImplementedError(f"This method will eventually show bar graphs (or something else) reflecting data.")
+        # raise NotImplementedError(f"This method will eventually show bar graphs (or something else) reflecting data.")
 
         # Set the color scheme
         sns.set_theme(context="talk", style="white")
 
-        # Figure out how many plots we need (one for the rollout, one for h if logged,
-        # and one for V if logged)
-        num_plots = 1
-        # if "h" in results_df:
-        #     num_plots += 1
-        # if "V" in results_df:
-        #     num_plots += 1
+        fig_handle = self.plot_trajectory(
+            aclbf_results_df,
+            controller_under_test,
+            fig_name="Rollout",
+        )
 
-        # Plot the state trajectories
+        if display_plots:
+            plt.show()
+            return []
+        else:
+            return [fig_handle]
+
+    def plot_trajectory(
+            self,
+            results_df: pd.DataFrame,
+            controller_under_test: "Controller",
+            fig_name: str = "Rollout",
+    ) -> Tuple[str, plt.Figure]:
+        """
+        fig_handle_out = self.plot_trajectory(results_df, ax)
+        Description:
+            This function is to plot the trajectory of the system in the state space
+            from the given results dataframe.
+        """
+        assert len(self.plot_x_labels) == 3, f"This function requires for 3 values to be given in x_labels to make a 3D plots; Received {len(self.plot_x_labels)}"
+
+        # Constants
         fig = plt.figure()
-        # rollout_ax = fig.add_subplot(101 + 10*num_plots, projection='3d')
-        # fig.set_size_inches(9 * num_plots, 6)
-        count_ax = fig.add_subplot(111)
 
-        # if "h" in results_df:
-        #     h_ax = fig.add_subplot(103 + 10*num_plots)
-        # if "V" in results_df:
-        #     V_ax = fig.add_subplot(100 + 10*num_plots + num_plots) #ax[num_plots - 1]
+        num_plots = 1
+        if "h" in results_df:
+            num_plots += 1
+        if "V" in results_df:
+            num_plots += 1
 
-        # Plot histogram
+        fig.set_size_inches(9 * num_plots, 6)
 
+        rollout_ax = fig.add_subplot(100+10*num_plots+1, projection="3d")
 
+        # Plot All Simulations in the Dataframe
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
             # rollout_ax.plot(
@@ -971,49 +1000,51 @@ class CaseStudySafetyExperiment(Experiment):
         # Remove the legend -- too much clutter
         rollout_ax.legend([], [], frameon=False)
 
-        # Plot the environment
-        controller_under_test.dynamics_model.plot_environment(rollout_ax)
-
-        self.plot_error(results_df, error_ax)
-
         # Plot the barrier function if applicable
-        if "h" in results_df:
-            # Get the derivatives for each simulation
-            for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-                sim_mask = results_df["Simulation"] == sim_index
-
-                h_ax.plot(
-                    results_df[sim_mask]["t"].to_numpy(),
-                    results_df[sim_mask]["h"].to_numpy(),
-                    linestyle="-",
-                    # marker="+",
-                    markersize=5,
-                    color=sns.color_palette()[plot_idx],
-                )
-                h_ax.set_ylabel("$h$")
-                h_ax.set_xlabel("t")
-                # Remove the legend -- too much clutter
-                h_ax.legend([], [], frameon=False)
-
-                # Plot a reference line at h = 0
-                h_ax.plot([0, results_df["t"].max()], [0, 0], color="k")
-
-                # Also plot the derivatives
-                h_next = results_df[sim_mask]["h"][1:].to_numpy()
-                h_now = results_df[sim_mask]["h"][:-1].to_numpy()
-                alpha = controller_under_test.h_alpha  # type: ignore
-                h_violation = h_next - (1 - alpha) * h_now
-
-                h_ax.plot(
-                    results_df[sim_mask]["t"][:-1].to_numpy(),
-                    h_violation,
-                    linestyle=":",
-                    color=sns.color_palette()[plot_idx],
-                )
-                h_ax.set_ylabel("$h$ violation")
+        # if "h" in results_df:
+        #     # Create axis for barrier
+        #
+        #     # Get the derivatives for each simulation
+        #     for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+        #         sim_mask = results_df["Simulation"] == sim_index
+        #
+        #         h_ax.plot(
+        #             results_df[sim_mask]["t"].to_numpy(),
+        #             results_df[sim_mask]["h"].to_numpy(),
+        #             linestyle="-",
+        #             # marker="+",
+        #             markersize=5,
+        #             color=sns.color_palette()[plot_idx],
+        #         )
+        #         h_ax.set_ylabel("$h$")
+        #         h_ax.set_xlabel("t")
+        #         # Remove the legend -- too much clutter
+        #         h_ax.legend([], [], frameon=False)
+        #
+        #         # Plot a reference line at h = 0
+        #         h_ax.plot([0, results_df["t"].max()], [0, 0], color="k")
+        #
+        #         # Also plot the derivatives
+        #         h_next = results_df[sim_mask]["h"][1:].to_numpy()
+        #         h_now = results_df[sim_mask]["h"][:-1].to_numpy()
+        #         alpha = controller_under_test.h_alpha  # type: ignore
+        #         h_violation = h_next - (1 - alpha) * h_now
+        #
+        #         h_ax.plot(
+        #             results_df[sim_mask]["t"][:-1].to_numpy(),
+        #             h_violation,
+        #             linestyle=":",
+        #             color=sns.color_palette()[plot_idx],
+        #         )
+        #         h_ax.set_ylabel("$h$ violation")
 
         # Plot the lyapunov function if applicable
         if "V" in results_df:
+            # Create axis for lyapunov
+            V_ax = fig.add_subplot(
+                100+num_plots*10+num_plots,
+            )
+
             for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
                 sim_mask = results_df["Simulation"] == sim_index
                 V_ax.plot(
@@ -1040,16 +1071,11 @@ class CaseStudySafetyExperiment(Experiment):
             # Plot a reference line at V = 0
             V_ax.plot([0, results_df.t.max()], [0, 0], color="k")
 
+        # Plot the environment
+        # controller_under_test.dynamics_model.plot_environment(rollout_ax)
 
+        return (fig_name, fig)
 
-        # Create output
-        fig_handle = ("Rollout (state space - convergence)", fig)
-
-        if display_plots:
-            plt.show()
-            return []
-        else:
-            return [fig_handle]
 
     def plot_error(self, results_df: pd.DataFrame, error_ax: plt.axis):
         """
