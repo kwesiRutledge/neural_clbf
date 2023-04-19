@@ -7,6 +7,9 @@ from typing import Dict
 
 from argparse import ArgumentParser
 
+import os
+os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
+
 import torch
 import torch.multiprocessing
 import pytorch_lightning as pl
@@ -30,7 +33,7 @@ from neural_clbf.training.utils import (
 )
 import polytope as pc
 
-torch.multiprocessing.set_sharing_strategy("file_system")
+# torch.multiprocessing.set_sharing_strategy("file_system")
 
 def create_hyperparam_struct(args)-> Dict:
     # Device declaration
