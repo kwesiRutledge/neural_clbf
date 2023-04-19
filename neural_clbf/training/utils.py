@@ -75,7 +75,7 @@ def initialize_training_arg_parser(ap: ArgumentParser):
     # specific type of dataloader or sampler to be used in order to overcome this. Consider this one:
     #   https://pytorch.org/docs/stable/data.html#torch.utils.data.distributed.DistributedSampler
     ap.add_argument(
-        '--number_of_gpus', type=int, default=1,
+        '--number_of_gpus', type=int, default=0,
         help='Number of GPUs to use (default: 1). TODO: Test how well this works? (See comment in utils.py for more details)',
     )
     ap.add_argument(

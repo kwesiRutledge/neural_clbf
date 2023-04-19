@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J scalar_demo_capa2_system_training
+#SBATCH -J (P)scalar_demo_capa2_system_training
 #SBATCH -o outputs/scalar-%j.stdout
 #SBATCH -e outputs/scalar-%j.stderr
 #SBATCH -c 40

@@ -205,6 +205,7 @@ def main(args):
     )
 
     if hyperparams["number_of_gpus"] <= 1:
+        print("Using CPU or Single GPU")
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=hyperparams["max_epochs"],
@@ -212,6 +213,7 @@ def main(args):
             gradient_clip_val=hyperparams["gradient_clip_val"],
         )
     else:
+        print("Using DDP")
         trainer = pl.Trainer(
             logger=tb_logger,
             max_epochs=hyperparams["max_epochs"],
