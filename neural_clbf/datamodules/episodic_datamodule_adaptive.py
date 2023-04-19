@@ -91,8 +91,8 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         self.num_workers = num_workers  # Save the number of workers (CPUs?)
 
         # Data buffers
-        # self.training_data = None
-        # self.validation_data = None
+        self.training_data = None
+        self.validation_data = None
 
     def sample_trajectories(
         self, simulator: Callable[[torch.Tensor, int], torch.Tensor]
@@ -232,20 +232,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Turn these into tensor datasets
         self.training_data = TensorDataset(
-            self.x_training.to(self.device),
-            self.theta_training.to(self.device),
-            self.theta_h_training.to(self.device),
-            self.model.goal_mask(self.x_training, self.theta_training).to(self.device),
-            self.model.safe_mask(self.x_training, self.theta_training).to(self.device),
-            self.model.unsafe_mask(self.x_training, self.theta_training).to(self.device),
+            self.x_training.clone().to(self.device),
+            self.theta_training.clone().to(self.device),
+            self.theta_h_training.clone().to(self.device),
+            self.model.goal_mask(self.x_training, self.theta_training).clone().to(self.device),
+            self.model.safe_mask(self.x_training, self.theta_training).clone().to(self.device),
+            self.model.unsafe_mask(self.x_training, self.theta_training).clone().to(self.device),
         )
         self.validation_data = TensorDataset(
-            self.x_validation.to(self.device),
-            self.theta_validation.to(self.device),
-            self.theta_h_validation.to(self.device),
-            self.model.goal_mask(self.x_validation, self.theta_validation).to(self.device),
-            self.model.safe_mask(self.x_validation, self.theta_validation).to(self.device),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.x_validation.clone().to(self.device),
+            self.theta_validation.clone().to(self.device),
+            self.theta_h_validation.clone().to(self.device),
+            self.model.goal_mask(self.x_validation, self.theta_validation).clone().to(self.device),
+            self.model.safe_mask(self.x_validation, self.theta_validation).clone().to(self.device),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).clone().to(self.device),
         )
 
     def add_data(self, simulator: Callable[[torch.Tensor, int], torch.Tensor]):
@@ -320,20 +320,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Save the new datasets
         self.training_data = TensorDataset(
-            self.x_training.to(self.device),
-            self.theta_training.to(self.device),
-            self.theta_h_training.to(self.device),
-            self.model.goal_mask(self.x_training, self.theta_training).to(self.device),
-            self.model.safe_mask(self.x_training, self.theta_training).to(self.device),
-            self.model.unsafe_mask(self.x_training, self.theta_training).to(self.device),
+            self.x_training.clone().to(self.device),
+            self.theta_training.clone().to(self.device),
+            self.theta_h_training.clone().to(self.device),
+            self.model.goal_mask(self.x_training, self.theta_training).clone().to(self.device),
+            self.model.safe_mask(self.x_training, self.theta_training).clone().to(self.device),
+            self.model.unsafe_mask(self.x_training, self.theta_training).clone().to(self.device),
         )
         self.validation_data = TensorDataset(
-            self.x_validation.to(self.device),
-            self.theta_validation.to(self.device),
-            self.theta_h_validation.to(self.device),
-            self.model.goal_mask(self.x_validation, self.theta_validation).to(self.device),
-            self.model.safe_mask(self.x_validation, self.theta_validation).to(self.device),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.x_validation.clone().to(self.device),
+            self.theta_validation.clone().to(self.device),
+            self.theta_h_validation.clone().to(self.device),
+            self.model.goal_mask(self.x_validation, self.theta_validation).clone().to(self.device),
+            self.model.safe_mask(self.x_validation, self.theta_validation).clone().to(self.device),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).clone().to(self.device),
         )
 
     def setup(self, stage=None):
@@ -347,7 +347,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
             Make the DataLoader for training data
         """
         # Check to make sure self.training_data exists
-        if not hasattr(self, 'training_data'):
+        if self.training_data is None:
             self.prepare_data()
 
         # Construct Dataloader
@@ -366,7 +366,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         """Make the DataLoader for validation data"""
 
         # Check to make sure self.validation_data exists
-        if not hasattr(self, 'validation_data'):
+        if self.validation_data is None:
             self.prepare_data()
 
         dl = DataLoader(
