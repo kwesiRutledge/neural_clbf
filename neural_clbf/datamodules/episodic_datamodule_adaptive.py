@@ -91,8 +91,8 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         self.num_workers = num_workers  # Save the number of workers (CPUs?)
 
         # Data buffers
-        self.training_data = None
-        self.validation_data = None
+        # self.training_data = None
+        # self.validation_data = None
 
     def sample_trajectories(
         self, simulator: Callable[[torch.Tensor, int], torch.Tensor]
@@ -347,7 +347,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
             Make the DataLoader for training data
         """
         # Check to make sure self.training_data exists
-        if self.training_data is None:
+        if hasattr(self, 'training_data'):
             self.prepare_data()
 
         # Construct Dataloader
@@ -366,7 +366,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         """Make the DataLoader for validation data"""
 
         # Check to make sure self.validation_data exists
-        if self.validation_data is None:
+        if hasattr(self, 'validation_data'):
             self.prepare_data()
 
         dl = DataLoader(
