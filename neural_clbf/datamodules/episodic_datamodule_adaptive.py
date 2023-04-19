@@ -232,20 +232,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Turn these into tensor datasets
         self.training_data = TensorDataset(
-            self.x_training,
-            self.theta_training,
-            self.theta_h_training,
-            self.model.goal_mask(self.x_training, self.theta_training),
-            self.model.safe_mask(self.x_training, self.theta_training),
-            self.model.unsafe_mask(self.x_training, self.theta_training),
+            self.x_training.to(self.device),
+            self.theta_training.to(self.device),
+            self.theta_h_training.to(self.device),
+            self.model.goal_mask(self.x_training, self.theta_training).to(self.device),
+            self.model.safe_mask(self.x_training, self.theta_training).to(self.device),
+            self.model.unsafe_mask(self.x_training, self.theta_training).to(self.device),
         )
         self.validation_data = TensorDataset(
-            self.x_validation,
-            self.theta_validation,
-            self.theta_h_validation,
-            self.model.goal_mask(self.x_validation, self.theta_validation),
-            self.model.safe_mask(self.x_validation, self.theta_validation),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation),
+            self.x_validation.to(self.device),
+            self.theta_validation.to(self.device),
+            self.theta_h_validation.to(self.device),
+            self.model.goal_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.model.safe_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).to(self.device),
         )
 
     def add_data(self, simulator: Callable[[torch.Tensor, int], torch.Tensor]):
@@ -320,20 +320,20 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
 
         # Save the new datasets
         self.training_data = TensorDataset(
-            self.x_training,
-            self.theta_training,
-            self.theta_h_training,
-            self.model.goal_mask(self.x_training, self.theta_training),
-            self.model.safe_mask(self.x_training, self.theta_training),
-            self.model.unsafe_mask(self.x_training, self.theta_training),
+            self.x_training.to(self.device),
+            self.theta_training.to(self.device),
+            self.theta_h_training.to(self.device),
+            self.model.goal_mask(self.x_training, self.theta_training).to(self.device),
+            self.model.safe_mask(self.x_training, self.theta_training).to(self.device),
+            self.model.unsafe_mask(self.x_training, self.theta_training).to(self.device),
         )
         self.validation_data = TensorDataset(
-            self.x_validation,
-            self.theta_validation,
-            self.theta_h_validation,
-            self.model.goal_mask(self.x_validation, self.theta_validation),
-            self.model.safe_mask(self.x_validation, self.theta_validation),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation),
+            self.x_validation.to(self.device),
+            self.theta_validation.to(self.device),
+            self.theta_h_validation.to(self.device),
+            self.model.goal_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.model.safe_mask(self.x_validation, self.theta_validation).to(self.device),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation).to(self.device),
         )
 
     def setup(self, stage=None):
