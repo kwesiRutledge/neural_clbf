@@ -347,7 +347,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
             Make the DataLoader for training data
         """
         # Check to make sure self.training_data exists
-        if hasattr(self, 'training_data'):
+        if not hasattr(self, 'training_data'):
             self.prepare_data()
 
         # Construct Dataloader
@@ -366,7 +366,7 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
         """Make the DataLoader for validation data"""
 
         # Check to make sure self.validation_data exists
-        if hasattr(self, 'validation_data'):
+        if not hasattr(self, 'validation_data'):
             self.prepare_data()
 
         dl = DataLoader(
