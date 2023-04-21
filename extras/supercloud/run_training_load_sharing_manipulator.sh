@@ -3,7 +3,7 @@
 #SBATCH -J load_sharing_manipulator_training
 #SBATCH -o outputs/loaded-manipulator-%j.stdout
 #SBATCH -e outputs/loaded-manipulator-%j.stderr
-#SBATCH -c 20
+#SBATCH -c 40
 #SBATCH --gres=gpu:volta:2
 #SBATCH --time=24:00:00
 
