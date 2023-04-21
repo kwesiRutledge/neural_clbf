@@ -238,13 +238,26 @@ def main(args):
         "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
     )
-    trainer = pl.Trainer(
-        logger=tb_logger,
-        # reload_dataloaders_every_epoch=True,
-        max_epochs=t_hyper["max_epochs"],
-        accelerator=t_hyper["accelerator"],
-        gradient_clip_val=t_hyper["gradient_clip_val"],
-    )
+
+    if t_hyper["number_of_gpus"] <= 1:
+        print("Using CPU or Single GPU")
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            # reload_dataloaders_every_epoch=True,
+            max_epochs=t_hyper["max_epochs"],
+            accelerator=t_hyper["accelerator"],
+            gradient_clip_val=t_hyper["gradient_clip_val"],
+        )
+    else:
+        print("Using DDP")
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            max_epochs=t_hyper["max_epochs"],
+            accelerator=t_hyper["accelerator"],
+            gradient_clip_val=t_hyper["gradient_clip_val"],
+            devices=t_hyper["number_of_gpus"],
+            strategy="ddp",
+        )
 
     # Train
     torch.autograd.set_detect_anomaly(True)
