@@ -80,6 +80,7 @@ def extract_hyperparams_from_args(args):
         scalar_capa2_log_file_dir + "controller.pt",
         map_location=torch.device('cpu'),
     )
+    aclbf_controller.dynamics_model.device = "cpu"
 
     return controller_from_checkpoint, saved_hyperparams, saved_Vnn, aclbf_controller
 
@@ -97,12 +98,12 @@ def inflate_context_using_hyperparameters(hyperparams):
     # Get initial conditions for the experiment
     start_x = torch.tensor(
         [
-            [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-            [-0.2, 0.3, 0.2, 0.0, 0.0, 0.0],
+            [-0.2, -0.2, 0.1, 0.5, 0.5, 0.5],
+            [0.1, 0.1, 0.2, 0.0, 0.0, 0.0],
             [0.2, -0.3, 0.1, 0.0, 0.0, 0.0],
             [-0.2, -0.3, 0.1, 0.0, 0.0, 0.0],
             [-0.4, 0.1, 0.2, 0.0, 0.0, 0.0],
-            [0.2, 0.0, 0.2, 0.0, 0.0, 0.0],
+            [0.5, 0.5, 0.0, 0.0, 0.0, 0.0],
             [-0.2, -1.0, 0.1, 0.0, 0.0, 0.0],
         ]
     )
@@ -233,7 +234,7 @@ def main(args):
         "Safety Case Study",
         x0,
         n_sims_per_start=1,
-        t_sim=45.0,
+        t_sim=15.0,
         plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
         plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
     )
@@ -291,8 +292,14 @@ def main(args):
         f.writelines(lines)
 
         # Run the experiments and save the results
-        fig_handles = controller_pt.experiment_suite.run_all_and_plot(
-            controller_pt, display_plots=False
+        # fig_handles = controller_pt.experiment_suite.run_all_and_plot(
+        #     controller_pt, display_plots=False
+        # )
+        fig_handles = safety_case_study_experiment.plot(
+            controller_pt,
+            results_df,
+            nominal_results_df=nominal_results_df,
+            display_plots=False,
         )
 
         fig_titles = ["case_study1-aclbf-perf", "case_study1-nominal-perf"]

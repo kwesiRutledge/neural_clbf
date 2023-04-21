@@ -12,6 +12,7 @@ from abc import (
 from typing import Callable, Tuple, Optional, List
 
 from matplotlib.axes import Axes
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
 import torch
 from torch.autograd.functional import jacobian
@@ -104,11 +105,11 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             ValueError if nominal_scenario are not valid for this system
         """
         # Define parameters
-        self.m = 10.0 # kg
+        self.m = 10.0  # kg
 
-        self.K_x = float(-1.0)
-        self.K_y = float(-1.0)
-        self.K_z = float(-1.0)
+        self.K_x = float(-2.0)
+        self.K_y = float(-2.0)
+        self.K_z = float(-2.0)
 
         self.device = device
 
@@ -247,6 +248,10 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return safe_mask
 
+
+    @property
+    def goal_tolerance(self) -> float:
+        return 0.1
     def goal_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating goal regions for this system
 
@@ -257,7 +262,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             point is in this region.
         """
         # Include a sensible default
-        goal_tolerance = 0.1
+        goal_tolerance = self.goal_tolerance
         batch_size = x.shape[0]
 
         # Algorithm
@@ -352,7 +357,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         K_z = self.K_z
         m = self.m
 
-        g = 10.0 # m/s^2
+        gravity = 9.8  # m/s^2
 
         # Algorithm
         p_x = x[:, LoadSharingManipulator.P_X]
@@ -366,8 +371,8 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         f[:, LoadSharingManipulator.P_Y, 0] = v_y
         f[:, LoadSharingManipulator.P_Z, 0] = v_z
         f[:, LoadSharingManipulator.V_X, 0] = (1/m) * K_x * p_x
-        f[:, LoadSharingManipulator.V_Y, 0] = (1 / m) * K_y * p_y - g
-        f[:, LoadSharingManipulator.V_Z, 0] = (1 / m) * K_z * p_z
+        f[:, LoadSharingManipulator.V_Y, 0] = (1 / m) * K_y * p_y
+        f[:, LoadSharingManipulator.V_Z, 0] = (1 / m) * K_z * p_z - gravity
 
         return f
 
@@ -473,10 +478,10 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         # estimated_goal[:, 3:] = theta_hat
 
         u_nominal = -(K @ (x - estimated_goal).T).T
+        u_nominal[:, 2] = u_nominal[:, 2] + m*g
 
         # Adjust for the equilibrium setpoint
         u = u_nominal + self.u_eq.type_as(x)
-        u[:, 1] = u[:, 1] + m*g
 
         # Clamp given the control limits
         upper_u_lim, lower_u_lim = self.control_limits
@@ -489,15 +494,109 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return u
 
-    def plot_environment(self, ax: Axes) -> None:
+    def plot_environment(self, ax: Axes, theta: torch.tensor) -> None:
         """
-        Add a plot of the environment to the given figure. Defaults to do nothing
-        unless overridden.
+        Description:
+            Add a plot of the environment to the given figure. Defaults to do nothing
+            unless overridden.
+            We will draw:
+                - the ground (?)
+                - the obstacle
+                - the goal
+                - the goal set
 
         args:
             ax: the axis on which to plot
         """
-        pass
+
+        # Input Checking
+        assert theta.shape == (1, self.n_params), f"theta must be of shape (1, {self.n_params}); received shape {theta.shape}"
+
+        # Constants
+        goal = theta
+        obs_x = self.nominal_scenario["obstacle_center_x"]
+        obs_y = self.nominal_scenario["obstacle_center_y"]
+        obs_z = self.nominal_scenario["obstacle_center_z"]
+
+        obs_rad = self.nominal_scenario["obstacle_width"] / 2
+
+        # Plot Goal as sphere (with tolerance as radius)
+        u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:20j]
+        x = np.cos(u) * np.sin(v)
+        y = np.sin(u) * np.sin(v)
+        z = np.cos(v)
+
+        ax.plot_surface(
+            goal[0, 0] + self.goal_tolerance * x,
+            goal[0, 1] + self.goal_tolerance * y,
+            goal[0, 2] + self.goal_tolerance * z,
+            color="g",
+            alpha=0.6,
+        )
+
+        # Plot obstacle!
+        ax.plot_surface(
+            obs_x + obs_rad * x,
+            obs_y + obs_rad * y,
+            obs_z + obs_rad * z,
+            color="r",
+            alpha=0.5,
+        )
+
+        # Plot the set of potential goals
+        V_Theta = pc.extreme(self.Theta)
+        print(V_Theta)
+        # edges = np.array([
+        #     [0, 1],
+        #     [1, 2],
+        #     [2, 3],
+        #     [3, 0],
+        #     [4, 5],
+        #     [5, 6],
+        #     [6, 7],
+        #     [7, 4],
+        #     [0, 4],
+        #     [1, 5],
+        #     [2, 6],
+        #     [3, 7]
+        # ])
+        faces = np.array([
+            [0, 1, 3, 2],
+            [4, 5, 7, 6],
+            [0, 2, 6, 4],
+            [1, 3, 7, 5],
+            [0, 1, 5, 4],
+            [2, 3, 7, 6]
+        ])
+
+        # Plot the edges
+        # ax.add_collection(
+        #     Poly3DCollection(V_Theta[edges], facecolors='b', edgecolors='b')
+        # )
+
+        # Plot the faces
+        ax.add_collection(
+            Poly3DCollection(V_Theta[faces], facecolors='g', edgecolors='g', alpha=0.2)
+        )
+
+        # Set the limits of the plot
+        min_V_Theta = np.min(V_Theta, axis=0)
+        max_V_Theta = np.max(V_Theta, axis=0)
+
+        obs_pos = np.array([obs_x, obs_y, obs_z])
+        set_lim_fns = [ax.set_xlim, ax.set_ylim, ax.set_zlim]
+        for axis_index in range(3):
+
+            set_lim_fns[axis_index]([
+                np.min([min_V_Theta[axis_index], goal[0, axis_index], obs_pos[axis_index] - obs_rad]) - 0.2,
+                np.max([max_V_Theta[axis_index], goal[0, axis_index], obs_pos[axis_index] + obs_rad]) + 0.2
+            ])
+
+
+        # Set the labels of the axes
+        ax.set_xlabel('$p_x$')
+        ax.set_ylabel('$p_y$')
+        ax.set_zlabel('$p_z$')
 
     def basic_mpc1(self, x: torch.Tensor, dt: float, N_mpc: int = 5) -> torch.Tensor:
         """

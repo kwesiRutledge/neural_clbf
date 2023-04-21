@@ -650,7 +650,7 @@ class ControlAffineParameterAffineSystem(ABC):
         th_sim[:, 0, :] = theta
 
         th_h_sim = torch.zeros(batch_size, num_steps, self.n_params, device=self.device).type_as(theta)
-        th_h_samples = self.sample_Theta_space(batch_size) #self.get_N_samples_from_polytope(self.Theta, batch_size)
+        th_h_samples = self.sample_Theta_space(batch_size)
         th_h_sim[:, 0, :] = th_h_samples.squeeze()
 
         u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
@@ -838,7 +838,7 @@ class ControlAffineParameterAffineSystem(ABC):
 
         return u
 
-    def plot_environment(self, ax: Axes) -> None:
+    def plot_environment(self, ax: Axes, theta: torch.tensor) -> None:
         """
         Add a plot of the environment to the given figure. Defaults to do nothing
         unless overidden.

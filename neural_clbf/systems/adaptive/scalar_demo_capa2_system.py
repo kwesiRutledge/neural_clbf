@@ -363,7 +363,7 @@ class ScalarCAPA2Demo(ControlAffineParameterAffineSystem):
 
         return u
 
-    def plot_environment(self, ax: Axes) -> None:
+    def plot_environment(self, ax: Axes, theta: torch.tensor) -> None:
         """
         Add a plot of the environment to the given figure. Defaults to do nothing
         unless overridden.

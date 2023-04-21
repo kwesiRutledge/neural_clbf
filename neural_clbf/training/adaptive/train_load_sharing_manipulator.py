@@ -57,10 +57,10 @@ def create_training_hyperparams(args)-> Dict:
     # Get initial conditions for the experiment
     start_x = torch.tensor(
         [
-            [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
-            [-0.2, 1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
-            [-0.2, -1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.3, -0.3, 0.4, 0.0, 0.0, 0.0],
+            [0.3, -0.3, 0.4, 0.1, 0.0, 0.0],
+            [0.3, -0.3, 0.3, 0.0, 0.0, 0.0],
+            [0.3, -0.3, 0.4, 0.0, 0.0, 0.2],
         ]
     ).to(accelerator)
 
@@ -77,8 +77,8 @@ def create_training_hyperparams(args)-> Dict:
         "start_x": start_x,
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [-0.25, 0.25, 0.2],
-        "Theta_ub": [0.0, 0.35, 0.25],
+        "Theta_lb": [-0.15, 0.4, 0.1],
+        "Theta_ub": [0.15, 0.45, 0.3],
         "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.1,
         "safe_level": 1.0,
@@ -87,9 +87,9 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
-        "n_fixed_samples": 10000,
+        "n_fixed_samples": 20000,
         "trajectories_per_episode": 100,
-        "trajectory_length": 10,
+        "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 20,
         #"use_oracle_loss": args.use_oracle_loss,
@@ -185,7 +185,7 @@ def main(args):
         n_grid=30,
         x_axis_index=LoadSharingManipulator.P_X,
         theta_axis_index=t_hyper["contour_exp_theta_index"],
-        x_axis_label="$p_x$",
+        x_axis_label="$r_1$",
         theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
