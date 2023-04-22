@@ -66,13 +66,13 @@ def create_training_hyperparams(args)-> Dict:
 
     nominal_scenario = {
         "obstacle_center_x": 0.2,
-        "obstacle_center_y": 0.2,
-        "obstacle_center_z": 0.2,
-        "obstacle_width": 0.1,
+        "obstacle_center_y": 0.1,
+        "obstacle_center_z": 0.3,
+        "obstacle_width": 0.2,
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 32,
+        "batch_size": 64,
         "controller_period": 0.1,
         "start_x": start_x,
         "simulation_dt": 0.025,
@@ -87,8 +87,8 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
-        "n_fixed_samples": 20000,
-        "trajectories_per_episode": 100,
+        "n_fixed_samples": 30000,
+        "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 20,
@@ -292,11 +292,11 @@ def main(args):
         "/version_" + str(tb_logger.version) + "/state_dict.pt"
     )
 
-    torch.save(
-        aclbf_controller,
-        tb_logger.save_dir + "/" + tb_logger.name +
-        "/version_" + str(tb_logger.version) + "/controller.pt"
-    )
+    # torch.save(
+    #     aclbf_controller,
+    #     tb_logger.save_dir + "/" + tb_logger.name +
+    #     "/version_" + str(tb_logger.version) + "/controller.pt"
+    # )
 
 
 if __name__ == "__main__":
