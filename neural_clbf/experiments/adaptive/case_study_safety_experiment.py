@@ -5,7 +5,7 @@ Description
 """
 import random
 import time
-from typing import cast, List, Tuple, Optional, TYPE_CHECKING, Dict
+from typing import cast, List, Tuple, Optional, TYPE_CHECKING, Dict, Callable, Any
 
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
@@ -13,6 +13,9 @@ import pandas as pd
 import seaborn as sns
 import torch
 import tqdm
+
+import control as ct
+import control.optimal as opt
 
 from neural_clbf.experiments import Experiment
 from neural_clbf.systems.utils import ScenarioList
@@ -136,7 +139,7 @@ class CaseStudySafetyExperiment(Experiment):
         """
         # Constants
         scenarios = [controller_under_test.dynamics_model.nominal_scenario]
-        results = [] # Set up a dataframe to store the results
+        results = []  # Set up a dataframe to store the results
 
         # Compute the number of simulations to run
         n_sims = self.n_sims_per_start * self.start_x.shape[0]
@@ -242,10 +245,10 @@ class CaseStudySafetyExperiment(Experiment):
                     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
                     log_packet[plot_x_label] = x_value
 
-                log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                log_packet["state"] = x_current[sim_index, :].cpu().clone().numpy()
+                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().clone().numpy()
+                log_packet["theta"] = theta_current[sim_index, :].cpu().clone().numpy()
+                log_packet["u"] = u_current[sim_index, :].cpu().clone().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -264,7 +267,7 @@ class CaseStudySafetyExperiment(Experiment):
                 xdot = controller_under_test.dynamics_model.closed_loop_dynamics(
                     x_current[i, :].unsqueeze(0),
                     u_current[i, :].unsqueeze(0),
-                    theta_current[i, :].unsqueeze(0), # Theta should never change. Theta hat will.
+                    theta_current[i, :].unsqueeze(0),  # Theta should never change. Theta hat will.
                     random_scenarios[i],
                 )
                 x_current[i, :] = x_current[i, :] + delta_t * xdot.squeeze()
@@ -392,12 +395,12 @@ class CaseStudySafetyExperiment(Experiment):
                 log_packet["Parameters"] = param_string[:-2]
 
                 # Pick out the states to log and save them
-                # for x_idx in range(len(self.plot_x_indices)):
-                #     plot_x_index = self.plot_x_indices[x_idx]
-                #     plot_x_label = self.plot_x_labels[x_idx]
-                #
-                #     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
-                #     log_packet[plot_x_label] = x_value
+                for x_idx in range(len(self.plot_x_labels)):
+                    plot_x_index = self.plot_x_indices[x_idx]
+                    plot_x_label = self.plot_x_labels[x_idx]
+
+                    x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
+                    log_packet[plot_x_label] = x_value
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
@@ -435,9 +438,10 @@ class CaseStudySafetyExperiment(Experiment):
             dynamics: ControlAffineParameterAffineSystem,
             controller_period: float,
             control_sequence: torch.Tensor,
+            theta_hat_sim_start_in: Optional[torch.Tensor] = None,
     ) -> pd.DataFrame:
         """
-        df_nominal = self.run_nominal_controlled(dynamics)
+        df_trajopt = self.run_trajopt_controlled(dynamics, controller_period, control_sequence)
         Description:
             Run the experiment which evaluates the "NOMINAL CONTROLLER" on a number of
             initial conditions.
@@ -478,6 +482,8 @@ class CaseStudySafetyExperiment(Experiment):
         x_sim_start, theta_sim_start, theta_hat_sim_start = self.create_initial_states_parameters_and_estimates(
             dynamics
         )
+        if theta_hat_sim_start_in is not None:  # Set value of theta_hat if provided
+            theta_hat_sim_start = theta_hat_sim_start_in
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -581,6 +587,137 @@ class CaseStudySafetyExperiment(Experiment):
                 theta_hat_current[i, :] = theta_hat_current[i, :]  # + delta_t * theta_hat_dot.squeeze()
 
         return pd.DataFrame(results)
+
+    @torch.no_grad()
+    def run_trajopt_with_synthesis(
+            self,
+            dynamics: ControlAffineParameterAffineSystem,
+            controller_period: float,
+            dynamics_update: Callable[[float, np.array, np.array, Dict], np.array],
+            Tf: float,
+            u0: np.array = None,
+            uf: np.array = None,
+            constraints: List[Any] = [],
+            Q: np.diag = None,
+            R: np.array = None,
+            P: np.array = None,
+            N_timepts: int = 100,
+    ):
+        """
+        df_trajopt, trajopt_synth_time = self.run_trajopt_with_synthesis(
+            dynamics, controller_dt, np_dynamics_update,
+            x0, Tf,
+        )
+        Description:
+            This function runs a trajectory optimization experiment that attempts to avoid the
+            obstacle centered at obstacle_pose with radius obstacle_radius while reaching the goal
+            state defined by the dynamics.
+        Inputs:
+            dynamics: The dynamics model to use for the experiment
+            controller_period: The period of the controller to use for the experiment
+            np_dynamics_update: The dynamics model to use for the trajectory optimization
+                Example - def vehicle_update(t, x, u, params) -> xdot:
+                This system will be
+            x0: An (n_dims,) array of the initial state
+            theta_hat: An (n_params,) array of the initial guess for the parameters
+            constraints: A list of constraints to apply to the trajectory optimization
+                         Note: do not include the input constraint! Will be added automatically.
+            Q: The state cost matrix
+
+        Returns:
+
+        """
+        # Input Processing
+        if Q is None:
+            Q = np.diag([1.0 for i in range(dynamics.n_dims)])
+        if R is None:
+            R = np.diag([1.0 for i in range(dynamics.n_controls)])
+        if P is None:
+            P = np.diag([10000.0 for i in range(dynamics.n_dims)])  # get close to final point
+        if u0 is None:
+            u0 = np.zeros((dynamics.n_controls,))
+            u0[0] = 10.0
+        if uf is None:
+            uf = np.zeros((dynamics.n_controls,))
+
+        # Constants
+        start_x = self.start_x
+
+        # Setup trajectory optimization
+        #==============================
+
+        # Setup the output equation
+        def output_equation(t, x, u, params):
+            return x
+
+        # Create optimized trajectory for each ic
+        n_x0s = start_x.shape[0]
+        theta_samples = dynamics.sample_Theta_space(n_x0s).numpy()
+        traj_opt_times = []
+        control_sequences = torch.zeros((n_x0s, N_timepts, dynamics.n_controls))
+        for x0_index in range(n_x0s):
+            # Get x0 and xf
+            x0 = start_x[x0_index, :].numpy()
+            theta_sample = theta_samples[x0_index, :].reshape((dynamics.n_params,))
+            xf = dynamics.goal_point(
+                torch.tensor(theta_sample).reshape(1, dynamics.n_params),
+            ).reshape((dynamics.n_dims,))
+            xf = xf.numpy()
+
+            # Define system
+            output_list = tuple([f'x_{i}' for i in range(dynamics.n_dims)])
+            input_list = tuple([f'u_{i}' for i in range(dynamics.n_controls)])
+            system = ct.NonlinearIOSystem(
+                dynamics_update, output_equation,
+                states=dynamics.n_dims, name='case-study-system',
+                inputs=input_list, outputs=output_list,
+                params={"theta": theta_sample},
+            )
+
+            # Setup the initial and final conditions
+
+            # Setup the cost function
+            traj_cost = opt.quadratic_cost(system, Q, R, x0=xf, u0=uf)
+            term_cost = opt.quadratic_cost(system, P, 0, x0=xf)
+
+            # Add constraint
+            constraint_set_i = constraints.copy()
+            constraint_set_i.append(
+                opt.input_poly_constraint(system, dynamics.U.A, dynamics.U.b)
+            )
+
+            # Setup the trajectory optimization problem
+            timepts = np.linspace(0.0, Tf, N_timepts, endpoint=True)
+            traj_opt_start = time.time()
+            result = opt.solve_ocp(
+                system, timepts, x0,
+                traj_cost, constraint_set_i,
+                terminal_cost=term_cost, initial_guess=u0,
+            )
+            traj_opt_end = time.time()
+            traj_opt_times.append(
+                traj_opt_end - traj_opt_start,
+            )
+
+            # Simulate the system dynamics (open loop)
+            resp = ct.input_output_response(
+                system, timepts, result.inputs, x0,
+                t_eval=timepts)
+            t, y, u = resp.time, resp.outputs, resp.inputs
+
+            # Compile all input trajectories
+            control_sequences[x0_index, :, :] = torch.tensor(u.T)
+
+        # Simulate the system with optimized trajectory
+        df_trajopt = self.run_trajopt_controlled(
+            dynamics,
+            controller_period,
+            control_sequences,
+            theta_hat_sim_start_in=torch.tensor(theta_samples),
+        )
+
+        return df_trajopt, traj_opt_times
+
 
     @torch.no_grad()
     def run_mpc_controlled(
@@ -819,6 +956,7 @@ class CaseStudySafetyExperiment(Experiment):
             aclbf_counts: Dict[str, int],
             nominal_counts: Dict[str, int] = None,
             trajopt_counts: Dict[str, int] = None,
+            trajopt2_counts: Dict[str, int] = None,
             mpc_counts: Dict[str, int] = None,
             comments: List[str] = None,
     ) -> str:
@@ -862,6 +1000,15 @@ class CaseStudySafetyExperiment(Experiment):
             ]
             lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
+        # - Trajopt2
+        if trajopt2_counts is not None:
+            trajopt2_gr_percentage = "{:.2f}".format(trajopt2_counts['goal_reached_percentage'])
+            trajopt2_s_percentage = "{:.2f}".format(1 - trajopt2_counts['unsafe_percentage'])
+            lines_of_table += [
+                f"\t\t" + f"Trajopt2 (control) & {trajopt2_gr_percentage} & {trajopt2_s_percentage} \\\\ \n"
+            ]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
         # - (Hybrid) MPC about optimized trajectory
         if mpc_counts is not None:
             mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
@@ -894,7 +1041,7 @@ class CaseStudySafetyExperiment(Experiment):
     def plot(
         self,
         controller_under_test: "Controller",
-        aclbf_results_df: pd.DataFrame,
+        aclbf_results_df: pd.DataFrame = None,
         nominal_results_df: pd.DataFrame = None,
         display_plots: bool = False,
     ) -> List[Tuple[str, figure]]:
@@ -913,20 +1060,37 @@ class CaseStudySafetyExperiment(Experiment):
 
         # raise NotImplementedError(f"This method will eventually show bar graphs (or something else) reflecting data.")
 
+        fig_handles = []
+
         # Set the color scheme
         sns.set_theme(context="talk", style="white")
 
-        fig_handle = self.plot_trajectory(
-            aclbf_results_df,
-            controller_under_test,
-            fig_name="Rollout",
-        )
+        # Plot ACLBF results
+        if aclbf_results_df is not None:
+            fig_handle = self.plot_trajectory(
+                aclbf_results_df,
+                controller_under_test,
+                fig_name="Rollout (aclbf)",
+            )
+
+            if not display_plots:
+                fig_handles.append(fig_handle)
+
+        if nominal_results_df is not None:
+            fig_handle2 = self.plot_trajectory(
+                nominal_results_df,
+                controller_under_test,
+                fig_name="Rollout (nominal)",
+            )
+
+            if not display_plots:
+                fig_handles.append(fig_handle2)
 
         if display_plots:
             plt.show()
-            return []
+            return fig_handles
         else:
-            return [fig_handle]
+            return fig_handles
 
     def plot_trajectory(
             self,
@@ -945,7 +1109,7 @@ class CaseStudySafetyExperiment(Experiment):
         # Constants
         fig = plt.figure()
 
-        num_plots = 1
+        num_plots = 2
         if "h" in results_df:
             num_plots += 1
         if "V" in results_df:
@@ -1000,43 +1164,54 @@ class CaseStudySafetyExperiment(Experiment):
         # Remove the legend -- too much clutter
         rollout_ax.legend([], [], frameon=False)
 
-        # Plot the barrier function if applicable
-        # if "h" in results_df:
-        #     # Create axis for barrier
-        #
-        #     # Get the derivatives for each simulation
-        #     for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-        #         sim_mask = results_df["Simulation"] == sim_index
-        #
-        #         h_ax.plot(
-        #             results_df[sim_mask]["t"].to_numpy(),
-        #             results_df[sim_mask]["h"].to_numpy(),
-        #             linestyle="-",
-        #             # marker="+",
-        #             markersize=5,
-        #             color=sns.color_palette()[plot_idx],
-        #         )
-        #         h_ax.set_ylabel("$h$")
-        #         h_ax.set_xlabel("t")
-        #         # Remove the legend -- too much clutter
-        #         h_ax.legend([], [], frameon=False)
-        #
-        #         # Plot a reference line at h = 0
-        #         h_ax.plot([0, results_df["t"].max()], [0, 0], color="k")
-        #
-        #         # Also plot the derivatives
-        #         h_next = results_df[sim_mask]["h"][1:].to_numpy()
-        #         h_now = results_df[sim_mask]["h"][:-1].to_numpy()
-        #         alpha = controller_under_test.h_alpha  # type: ignore
-        #         h_violation = h_next - (1 - alpha) * h_now
-        #
-        #         h_ax.plot(
-        #             results_df[sim_mask]["t"][:-1].to_numpy(),
-        #             h_violation,
-        #             linestyle=":",
-        #             color=sns.color_palette()[plot_idx],
-        #         )
-        #         h_ax.set_ylabel("$h$ violation")
+        # Plot the error
+        error_ax = fig.add_subplot(100+10*num_plots+2)
+        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+            sim_mask = results_df["Simulation"] == sim_index
+            print("results_df[sim_mask][\"state\"] = ", results_df[sim_mask]["state"])
+            print("results_df[sim_mask][\"state\"].to_numpy() = ", results_df[sim_mask]["state"].to_numpy())
+            print("np.array(results_df[sim_mask][\"state\"].to_numpy()) = ", np.array(results_df[sim_mask]["state"].to_numpy()))
+            print("np.vstack(results_df[sim_mask][\"state\"].to_numpy()) = ",
+                  np.vstack(results_df[sim_mask]["state"].to_numpy()))
+            error_sim_i = \
+                (np.vstack(results_df[sim_mask]["state"]).T)[:3, :] - \
+                np.vstack(results_df[sim_mask]["theta"]).T
+            print(error_sim_i.shape)
+            print(np.linalg.norm(error_sim_i, axis=0))
+            error_ax.plot(
+                results_df[sim_mask]["t"].to_numpy(),
+                np.linalg.norm(error_sim_i, axis=0),
+                linestyle="-",
+                # marker="+",
+                markersize=5,
+                color=sns.color_palette()[plot_idx],
+            )
+            error_ax.set_xlabel("$t$")
+            error_ax.set_ylabel("$e(t) = ||x(t)[:3] - \\theta||$")
+
+            # Plot desired error level
+            error_ax.plot(
+                results_df[sim_mask]["t"].to_numpy(),
+                np.ones((error_sim_i.shape[1],)) * controller_under_test.dynamics_model.goal_tolerance,
+                linestyle=":",
+                # marker="+",
+                markersize=5,
+                color=sns.color_palette()[plot_idx],
+            )
+
+            # Plot Target Points
+            rollout_ax.scatter(
+                results_df[sim_mask]["theta"].to_numpy()[0][0],
+                results_df[sim_mask]["theta"].to_numpy()[1][0],
+                results_df[sim_mask]["theta"].to_numpy()[2][0],
+                marker="s",
+                s=20,
+                color=sns.color_palette()[plot_idx],
+            )
+
+        # Remove the legend -- too much clutter
+        rollout_ax.legend([], [], frameon=False)
+
 
         # Plot the lyapunov function if applicable
         if "V" in results_df:
