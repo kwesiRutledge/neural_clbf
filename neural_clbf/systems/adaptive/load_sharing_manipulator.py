@@ -242,7 +242,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
 
         displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
-        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) <= obst_width./2.0
+        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) <= obst_width/2.0
 
         unsafe_mask.logical_or_(dist_to_obst_center_big_enough)
 
