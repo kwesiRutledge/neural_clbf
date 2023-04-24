@@ -23,6 +23,7 @@ osqp
 ecos
 scs
 casadi
+control
 
 # Geometry
 shapely
