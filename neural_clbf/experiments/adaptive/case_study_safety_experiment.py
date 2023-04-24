@@ -1301,6 +1301,7 @@ class CaseStudySafetyExperiment(Experiment):
         aclbf_results_df: pd.DataFrame = None,
         nominal_results_df: pd.DataFrame = None,
         trajopt2_results_df: pd.DataFrame = None,
+        trajopt2_synthesis_times: List[float] = None,
     ):
         """
         save_timing_data_table
@@ -1318,13 +1319,11 @@ class CaseStudySafetyExperiment(Experiment):
 
         nominal_data_dict = None
         if nominal_results_df is not None:
-            nominal_results_df = self.get_avg_computation_time_from_df(nominal_results_df)
+            nominal_data_dict = self.get_avg_computation_time_from_df(nominal_results_df)
 
         trajopt2_data_dict = None
         if trajopt2_results_df is not None:
-            trajopt2_results_df = self.get_avg_computation_time_from_df(trajopt2_results_df)
-
-
+            trajopt2_data_dict = self.get_avg_computation_time_from_df(trajopt2_results_df)
 
         # Save the data to txt file
         with open(table_name, "w") as f:
@@ -1337,6 +1336,7 @@ class CaseStudySafetyExperiment(Experiment):
                 aclbf_data_dict,
                 nominal_timing=nominal_data_dict,
                 trajopt2_timing=trajopt2_data_dict,
+                trajopt2_synthesis_times=trajopt2_synthesis_times,
                 comments=comments,
             )
 
@@ -1350,6 +1350,7 @@ class CaseStudySafetyExperiment(Experiment):
             trajopt_timing: Dict[str, int] = None,
             trajopt2_timing: Dict[str, int] = None,
             mpc_timing: Dict[str, int] = None,
+            trajopt2_synthesis_times: Dict[str, int] = None,
             comments: List[str] = None,
     ) -> str:
         """
@@ -1366,32 +1367,31 @@ class CaseStudySafetyExperiment(Experiment):
 
         # Start formatting the table
         lines_of_table += [r"\begin{center}" + f"\n"]
-        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|}" + f"\n"]
+        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|c|}" + f"\n"]
         lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-        lines_of_table += [f"\t\t" + r"Controller & $t_{comp} (s)$ \\" + f"\n"]
+        lines_of_table += [f"\t\t" + r"Controller & t_{init} (ms) & $t_{comp}$ (ms) \\" + f"\n"]
         lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # Format the counts
 
         # Add goal reached counts for:
         # - Nominal
-        # if nominal_counts is not None:
-        #     nominal_gr_percentage = "{:.2f}".format(nominal_counts['goal_reached_percentage'])
-        #     nominal_s_percentage = "{:.2f}".format(1-nominal_counts['unsafe_percentage'])
-        #     lines_of_table += [
-        #         f"\t\t" + f"Nominal & {nominal_gr_percentage} & {nominal_s_percentage} \\\\ \n"
-        #     ]
-        #     lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+        if nominal_timing is not None:
+            nominal_overall_compute_avg_timing = "{:.2f}".format(nominal_timing['OverallAverage'] * 1000)
+            lines_of_table += [f"\t\t" + f"Nominal & & {nominal_overall_compute_avg_timing} \\\\ \n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
         # - Trajopt
         if trajopt_timing is not None:
             raise NotImplementedError
-        #
+
         # - Trajopt2
         if trajopt2_timing is not None:
             trajopt2_overall_compute_avg_timing = "{:.2f}".format(trajopt2_timing['OverallAverage'] * 1000)
-            lines_of_table += [f"\t\t" + f"Trajopt2 & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
-        #
+            trajopt_avg_synthesis_time = "{:.2f}".format(np.mean(np.array(trajopt2_synthesis_times)) * 1000)
+            lines_of_table += [f"\t\t" + f"Trajopt2 & {trajopt_avg_synthesis_time} & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
         # # - (Hybrid) MPC about optimized trajectory
         # if mpc_counts is not None:
         #     mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
@@ -1404,8 +1404,8 @@ class CaseStudySafetyExperiment(Experiment):
         # - aCLBF
         if aclbf_timing is not None:
             aclbf_overall_compute_avg_timing = "{:.2f}".format(aclbf_timing['OverallAverage']*1000)
-            lines_of_table += [f"\t\t" + f"Neural aCLBF & {aclbf_overall_compute_avg_timing} \\\\ \n"]
-
+            lines_of_table += [f"\t\t" + f"Neural aCLBF & & {aclbf_overall_compute_avg_timing} \\\\ \n"]
+            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
 
         # End formatting the table

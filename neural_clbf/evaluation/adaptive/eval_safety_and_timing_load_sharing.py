@@ -195,11 +195,13 @@ def inflate_context_using_hyperparameters(hyperparams):
         [
             [0.3,  -0.3, 0.4, 0.1, 0.0, 0.0],
             [0.25, -0.3, 0.4, 0.0, 0.1, 0.0],
+            [0.25, -0.3, 0.3, 0.0, 0.1, 0.0],
             [0.3,  -0.4, 0.4, 0.0, 0.0, 0.1],
             [0.2,  -0.3, 0.4, 0.1, 0.0, 0.0],
             [0.35, -0.3, 0.3, 0.0, 0.1, 0.0],
             [0.3,  -0.35, 0.2, 0.0, 0.0, 0.1],
             [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
+            [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
         ]
     )
 
@@ -455,6 +457,9 @@ def main(args):
         "../datafiles/load_sharing/safety_case_study_timing_results.txt",
         args.commit_prefix, args.version_number,
         aclbf_results_df=results_df,
+        nominal_results_df=nominal_results_df,
+        trajopt2_results_df=trajopt_results_df2,
+        trajopt2_synthesis_times=trajopt_synthesis_times,
     )
 
     # fig_handles = controller_to_test.experiment_suite.run_all_and_plot(

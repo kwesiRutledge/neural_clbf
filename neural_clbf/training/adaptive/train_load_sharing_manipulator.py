@@ -62,6 +62,8 @@ def create_training_hyperparams(args)-> Dict:
             [0.35, -0.25, 0.3, 0.0, 0.0, 0.0],
             [0.35, -0.35, 0.3, 0.0, 0.0, 0.0],
             [0.25, -0.35, 0.3, 0.0, 0.0, 0.0],
+            [0.15, -0.2,  0.2, 0.0, 0.0, 0.0],
+
         ]
     ).to(accelerator)
 
@@ -88,8 +90,8 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
-        "n_fixed_samples": 30000,
-        "trajectories_per_episode": 500,
+        "n_fixed_samples": 40000,
+        "trajectories_per_episode": 1000,
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 20,
@@ -107,7 +109,7 @@ def create_training_hyperparams(args)-> Dict:
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
         # Device
-        "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
+        "sample_quotas": {"safe": 0.2, "unsafe": 0.3, "goal": 0.2},
     }
 
     for k in args.__dict__:
