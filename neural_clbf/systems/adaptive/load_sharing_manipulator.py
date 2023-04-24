@@ -212,7 +212,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
 
         displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
-        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) >= obst_width
+        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) >= obst_width/2.0
 
         safe_mask.logical_and_(dist_to_obst_center_big_enough)
 
@@ -239,19 +239,20 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         obst_width = self.nominal_scenario["obstacle_width"]
 
         # Algorithm
-        safe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
+        unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
 
         displacement_to_obst_center = x[:, :3] - obst_center.repeat(batch_size, 1)
-        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) <= obst_width
+        dist_to_obst_center_big_enough = displacement_to_obst_center.norm(dim=-1) <= obst_width./2.0
 
-        safe_mask.logical_or_(dist_to_obst_center_big_enough)
+        unsafe_mask.logical_or_(dist_to_obst_center_big_enough)
 
-        return safe_mask
+        return unsafe_mask
 
 
     @property
     def goal_tolerance(self) -> float:
         return 0.1
+
     def goal_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating goal regions for this system
 

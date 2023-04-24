@@ -347,7 +347,7 @@ class ACLFRolloutTimingExperiment(Experiment):
         rollout_ax.legend([], [], frameon=False)
 
         # Plot the environment
-        controller_under_test.dynamics_model.plot_environment(rollout_ax)
+        #controller_under_test.dynamics_model.plot_environment(rollout_ax)
 
         # Plot the barrier function if applicable
         if "h" in results_df:

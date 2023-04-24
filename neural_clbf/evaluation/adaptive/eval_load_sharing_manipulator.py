@@ -194,16 +194,17 @@ def plot_controlled_load_sharing(args):
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
     controller_pt.experiment_suite = experiment_suite
+    controller_pt.dynamics_model.device = "cpu"
 
     # Update parameters
-    for experiment_idx in range(1, 1 +1):
-        controller_pt.experiment_suite.experiments[experiment_idx].start_x = start_x = torch.tensor(
+    for experiment_idx in range(1, 1 + 1):
+        controller_pt.experiment_suite.experiments[experiment_idx].start_x = torch.tensor(
         [
-            [0.5, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.3, -0.3, 0.0, 0.0, 0.0, 0.0],
             # [0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.5, 0.0, 0.0, 0.0, 0.0],
+            [0.3, -0.5, 0.0, 0.0, 0.0, 0.0],
             # [0.0, -0.6, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 0.0, -0.4, 0.0, 0.0, 0.0],
+            [0.3, -0.3, 0.4, 0.0, 0.0, 0.0],
             # [0.0, 0.0, 0.7, 0.0, 0.0, 0.0]
         ]
     )
@@ -219,7 +220,7 @@ def plot_controlled_load_sharing(args):
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)
-        matplotlib.pyplot.savefig("datafiles/load_sharing/" + fig_titles[fh_idx] + ".png")
+        matplotlib.pyplot.savefig("../datafiles/load_sharing/" + fig_titles[fh_idx] + ".png")
 
 
 if __name__ == "__main__":

@@ -341,7 +341,12 @@ class RolloutManipulatorConvergenceExperiment(Experiment):
         rollout_ax.legend([], [], frameon=False)
 
         # Plot the environment
-        controller_under_test.dynamics_model.plot_environment(rollout_ax)
+        # controller_under_test.dynamics_model.plot_environment(
+        #     rollout_ax,
+        #     results_df[sim_mask]["theta"].to_numpy()[0].reshape(
+        #         (1, controller_under_test.dynamics_model.n_params)
+        #     ),
+        # )
 
         self.plot_error(results_df, error_ax)
 
