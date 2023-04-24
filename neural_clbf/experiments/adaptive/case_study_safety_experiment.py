@@ -245,10 +245,10 @@ class CaseStudySafetyExperiment(Experiment):
                     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
                     log_packet[plot_x_label] = x_value
 
-                log_packet["state"] = x_current[sim_index, :].cpu().clone().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().clone().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().clone().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().clone().numpy()
+                log_packet["state"] = x_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta_hat"] = theta_hat_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta"] = theta_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["u"] = u_current.clone()[sim_index, :].cpu().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -401,10 +401,10 @@ class CaseStudySafetyExperiment(Experiment):
 
                     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
                     log_packet[plot_x_label] = x_value
-                log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                log_packet["state"] = x_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta_hat"] = theta_hat_current.clone()[sim_index, :].cpu().detach().numpy()
+                log_packet["theta"] = theta_current.clone()[sim_index, :].cpu().detach().numpy()
+                log_packet["u"] = u_current.clone()[sim_index, :].cpu().detach().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -419,7 +419,7 @@ class CaseStudySafetyExperiment(Experiment):
                     theta_current[i, :].unsqueeze(0),  # Theta should never change. Theta hat will.
                     random_scenarios[i],
                 )
-                x_current[i, :] = x_current[i, :] + delta_t * xdot.squeeze()
+                x_current[i, :] = x_current[i, :].clone() + delta_t * xdot.squeeze()
 
                 # theta_hat_dot = controller_under_test.closed_loop_estimator_dynamics(
                 #     x_current[i, :].unsqueeze(0),
@@ -551,16 +551,16 @@ class CaseStudySafetyExperiment(Experiment):
                 log_packet["Parameters"] = param_string[:-2]
 
                 # Pick out the states to log and save them
-                # for x_idx in range(len(self.plot_x_indices)):
-                #     plot_x_index = self.plot_x_indices[x_idx]
-                #     plot_x_label = self.plot_x_labels[x_idx]
-                #
-                #     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
-                #     log_packet[plot_x_label] = x_value
-                log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                for x_idx in range(len(self.plot_x_indices)):
+                    plot_x_index = self.plot_x_indices[x_idx]
+                    plot_x_label = self.plot_x_labels[x_idx]
+
+                    x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
+                    log_packet[plot_x_label] = x_value
+                log_packet["state"] = x_current.clone()[sim_index, :].cpu().detach().numpy()
+                log_packet["theta_hat"] = theta_hat_current.clone()[sim_index, :].cpu().detach().numpy()
+                log_packet["theta"] = theta_current.clone()[sim_index, :].cpu().detach().numpy()
+                log_packet["u"] = u_current.clone()[sim_index, :].cpu().detach().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -594,7 +594,7 @@ class CaseStudySafetyExperiment(Experiment):
             dynamics: ControlAffineParameterAffineSystem,
             controller_period: float,
             dynamics_update: Callable[[float, np.array, np.array, Dict], np.array],
-            Tf: float,
+            Tf: float = None,
             u0: np.array = None,
             uf: np.array = None,
             constraints: List[Any] = [],
@@ -639,6 +639,8 @@ class CaseStudySafetyExperiment(Experiment):
             u0[0] = 10.0
         if uf is None:
             uf = np.zeros((dynamics.n_controls,))
+        if Tf is None:
+            Tf = self.t_sim
 
         # Constants
         start_x = self.start_x
@@ -705,10 +707,12 @@ class CaseStudySafetyExperiment(Experiment):
                 t_eval=timepts)
             t, y, u = resp.time, resp.outputs, resp.inputs
 
+            print("y = ", y)
             # Compile all input trajectories
             control_sequences[x0_index, :, :] = torch.tensor(u.T)
 
         # Simulate the system with optimized trajectory
+        print(u)
         df_trajopt = self.run_trajopt_controlled(
             dynamics,
             controller_period,
@@ -1043,6 +1047,7 @@ class CaseStudySafetyExperiment(Experiment):
         controller_under_test: "Controller",
         aclbf_results_df: pd.DataFrame = None,
         nominal_results_df: pd.DataFrame = None,
+        trajopt2_results_df: pd.DataFrame = None,
         display_plots: bool = False,
     ) -> List[Tuple[str, figure]]:
         """
@@ -1069,7 +1074,7 @@ class CaseStudySafetyExperiment(Experiment):
         if aclbf_results_df is not None:
             fig_handle = self.plot_trajectory(
                 aclbf_results_df,
-                controller_under_test,
+                controller_under_test.dynamics_model.goal_tolerance,
                 fig_name="Rollout (aclbf)",
             )
 
@@ -1079,12 +1084,22 @@ class CaseStudySafetyExperiment(Experiment):
         if nominal_results_df is not None:
             fig_handle2 = self.plot_trajectory(
                 nominal_results_df,
-                controller_under_test,
+                controller_under_test.dynamics_model.goal_tolerance,
                 fig_name="Rollout (nominal)",
             )
 
             if not display_plots:
                 fig_handles.append(fig_handle2)
+
+        if trajopt2_results_df is not None:
+            fig_handle3 = self.plot_trajectory(
+                trajopt2_results_df,
+                controller_under_test.dynamics_model.goal_tolerance,
+                fig_name="Rollout (trajopt2)",
+            )
+
+            if not display_plots:
+                fig_handles.append(fig_handle3)
 
         if display_plots:
             plt.show()
@@ -1095,7 +1110,7 @@ class CaseStudySafetyExperiment(Experiment):
     def plot_trajectory(
             self,
             results_df: pd.DataFrame,
-            controller_under_test: "Controller",
+            goal_tolerance: float = 0.1,
             fig_name: str = "Rollout",
     ) -> Tuple[str, plt.Figure]:
         """
@@ -1168,16 +1183,14 @@ class CaseStudySafetyExperiment(Experiment):
         error_ax = fig.add_subplot(100+10*num_plots+2)
         for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
             sim_mask = results_df["Simulation"] == sim_index
-            print("results_df[sim_mask][\"state\"] = ", results_df[sim_mask]["state"])
-            print("results_df[sim_mask][\"state\"].to_numpy() = ", results_df[sim_mask]["state"].to_numpy())
-            print("np.array(results_df[sim_mask][\"state\"].to_numpy()) = ", np.array(results_df[sim_mask]["state"].to_numpy()))
-            print("np.vstack(results_df[sim_mask][\"state\"].to_numpy()) = ",
-                  np.vstack(results_df[sim_mask]["state"].to_numpy()))
+            #print("results_df[sim_mask][\"state\"] = ", results_df[sim_mask]["state"])
+            #print("results_df[sim_mask][\"state\"].to_numpy() = ", results_df[sim_mask]["state"].to_numpy())
+            #print("np.array(results_df[sim_mask][\"state\"].to_numpy()) = ", np.array(results_df[sim_mask]["state"].to_numpy()))
+            # print("np.vstack(results_df[sim_mask][\"state\"].to_numpy()) = ",
+            #       np.vstack(results_df[sim_mask]["state"].to_numpy()))
             error_sim_i = \
                 (np.vstack(results_df[sim_mask]["state"]).T)[:3, :] - \
                 np.vstack(results_df[sim_mask]["theta"]).T
-            print(error_sim_i.shape)
-            print(np.linalg.norm(error_sim_i, axis=0))
             error_ax.plot(
                 results_df[sim_mask]["t"].to_numpy(),
                 np.linalg.norm(error_sim_i, axis=0),
@@ -1192,7 +1205,7 @@ class CaseStudySafetyExperiment(Experiment):
             # Plot desired error level
             error_ax.plot(
                 results_df[sim_mask]["t"].to_numpy(),
-                np.ones((error_sim_i.shape[1],)) * controller_under_test.dynamics_model.goal_tolerance,
+                np.ones((error_sim_i.shape[1],)) * goal_tolerance,
                 linestyle=":",
                 # marker="+",
                 markersize=5,
@@ -1279,3 +1292,153 @@ class CaseStudySafetyExperiment(Experiment):
             )
             error_ax.set_xlabel("$t$")
             error_ax.set_ylabel("$\| r(t) - r_{des}(t) \|$")
+
+    def save_timing_data_table(
+        self,
+        table_name: str,
+        commit_prefix: str,
+        version_number: str,
+        aclbf_results_df: pd.DataFrame = None,
+        nominal_results_df: pd.DataFrame = None,
+        trajopt2_results_df: pd.DataFrame = None,
+    ):
+        """
+        save_timing_data_table
+        Description:
+            Saves a table of timing data to a txt file that can
+            be copied into a latex table.
+        """
+
+        # Constants
+
+        # Collect the data
+        aclbf_data_dict = None
+        if aclbf_results_df is not None:
+            aclbf_data_dict = self.get_avg_computation_time_from_df(aclbf_results_df)
+
+        nominal_data_dict = None
+        if nominal_results_df is not None:
+            nominal_results_df = self.get_avg_computation_time_from_df(nominal_results_df)
+
+        trajopt2_data_dict = None
+        if trajopt2_results_df is not None:
+            trajopt2_results_df = self.get_avg_computation_time_from_df(trajopt2_results_df)
+
+
+
+        # Save the data to txt file
+        with open(table_name, "w") as f:
+            comments = [f"n_sims_per_start={self.n_sims_per_start}"]
+            comments += [f"n_x0={self.start_x.shape[0]}"]
+            comments += [f"commit_prefix={commit_prefix}"]
+            comments += [f"version_number={version_number}"]
+
+            lines = self.timing_data_to_latex_table(
+                aclbf_data_dict,
+                nominal_timing=nominal_data_dict,
+                trajopt2_timing=trajopt2_data_dict,
+                comments=comments,
+            )
+
+            f.writelines(lines)
+
+
+    def timing_data_to_latex_table(
+            self,
+            aclbf_timing: Dict[str, int],
+            nominal_timing: Dict[str, int] = None,
+            trajopt_timing: Dict[str, int] = None,
+            trajopt2_timing: Dict[str, int] = None,
+            mpc_timing: Dict[str, int] = None,
+            comments: List[str] = None,
+    ) -> str:
+        """
+        Description:
+            Format the counts of the number of times each state was reached
+            into a string.
+
+        args:
+            counts: a dictionary containing the number of times each state was reached.
+        returns: a string containing the counts.
+        """
+        # Constants
+        lines_of_table = []
+
+        # Start formatting the table
+        lines_of_table += [r"\begin{center}" + f"\n"]
+        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|}" + f"\n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+        lines_of_table += [f"\t\t" + r"Controller & $t_{comp} (s)$ \\" + f"\n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
+        # Format the counts
+
+        # Add goal reached counts for:
+        # - Nominal
+        # if nominal_counts is not None:
+        #     nominal_gr_percentage = "{:.2f}".format(nominal_counts['goal_reached_percentage'])
+        #     nominal_s_percentage = "{:.2f}".format(1-nominal_counts['unsafe_percentage'])
+        #     lines_of_table += [
+        #         f"\t\t" + f"Nominal & {nominal_gr_percentage} & {nominal_s_percentage} \\\\ \n"
+        #     ]
+        #     lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
+        # - Trajopt
+        if trajopt_timing is not None:
+            raise NotImplementedError
+        #
+        # - Trajopt2
+        if trajopt2_timing is not None:
+            trajopt2_overall_compute_avg_timing = "{:.2f}".format(trajopt2_timing['OverallAverage'] * 1000)
+            lines_of_table += [f"\t\t" + f"Trajopt2 & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
+        #
+        # # - (Hybrid) MPC about optimized trajectory
+        # if mpc_counts is not None:
+        #     mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
+        #     mpc_s_percentage = "{:.2f}".format(1-mpc_counts['unsafe_percentage'])
+        #     lines_of_table += [
+        #         f"\t\t" + f"MPC & {mpc_gr_percentage} & {mpc_s_percentage} \\\\ \n"
+        #     ]
+        #     lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
+        # - aCLBF
+        if aclbf_timing is not None:
+            aclbf_overall_compute_avg_timing = "{:.2f}".format(aclbf_timing['OverallAverage']*1000)
+            lines_of_table += [f"\t\t" + f"Neural aCLBF & {aclbf_overall_compute_avg_timing} \\\\ \n"]
+
+
+
+        # End formatting the table
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+        lines_of_table += [f"\t" + r"\end{tabular}" + f"\n"]
+        lines_of_table += [r"\end{center}" + f"\n"]
+
+        if comments != None:
+            lines_of_table += [f" \n"]
+            for comment in comments:
+                lines_of_table += [f"% " + comment + f" \n"]
+
+        return lines_of_table
+
+    def get_avg_computation_time_from_df(
+        self,
+        results_df: pd.DataFrame,
+    ):
+        """
+        dict_out = cs.get_avg_computation_time_from_df(results_df)
+        """
+
+        # Set up the dictionary
+        data_dict = {}
+
+        time_per_sim = []
+        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
+            sim_mask = results_df["Simulation"] == sim_index
+            time_per_sim.append(
+                (results_df[sim_mask]["controller_time"].to_numpy()).mean(),
+            )
+
+        data_dict["AveragePerSim"] = time_per_sim
+        data_dict["OverallAverage"] = np.array(time_per_sim).mean()
+
+        return data_dict

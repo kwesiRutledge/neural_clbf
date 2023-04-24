@@ -58,9 +58,10 @@ def create_training_hyperparams(args)-> Dict:
     start_x = torch.tensor(
         [
             [0.3, -0.3, 0.4, 0.0, 0.0, 0.0],
-            [0.3, -0.3, 0.4, 0.1, 0.0, 0.0],
-            [0.3, -0.3, 0.3, 0.0, 0.0, 0.0],
-            [0.3, -0.3, 0.4, 0.0, 0.0, 0.2],
+            [0.25, -0.25, 0.4, 0.1, 0.0, 0.0],
+            [0.35, -0.25, 0.3, 0.0, 0.0, 0.0],
+            [0.35, -0.35, 0.3, 0.0, 0.0, 0.0],
+            [0.25, -0.35, 0.3, 0.0, 0.0, 0.0],
         ]
     ).to(accelerator)
 
@@ -72,7 +73,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 64,
+        "batch_size": 32,
         "controller_period": 0.1,
         "start_x": start_x,
         "simulation_dt": 0.025,
@@ -292,11 +293,11 @@ def main(args):
         "/version_" + str(tb_logger.version) + "/state_dict.pt"
     )
 
-    # torch.save(
-    #     aclbf_controller,
-    #     tb_logger.save_dir + "/" + tb_logger.name +
-    #     "/version_" + str(tb_logger.version) + "/controller.pt"
-    # )
+    torch.save(
+        aclbf_controller,
+        tb_logger.save_dir + "/" + tb_logger.name +
+        "/version_" + str(tb_logger.version) + "/controller.pt"
+    )
 
 
 if __name__ == "__main__":
