@@ -90,8 +90,8 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
-        "n_fixed_samples": 4000,
-        "trajectories_per_episode": 100,
+        "n_fixed_samples": 8000,
+        "trajectories_per_episode": 400,
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 20,

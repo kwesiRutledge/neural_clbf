@@ -590,49 +590,50 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             violation = F.relu(eps + (theta_err_next_norm - theta_err_norm))
             violation = violation * condition_active
 
-            aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation.mean()
-            aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation <= eps).sum() / (
-                violation.nelement() * self.n_scenarios
-            )
+            if self.include_estimation_error_loss:
+                aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation.mean()
+                aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation <= eps).sum() / (
+                    violation.nelement() * self.n_scenarios
+                )
 
         # Add all of these losses to the loss struct
         loss.append(("CLBF descent term (simulated)", clbf_descent_term_sim))
         if accuracy:
             loss.append(("CLBF descent accuracy (simulated)", clbf_descent_acc_sim))
 
-        if self.include_estimation_error_loss:
-            loss.append(("aCLBF estimation error term (simulated)", aclbf_estimation_error_term_sim))
-            if accuracy:
-                loss.append(("aCLBF estimation error accuracy (simulated)", aclbf_estimation_error_acc_sim))
+        loss.append(("aCLBF estimation error term (simulated)", aclbf_estimation_error_term_sim))
+        if accuracy:
+            loss.append(("aCLBF estimation error accuracy (simulated)", aclbf_estimation_error_acc_sim))
 
         # Oracle Loss
         oracle_weight = float(V_Theta.shape[0]) # Number of vertices in the polytope
-        if self.include_oracle_loss:
-            # Compute the shadow descent loss
-            eps = 1.0
-            oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
-            oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
-            for s in self.scenarios:
-                xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
-                x_next = x + self.dynamics_model.dt * xdot
-                theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
-                                                                                                          u_qp, s)
-                V_oracle = self.V_oracle(x, theta_hat, theta)
-                V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
 
-                violation = F.relu(
-                    eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
-                )
-                violation = violation * condition_active
+        # Compute the shadow descent loss
+        eps = 1.0
+        oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
+        oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
+        for s in self.scenarios:
+            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
+            x_next = x + self.dynamics_model.dt * xdot
+            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
+                                                                                                      u_qp, s)
+            V_oracle = self.V_oracle(x, theta_hat, theta)
+            V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
 
+            violation = F.relu(
+                eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+            )
+            violation = violation * condition_active
+
+            if self.include_oracle_loss:
                 oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + oracle_weight * violation.mean()
                 oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
                         violation.nelement() * self.n_scenarios
                 )
 
-            loss.append(("Oracle CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
-            if accuracy:
-                loss.append(("Oracle CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
+        loss.append(("Oracle CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
+        if accuracy:
+            loss.append(("Oracle CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
 
 
         return loss

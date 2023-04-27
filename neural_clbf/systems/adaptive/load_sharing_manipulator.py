@@ -519,7 +519,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         obs_y = self.nominal_scenario["obstacle_center_y"]
         obs_z = self.nominal_scenario["obstacle_center_z"]
 
-        obs_rad = self.nominal_scenario["obstacle_width"] / 2
+        obs_rad = self.nominal_scenario["obstacle_width"] / 2.0
 
         # Plot Goal as sphere (with tolerance as radius)
         u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:20j]
@@ -546,21 +546,6 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         # Plot the set of potential goals
         V_Theta = pc.extreme(self.Theta)
-        print(V_Theta)
-        # edges = np.array([
-        #     [0, 1],
-        #     [1, 2],
-        #     [2, 3],
-        #     [3, 0],
-        #     [4, 5],
-        #     [5, 6],
-        #     [6, 7],
-        #     [7, 4],
-        #     [0, 4],
-        #     [1, 5],
-        #     [2, 6],
-        #     [3, 7]
-        # ])
         faces = np.array([
             [0, 1, 3, 2],
             [4, 5, 7, 6],

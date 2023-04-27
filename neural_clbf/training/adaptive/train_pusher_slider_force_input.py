@@ -84,7 +84,7 @@ def create_training_hyperparams(args)-> Dict:
         "Theta_lb": [-0.03 + s_width/2.0, -0.03],
         "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
         # "clf_lambda": args.clf_lambda,
-        "Gamma_factor": 0.001,
+        "Gamma_factor": 0.01,
         # "safe_level": args.safe_level,
         # layer specifications
         "clbf_hidden_size": 64,
@@ -278,22 +278,26 @@ def main(args):
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=t_hyper["max_epochs"],
     # )
-    # if t_hyper["number_of_gpus"] <= 1:
-    trainer = pl.Trainer(
-        logger=tb_logger,
-        max_epochs=t_hyper["max_epochs"],
-        accelerator=t_hyper["accelerator"],
-        gradient_clip_val=t_hyper["gradient_clip_val"],
-    )
-    # else:
-    #     trainer = pl.Trainer(
-    #         logger=tb_logger,
-    #         max_epochs=t_hyper["max_epochs"],
-    #         accelerator=t_hyper["accelerator"],
-    #         gradient_clip_val=t_hyper["gradient_clip_val"],
-    #         devices=t_hyper["number_of_gpus"],
-    #         strategy="ddp",
-    #     )
+
+    if t_hyper["number_of_gpus"] <= 1:
+        print("Using CPU or Single GPU")
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            # reload_dataloaders_every_epoch=True,
+            max_epochs=t_hyper["max_epochs"],
+            accelerator=t_hyper["accelerator"],
+            gradient_clip_val=t_hyper["gradient_clip_val"],
+        )
+    else:
+        print("Using DDP")
+        trainer = pl.Trainer(
+            logger=tb_logger,
+            max_epochs=t_hyper["max_epochs"],
+            accelerator=t_hyper["accelerator"],
+            gradient_clip_val=t_hyper["gradient_clip_val"],
+            devices=t_hyper["number_of_gpus"],
+            strategy="ddp",
+        )
 
     # Train
     torch.autograd.set_detect_anomaly(True)

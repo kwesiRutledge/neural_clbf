@@ -586,7 +586,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
 
         return u
 
-    def plot_environment(self, ax: Axes) -> None:
+    def plot_environment(self, ax: Axes, theta: torch.tensor) -> None:
         """
         Add a plot of the environment to the given figure. Defaults to do nothing
         unless overidden.
@@ -596,7 +596,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         """
         pass
 
-    def friction_cone_extremes(self)->(torch.tensor, torch.tensor):
+    def friction_cone_extremes(self) -> (torch.tensor, torch.tensor):
         """
         [f_l, f_u] = self.friction_cone_extremes()
 
