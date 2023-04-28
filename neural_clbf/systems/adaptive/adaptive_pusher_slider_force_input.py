@@ -55,7 +55,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
     relative to the geometric center of the sliding square.
     """
 
-    # Number of states, controls and paramters
+    # Number of states, controls and parameters
     N_DIMS = 3
     N_CONTROLS = 2
     N_PARAMETERS = 2
@@ -66,8 +66,8 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
     S_THETA = 2
 
     # Control indices
-    F_X = 0
-    F_Y = 1
+    F_X = 0 # V_N? # X is the direction into the block (pointing into block from right side?)
+    F_Y = 1 # V_T?
 
     # Parameter indices
     C_X = 0
@@ -526,7 +526,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         #       has an angle within friction cone vector, then follow that line
         #   - otherwise
 
-        f_l, f_u = self.friction_cone_extremes()
+        f_u, f_l = self.friction_cone_extremes()
         angle_upper, angle_lower = torch.atan2(f_u[1], f_u[0]), torch.atan2(f_l[1], f_l[0])
 
         assert angle_upper > angle_lower, f"Expected angle_upper ({angle_upper}) to be larger than ({angle_lower}), but it wasn't!"
@@ -534,7 +534,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         goal = self.goal_point(theta_hat)
 
         des_direction = goal - x
-        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) - (s_th)
+        des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) - s_th
 
         # Handle each case depending on where the desired motion vector is pointing.
         # 1. Vector points above upper friction cone vector
@@ -619,7 +619,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         mu = self.ps_cof
 
         # Create output
-        return torch.tensor([mu, 1.0], device=self.device), torch.tensor([-mu, 1.0], device=self.device)
+        return torch.tensor([1.0, mu], device=self.device), torch.tensor([1.0, -mu], device=self.device)
 
 
     def compute_linearized_controller(self, scenarios: Optional[ScenarioList] = None):
@@ -832,7 +832,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
                 norm_vec = vec_clone / torch.norm(vec_clone)
                 scaled_vec = (s_length/2.0) * norm_vec
 
-                th_in_contact_point_frame = s_th - np.pi / 2
+                th_in_contact_point_frame = s_th #- np.pi / 2
                 rotation_matrix = torch.tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -851,7 +851,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
             norm_vec = current_force_clone / torch.norm(current_force_clone)
             scaled_vec = (s_length/2.0) * norm_vec
 
-            th_in_contact_point_frame = s_th - np.pi / 2
+            th_in_contact_point_frame = s_th #- np.pi / 2
             rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
@@ -949,7 +949,7 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
             norm_vec = current_force_clone / torch.norm(current_force_clone)
             scaled_vec = (s_length/2.0) * norm_vec
 
-            th_in_contact_point_frame = s_th - np.pi / 2
+            th_in_contact_point_frame = s_th #- np.pi / 2
             rotation_matrix = torch.tensor([
                 [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                 [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
