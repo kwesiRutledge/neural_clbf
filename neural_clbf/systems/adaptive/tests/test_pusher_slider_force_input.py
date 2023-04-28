@@ -834,6 +834,8 @@ class TestStringMethods(unittest.TestCase):
             th,
         )
 
+        print(u_nom)
+
         # Plot it
         fig = plt.figure()
         ax = fig.add_subplot(111)
@@ -944,7 +946,7 @@ class TestStringMethods(unittest.TestCase):
         )
 
         # Create nominal input
-        x0 = torch.Tensor([0.52, 0.4, np.pi / 2])
+        x0 = torch.Tensor([0.48, 0.4, np.pi / 2])
         th = ps.sample_Theta_space(1)
         th = torch.Tensor(th)
 
@@ -969,6 +971,10 @@ class TestStringMethods(unittest.TestCase):
         plt.scatter(
             goal[0, 0], goal[0, 1],
             color="magenta",
+        )
+        plt.arrow(
+            x0[0], x0[1],
+            goal[0, 0] - x0[0], goal[0, 1] - x0[1],
         )
 
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
