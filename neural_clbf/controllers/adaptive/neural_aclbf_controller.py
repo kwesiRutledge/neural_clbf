@@ -583,17 +583,17 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             )
 
             # Compute the estimation error
-            theta_err = theta - theta_hat
-            theta_err_norm = torch.norm(theta_err, dim=1)
-            theta_err_next = theta - theta_hat_next
-            theta_err_next_norm = torch.norm(theta_err_next, dim=1)
-            violation = F.relu(eps + (theta_err_next_norm - theta_err_norm))
-            violation = violation * condition_active
-
             if self.include_estimation_error_loss:
-                aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation.mean()
-                aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation <= eps).sum() / (
-                    violation.nelement() * self.n_scenarios
+                theta_err = theta - theta_hat
+                theta_err_norm = torch.norm(theta_err, dim=1)
+                theta_err_next = theta - theta_hat_next
+                theta_err_next_norm = torch.norm(theta_err_next, dim=1)
+                violation_estim = F.relu(eps + (theta_err_next_norm - theta_err_norm))
+                violation_estim = violation_estim * condition_active
+
+                aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation_estim.mean()
+                aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation_estim <= eps).sum() / (
+                    violation_estim.nelement() * self.n_scenarios
                 )
 
         # Add all of these losses to the loss struct
@@ -612,20 +612,20 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         eps = 1.0
         oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
         oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
-        for s in self.scenarios:
-            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
-            x_next = x + self.dynamics_model.dt * xdot
-            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
-                                                                                                      u_qp, s)
-            V_oracle = self.V_oracle(x, theta_hat, theta)
-            V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
+        if self.include_oracle_loss:
+            for s in self.scenarios:
+                xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
+                x_next = x + self.dynamics_model.dt * xdot
+                theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
+                                                                                                          u_qp, s)
+                V_oracle = self.V_oracle(x, theta_hat, theta)
+                V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
 
-            violation = F.relu(
-                eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
-            )
-            violation = violation * condition_active
+                violation = F.relu(
+                    eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+                )
+                violation = violation * condition_active
 
-            if self.include_oracle_loss:
                 oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + oracle_weight * violation.mean()
                 oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
                         violation.nelement() * self.n_scenarios
@@ -638,71 +638,71 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
 
         return loss
 
-    def oracle_descent_loss(
-            self,
-            x: torch.Tensor,
-            theta_hat: torch.Tensor,
-            theta: torch.Tensor,
-            goal_mask: torch.Tensor,
-            safe_mask: torch.Tensor,
-            unsafe_mask: torch.Tensor,
-            accuracy: bool = False,
-            requires_grad: bool = False,
-            ):
-        """
-        oracle_descent_loss
-        description:
-            Computes the loss of the controller when keeping in mind the true value of the
-            parameter. We can do this by computing the value of the "unknowable" clf defined
-            over the state-parameterestimate-parameter space (x,theta_hat, theta).
-        args:
-            x: bs x self.dynamical_model.n_dims tensor containing all current states of the system
-            theta_hat: bs x self.dynamical_model.n_params tensor containing all current estimate of the parameter
-            theta: bs x self.dynamical_model.n_params tensor containing all true values of the parameter
-        """
-        # Constants
-        bs = x.shape[0]
-        if self.barrier:
-            condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
-        else:
-            condition_active = torch.tensor(1.0)
-
-        # Initialize loss object
-        loss = []
-
-        # Get the control input and relaxation from solving the QP, and aggregate
-        # the relaxation across scenarios
-        u_qp, qp_relaxation = self.solve_CLF_QP(x, theta_hat, requires_grad=requires_grad)
-        qp_relaxation = torch.mean(qp_relaxation, dim=-1)
-
-        # Compute the shadow descent loss
-        eps = 1.0
-        oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
-        oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
-        for s in self.scenarios:
-            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
-            x_next = x + self.dynamics_model.dt * xdot
-            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
-                                                                                                      u_qp, s)
-            V_oracle = self.V_oracle(x, theta_hat, theta)
-            V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
-
-            violation = F.relu(
-                eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
-            )
-            violation = violation * condition_active
-
-            oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
-            oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
-                    violation.nelement() * self.n_scenarios
-            )
-
-        loss.append(("CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
-        if accuracy:
-            loss.append(("CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
-
-        # Return loss
-        return loss
+    # def oracle_descent_loss(
+    #         self,
+    #         x: torch.Tensor,
+    #         theta_hat: torch.Tensor,
+    #         theta: torch.Tensor,
+    #         goal_mask: torch.Tensor,
+    #         safe_mask: torch.Tensor,
+    #         unsafe_mask: torch.Tensor,
+    #         accuracy: bool = False,
+    #         requires_grad: bool = False,
+    #         ):
+    #     """
+    #     oracle_descent_loss
+    #     description:
+    #         Computes the loss of the controller when keeping in mind the true value of the
+    #         parameter. We can do this by computing the value of the "unknowable" clf defined
+    #         over the state-parameterestimate-parameter space (x,theta_hat, theta).
+    #     args:
+    #         x: bs x self.dynamical_model.n_dims tensor containing all current states of the system
+    #         theta_hat: bs x self.dynamical_model.n_params tensor containing all current estimate of the parameter
+    #         theta: bs x self.dynamical_model.n_params tensor containing all true values of the parameter
+    #     """
+    #     # Constants
+    #     bs = x.shape[0]
+    #     if self.barrier:
+    #         condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
+    #     else:
+    #         condition_active = torch.tensor(1.0)
+    #
+    #     # Initialize loss object
+    #     loss = []
+    #
+    #     # Get the control input and relaxation from solving the QP, and aggregate
+    #     # the relaxation across scenarios
+    #     u_qp, qp_relaxation = self.solve_CLF_QP(x, theta_hat, requires_grad=requires_grad)
+    #     qp_relaxation = torch.mean(qp_relaxation, dim=-1)
+    #
+    #     # Compute the shadow descent loss
+    #     eps = 1.0
+    #     oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
+    #     oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
+    #     for s in self.scenarios:
+    #         xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
+    #         x_next = x + self.dynamics_model.dt * xdot
+    #         theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
+    #                                                                                                   u_qp, s)
+    #         V_oracle = self.V_oracle(x, theta_hat, theta)
+    #         V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
+    #
+    #         violation = F.relu(
+    #             eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+    #         )
+    #         violation = violation * condition_active
+    #
+    #         oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
+    #         oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
+    #                 violation.nelement() * self.n_scenarios
+    #         )
+    #
+    #     loss.append(("CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
+    #     if accuracy:
+    #         loss.append(("CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
+    #
+    #     # Return loss
+    #     return loss
 
     def initial_loss(self, x: torch.Tensor, theta_hat: torch.Tensor) -> List[Tuple[str, torch.Tensor]]:
         """
