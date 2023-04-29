@@ -185,7 +185,7 @@ def main(args):
         n_grid=30,
         x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
         theta_axis_index=t_hyper["contour_exp_theta_index"],
-        x_axis_label="$p_x$",
+        x_axis_label="$p_1$",
         theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
     )
@@ -220,8 +220,8 @@ def main(args):
         n_grid=50,
         x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
-        x_axis_label="$s_x$",
-        y_axis_label="$s_y$",
+        x_axis_label="$p_1$",
+        y_axis_label="$p_2$",
         default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])

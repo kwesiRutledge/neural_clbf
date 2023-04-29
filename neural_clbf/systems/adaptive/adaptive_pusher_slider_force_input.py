@@ -666,11 +666,11 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         # get the Lyapunov matrix by robustly solving Lyapunov inequalities
         if len(scenarios) > 1:
             #self.P = torch.tensor(robust_continuous_lyap(Acl_list, Q))
-            self.P = torch.eye(self.n_dims)
+            self.P = 3.0*torch.eye(self.n_dims)
         else:
             # Otherwise, just use the standard Lyapunov equation
             #self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
-            self.P = torch.eye(self.n_dims)
+            self.P = 3.0*torch.eye(self.n_dims)
 
     """
     contact_point

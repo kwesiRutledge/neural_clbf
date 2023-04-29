@@ -19,8 +19,8 @@ source activate neural_clbf
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_pusher_slider_force_input.py \
   --max_epochs 201 --clf_lambda 0.1 \
-  --safe_level 4.0 \
+  --safe_level 10.0 \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
   --include_estimation_error_loss True \
-  --gradient_clip_val 1000.0
+  --gradient_clip_val 10000.0
