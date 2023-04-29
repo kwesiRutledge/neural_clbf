@@ -337,6 +337,8 @@ def plot_rollouts(
 
         # Plot Target Points
         theta = np.stack(results_df[sim_mask]["theta"].to_numpy())
+        print(sim_index)
+        print("theta.shape = ", theta.shape)
         goal_point = dynamical_system.goal_point(
             torch.tensor(theta[0, :]).reshape((1, dynamical_system.n_params))
         )

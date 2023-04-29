@@ -5,8 +5,10 @@ Description
 """
 import random
 import time
-from typing import cast, List, Tuple, Optional, TYPE_CHECKING, Dict, Callable, Any
+from typing import List, Tuple, Optional, TYPE_CHECKING, Dict, Callable, Any
 
+import matplotlib
+matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure
 import pandas as pd
@@ -14,11 +16,15 @@ import seaborn as sns
 import torch
 import tqdm
 
+from neural_clbf.experiments.adaptive.safety_case_study import (
+    timing_data_to_latex_table, get_avg_computation_time_from_df,
+    plot_rollouts, plot_error_to_goal, create_initial_states_parameters_and_estimates,
+)
+
 import control as ct
 import control.optimal as opt
 
 from neural_clbf.experiments import Experiment
-from neural_clbf.systems.utils import ScenarioList
 from neural_clbf.systems.adaptive import (
     ControlAffineParameterAffineSystem,
 )
@@ -45,6 +51,7 @@ class CaseStudySafetyExperiment(Experiment):
         self,
         name: str,
         start_x: torch.Tensor,
+        start_theta_hat: torch.Tensor = None,
         n_sims_per_start: int = 5,
         t_sim: float = 5.0,
         plot_x_indices: List[int] = [],
@@ -68,6 +75,7 @@ class CaseStudySafetyExperiment(Experiment):
 
         # Save parameters
         self.start_x = start_x
+        self.start_theta_hat = start_theta_hat
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
 
@@ -76,47 +84,6 @@ class CaseStudySafetyExperiment(Experiment):
 
         # if "x" in self.plot_x_labels:
         #     raise "There could be a problem using the plot_x_label value x; try using a different value"
-
-    @torch.no_grad()
-    def create_initial_states_parameters_and_estimates(
-            self,
-            dynamics: ControlAffineParameterAffineSystem,
-    ):
-        """
-        x0, theta0, theta_hat0 = self.create_initial_states_parameters_and_estimates()
-        Description:
-            Create initial states, parameters, and estimates for the experiment
-        Returns:
-            x0: bs x self.dynamical_systems.n_dims tensor of initial states
-            theta0: bs x self..dynamical_systems.n_params tensor of initial parameter
-            theta_hat0: Initial estimate
-        """
-        # Constants
-        n_dims = dynamics.n_dims
-        n_controls = dynamics.n_controls
-        n_theta = dynamics.n_params
-        Theta = dynamics.Theta
-
-        # Compute the number of simulations to run
-        n_sims = self.n_sims_per_start * self.start_x.shape[0]
-
-        # Create ics
-        x_sim_start = torch.zeros(n_sims, n_dims).type_as(self.start_x)
-        for i in range(0, self.start_x.shape[0]):
-            for j in range(0, self.n_sims_per_start):
-                x_sim_start[i * self.n_sims_per_start + j, :] = self.start_x[i, :]
-
-        theta_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_sim_start[:, :] = torch.Tensor(
-            dynamics.get_N_samples_from_polytope(Theta, n_sims).T.reshape(n_sims, n_theta)
-        )
-
-        theta_hat_sim_start = torch.zeros(n_sims, n_theta).type_as(self.start_x)
-        theta_hat_sim_start[:, :] = torch.Tensor(
-            dynamics.get_N_samples_from_polytope(Theta, n_sims).T.reshape(n_sims, n_theta)
-        )
-
-        return x_sim_start, theta_sim_start, theta_hat_sim_start
 
     @torch.no_grad()
     def run(self, controller_under_test: "Controller") -> pd.DataFrame:
@@ -157,8 +124,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = controller_under_test.dynamics_model.n_params
         Theta = controller_under_test.dynamics_model.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = self.create_initial_states_parameters_and_estimates(
-            controller_under_test.dynamics_model,
+        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
+            controller_under_test.dynamics_model, self.start_x,
+            n_sims_per_start=self.n_sims_per_start,
         )
 
         # Generate a random scenario for each rollout from the given scenarios
@@ -325,8 +293,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = self.create_initial_states_parameters_and_estimates(
-            dynamics
+        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
+            dynamics, self.start_x,
+            n_sims_per_start=self.n_sims_per_start,
         )
 
         # Generate a random scenario for each rollout from the given scenarios
@@ -479,8 +448,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = self.create_initial_states_parameters_and_estimates(
-            dynamics
+        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
+            dynamics, self.start_x,
+            n_sims_per_start=self.n_sims_per_start,
         )
         if theta_hat_sim_start_in is not None:  # Set value of theta_hat if provided
             theta_hat_sim_start = theta_hat_sim_start_in
@@ -771,8 +741,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = self.create_initial_states_parameters_and_estimates(
-            dynamics
+        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
+            dynamics, self.start_x,
+            n_sims_per_start=self.n_sims_per_start,
         )
 
         # Generate a random scenario for each rollout from the given scenarios
@@ -883,165 +854,6 @@ class CaseStudySafetyExperiment(Experiment):
 
         return pd.DataFrame(results)
 
-    def tabulate_number_of_reaches(
-            self,
-            results_df: pd.DataFrame,
-            dynamics: ControlAffineParameterAffineSystem,
-    ) -> pd.DataFrame:
-        """
-        tabulated_results = self.tabulate_number_of_reaches(results_df)
-        Description:
-            Tabulate whether or not a given system reached
-            the goal region during the experiment.
-
-        args:
-            results_df: dataframe containing the results of previous experiments.
-        returns: a dataframe containing the number of times each state was reached.
-        """
-        # Constants
-        num_timesteps = len(
-            results_df[
-                results_df["Simulation"] == "0"
-            ])
-
-        # Compute the number of simulations to run
-        n_sims = self.n_sims_per_start * self.start_x.shape[0]
-
-        # Create new results struct
-        counts = {
-            "goal_reached": 0, "goal_reached_percentage": 0.0,
-            "unsafe": 0, "unsafe_percentage": 0.0,
-        }
-
-        # For each simulation, count the number
-        # of times the system reached the goal region
-        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-            sim_mask = results_df["Simulation"] == sim_index
-            sim_results_x = np.vstack(
-                np.array(results_df[sim_mask]["state"])
-            )
-            sim_results_x = torch.tensor(sim_results_x)
-
-            sim_results_theta = np.vstack(
-                np.array(results_df[sim_mask]["theta"])
-            )
-            sim_results_theta = torch.tensor(sim_results_theta)
-
-            # Count the number of times the goal was reached
-            goal_reached = dynamics.goal_mask(
-                sim_results_x,
-                sim_results_theta,
-            )
-
-            # Count the number of times that the system was unsafe
-            unsafe = dynamics.unsafe_mask(
-                sim_results_x,
-                sim_results_theta,
-            )
-
-            if goal_reached.any():
-                counts["goal_reached"] += 1
-
-            if unsafe.any():
-                counts["unsafe"] += 1
-
-        # Compute the percentage of times:
-        # - the goal was reached
-        # - the system was unsafe
-        counts["goal_reached_percentage"] = counts["goal_reached"] / n_sims
-        counts["unsafe_percentage"] = counts["unsafe"] / n_sims
-
-        # Convert to a dataframe
-        return counts
-
-
-    def counts_to_latex_table(
-            self,
-            aclbf_counts: Dict[str, int],
-            nominal_counts: Dict[str, int] = None,
-            trajopt_counts: Dict[str, int] = None,
-            trajopt2_counts: Dict[str, int] = None,
-            mpc_counts: Dict[str, int] = None,
-            comments: List[str] = None,
-    ) -> str:
-        """
-        Description:
-            Format the counts of the number of times each state was reached
-            into a string.
-
-        args:
-            counts: a dictionary containing the number of times each state was reached.
-        returns: a string containing the counts.
-        """
-        # Constants
-        lines_of_table = []
-
-        # Start formatting the table
-        lines_of_table += [r"\begin{center}" + f"\n"]
-        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|c|}" + f"\n"]
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-        lines_of_table += [f"\t\t" + r"Controller & Goal Reached & Safe \\" + f"\n"]
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # Format the counts
-
-        # Add goal reached counts for:
-        # - Nominal
-        if nominal_counts is not None:
-            nominal_gr_percentage = "{:.2f}".format(nominal_counts['goal_reached_percentage'])
-            nominal_s_percentage = "{:.2f}".format(1-nominal_counts['unsafe_percentage'])
-            lines_of_table += [
-                f"\t\t" + f"Nominal & {nominal_gr_percentage} & {nominal_s_percentage} \\\\ \n"
-            ]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - Trajopt
-        if trajopt_counts is not None:
-            trajopt_gr_percentage = "{:.2f}".format(trajopt_counts['goal_reached_percentage'])
-            trajopt_s_percentage = "{:.2f}".format(1 - trajopt_counts['unsafe_percentage'])
-            lines_of_table += [
-                f"\t\t" + f"Trajopt (Trajax) & {trajopt_gr_percentage} & {trajopt_s_percentage} \\\\ \n"
-            ]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - Trajopt2
-        if trajopt2_counts is not None:
-            trajopt2_gr_percentage = "{:.2f}".format(trajopt2_counts['goal_reached_percentage'])
-            trajopt2_s_percentage = "{:.2f}".format(1 - trajopt2_counts['unsafe_percentage'])
-            lines_of_table += [
-                f"\t\t" + f"Trajopt2 (control) & {trajopt2_gr_percentage} & {trajopt2_s_percentage} \\\\ \n"
-            ]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - (Hybrid) MPC about optimized trajectory
-        if mpc_counts is not None:
-            mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
-            mpc_s_percentage = "{:.2f}".format(1-mpc_counts['unsafe_percentage'])
-            lines_of_table += [
-                f"\t\t" + f"MPC & {mpc_gr_percentage} & {mpc_s_percentage} \\\\ \n"
-            ]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - aCLBF
-        aclbf_gr_percentage = "{:.2f}".format(aclbf_counts['goal_reached_percentage'])
-        aclbf_s_percentage = "{:.2f}".format(1-aclbf_counts['unsafe_percentage'])
-        lines_of_table += [f"\t\t" + f"Neural aCLBF & {aclbf_gr_percentage} & {aclbf_s_percentage} \\\\ \n"]
-
-
-
-        # End formatting the table
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-        lines_of_table += [f"\t" + r"\end{tabular}" + f"\n"]
-        lines_of_table += [r"\end{center}" + f"\n"]
-
-        if comments != None:
-            lines_of_table += [f" \n"]
-            for comment in comments:
-                lines_of_table += [f"% " + comment + f" \n"]
-
-        return lines_of_table
-
-
     def plot(
         self,
         controller_under_test: "Controller",
@@ -1074,7 +886,7 @@ class CaseStudySafetyExperiment(Experiment):
         if aclbf_results_df is not None:
             fig_handle = self.plot_trajectory(
                 aclbf_results_df,
-                controller_under_test.dynamics_model.goal_tolerance,
+                controller_under_test.dynamics_model,
                 fig_name="Rollout (aclbf)",
             )
 
@@ -1084,7 +896,7 @@ class CaseStudySafetyExperiment(Experiment):
         if nominal_results_df is not None:
             fig_handle2 = self.plot_trajectory(
                 nominal_results_df,
-                controller_under_test.dynamics_model.goal_tolerance,
+                controller_under_test.dynamics_model,
                 fig_name="Rollout (nominal)",
             )
 
@@ -1094,7 +906,7 @@ class CaseStudySafetyExperiment(Experiment):
         if trajopt2_results_df is not None:
             fig_handle3 = self.plot_trajectory(
                 trajopt2_results_df,
-                controller_under_test.dynamics_model.goal_tolerance,
+                controller_under_test.dynamics_model,
                 fig_name="Rollout (trajopt2)",
             )
 
@@ -1110,7 +922,7 @@ class CaseStudySafetyExperiment(Experiment):
     def plot_trajectory(
             self,
             results_df: pd.DataFrame,
-            goal_tolerance: float = 0.1,
+            dynamical_system: ControlAffineParameterAffineSystem,
             fig_name: str = "Rollout",
     ) -> Tuple[str, plt.Figure]:
         """
@@ -1122,6 +934,8 @@ class CaseStudySafetyExperiment(Experiment):
         assert len(self.plot_x_labels) == 3, f"This function requires for 3 values to be given in x_labels to make a 3D plots; Received {len(self.plot_x_labels)}"
 
         # Constants
+        goal_tolerance = dynamical_system.goal_tolerance
+
         fig = plt.figure()
 
         num_plots = 2
@@ -1130,97 +944,16 @@ class CaseStudySafetyExperiment(Experiment):
         if "V" in results_df:
             num_plots += 1
 
+        # Create figure and begin plotting
         fig.set_size_inches(9 * num_plots, 6)
 
         rollout_ax = fig.add_subplot(100+10*num_plots+1, projection="3d")
+        plot_rollouts(results_df, rollout_ax, dynamical_system, self.plot_x_labels)
 
-        # Plot All Simulations in the Dataframe
-        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-            sim_mask = results_df["Simulation"] == sim_index
-            # rollout_ax.plot(
-            #     results_df[sim_mask][self.plot_x_labels[0]].to_numpy(),
-            #     results_df[sim_mask][self.plot_x_labels[1]].to_numpy(),
-            #     zs = results_df[sim_mask][self.plot_x_labels[2]].to_numpy(),
-            #     linestyle="-",
-            #     # marker="+",
-            #     markersize=5,
-            #     color=sns.color_palette()[plot_idx],
-            # )
-            rollout_ax.plot(
-                results_df[sim_mask][self.plot_x_labels[0]].to_numpy(),
-                results_df[sim_mask][self.plot_x_labels[1]].to_numpy(),
-                results_df[sim_mask][self.plot_x_labels[2]].to_numpy(),
-                linestyle="-",
-                # marker="+",
-                markersize=5,
-                color=sns.color_palette()[plot_idx],
-            )
-            rollout_ax.set_xlabel(self.plot_x_labels[0])
-            rollout_ax.set_ylabel(self.plot_x_labels[1])
-            rollout_ax.set_zlabel(self.plot_x_labels[2])
-
-            # Plot initial conditions
-            rollout_ax.scatter(
-                results_df[sim_mask][self.plot_x_labels[0]].to_numpy()[0],
-                results_df[sim_mask][self.plot_x_labels[1]].to_numpy()[0],
-                results_df[sim_mask][self.plot_x_labels[2]].to_numpy()[0],
-            )
-
-            # Plot Target Points
-            rollout_ax.scatter(
-                results_df[sim_mask]["theta"].to_numpy()[0][0],
-                results_df[sim_mask]["theta"].to_numpy()[1][0],
-                results_df[sim_mask]["theta"].to_numpy()[2][0],
-                marker="s",
-                s=20,
-                color=sns.color_palette()[plot_idx],
-            )
-
-        # Remove the legend -- too much clutter
-        rollout_ax.legend([], [], frameon=False)
 
         # Plot the error
         error_ax = fig.add_subplot(100+10*num_plots+2)
-        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-            sim_mask = results_df["Simulation"] == sim_index
-            #print("results_df[sim_mask][\"state\"] = ", results_df[sim_mask]["state"])
-            #print("results_df[sim_mask][\"state\"].to_numpy() = ", results_df[sim_mask]["state"].to_numpy())
-            #print("np.array(results_df[sim_mask][\"state\"].to_numpy()) = ", np.array(results_df[sim_mask]["state"].to_numpy()))
-            # print("np.vstack(results_df[sim_mask][\"state\"].to_numpy()) = ",
-            #       np.vstack(results_df[sim_mask]["state"].to_numpy()))
-            error_sim_i = \
-                (np.vstack(results_df[sim_mask]["state"]).T)[:3, :] - \
-                np.vstack(results_df[sim_mask]["theta"]).T
-            error_ax.plot(
-                results_df[sim_mask]["t"].to_numpy(),
-                np.linalg.norm(error_sim_i, axis=0),
-                linestyle="-",
-                # marker="+",
-                markersize=5,
-                color=sns.color_palette()[plot_idx],
-            )
-            error_ax.set_xlabel("$t$")
-            error_ax.set_ylabel("$e(t) = ||x(t)[:3] - \\theta||$")
-
-            # Plot desired error level
-            error_ax.plot(
-                results_df[sim_mask]["t"].to_numpy(),
-                np.ones((error_sim_i.shape[1],)) * goal_tolerance,
-                linestyle=":",
-                # marker="+",
-                markersize=5,
-                color=sns.color_palette()[plot_idx],
-            )
-
-            # Plot Target Points
-            rollout_ax.scatter(
-                results_df[sim_mask]["theta"].to_numpy()[0][0],
-                results_df[sim_mask]["theta"].to_numpy()[1][0],
-                results_df[sim_mask]["theta"].to_numpy()[2][0],
-                marker="s",
-                s=20,
-                color=sns.color_palette()[plot_idx],
-            )
+        plot_error_to_goal(results_df, error_ax, dynamical_system)
 
         # Remove the legend -- too much clutter
         rollout_ax.legend([], [], frameon=False)
@@ -1315,15 +1048,15 @@ class CaseStudySafetyExperiment(Experiment):
         # Collect the data
         aclbf_data_dict = None
         if aclbf_results_df is not None:
-            aclbf_data_dict = self.get_avg_computation_time_from_df(aclbf_results_df)
+            aclbf_data_dict = get_avg_computation_time_from_df(aclbf_results_df)
 
         nominal_data_dict = None
         if nominal_results_df is not None:
-            nominal_data_dict = self.get_avg_computation_time_from_df(nominal_results_df)
+            nominal_data_dict = get_avg_computation_time_from_df(nominal_results_df)
 
         trajopt2_data_dict = None
         if trajopt2_results_df is not None:
-            trajopt2_data_dict = self.get_avg_computation_time_from_df(trajopt2_results_df)
+            trajopt2_data_dict = get_avg_computation_time_from_df(trajopt2_results_df)
 
         # Save the data to txt file
         with open(table_name, "w") as f:
@@ -1332,7 +1065,7 @@ class CaseStudySafetyExperiment(Experiment):
             comments += [f"commit_prefix={commit_prefix}"]
             comments += [f"version_number={version_number}"]
 
-            lines = self.timing_data_to_latex_table(
+            lines = timing_data_to_latex_table(
                 aclbf_data_dict,
                 nominal_timing=nominal_data_dict,
                 trajopt2_timing=trajopt2_data_dict,
@@ -1341,104 +1074,3 @@ class CaseStudySafetyExperiment(Experiment):
             )
 
             f.writelines(lines)
-
-
-    def timing_data_to_latex_table(
-            self,
-            aclbf_timing: Dict[str, int],
-            nominal_timing: Dict[str, int] = None,
-            trajopt_timing: Dict[str, int] = None,
-            trajopt2_timing: Dict[str, int] = None,
-            mpc_timing: Dict[str, int] = None,
-            trajopt2_synthesis_times: Dict[str, int] = None,
-            comments: List[str] = None,
-    ) -> str:
-        """
-        Description:
-            Format the counts of the number of times each state was reached
-            into a string.
-
-        args:
-            counts: a dictionary containing the number of times each state was reached.
-        returns: a string containing the counts.
-        """
-        # Constants
-        lines_of_table = []
-
-        # Start formatting the table
-        lines_of_table += [r"\begin{center}" + f"\n"]
-        lines_of_table += [f"\t" + r"\begin{tabular}{|c|c|c|}" + f"\n"]
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-        lines_of_table += [f"\t\t" + r"Controller & t_{init} (ms) & $t_{comp}$ (ms) \\" + f"\n"]
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # Format the counts
-
-        # Add goal reached counts for:
-        # - Nominal
-        if nominal_timing is not None:
-            nominal_overall_compute_avg_timing = "{:.2f}".format(nominal_timing['OverallAverage'] * 1000)
-            lines_of_table += [f"\t\t" + f"Nominal & & {nominal_overall_compute_avg_timing} \\\\ \n"]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - Trajopt
-        if trajopt_timing is not None:
-            raise NotImplementedError
-
-        # - Trajopt2
-        if trajopt2_timing is not None:
-            trajopt2_overall_compute_avg_timing = "{:.2f}".format(trajopt2_timing['OverallAverage'] * 1000)
-            trajopt_avg_synthesis_time = "{:.2f}".format(np.mean(np.array(trajopt2_synthesis_times)) * 1000)
-            lines_of_table += [f"\t\t" + f"Trajopt2 & {trajopt_avg_synthesis_time} & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # # - (Hybrid) MPC about optimized trajectory
-        # if mpc_counts is not None:
-        #     mpc_gr_percentage = "{:.2f}".format(mpc_counts['goal_reached_percentage'])
-        #     mpc_s_percentage = "{:.2f}".format(1-mpc_counts['unsafe_percentage'])
-        #     lines_of_table += [
-        #         f"\t\t" + f"MPC & {mpc_gr_percentage} & {mpc_s_percentage} \\\\ \n"
-        #     ]
-        #     lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-        # - aCLBF
-        if aclbf_timing is not None:
-            aclbf_overall_compute_avg_timing = "{:.2f}".format(aclbf_timing['OverallAverage']*1000)
-            lines_of_table += [f"\t\t" + f"Neural aCLBF & & {aclbf_overall_compute_avg_timing} \\\\ \n"]
-            lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-
-
-        # End formatting the table
-        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
-        lines_of_table += [f"\t" + r"\end{tabular}" + f"\n"]
-        lines_of_table += [r"\end{center}" + f"\n"]
-
-        if comments != None:
-            lines_of_table += [f" \n"]
-            for comment in comments:
-                lines_of_table += [f"% " + comment + f" \n"]
-
-        return lines_of_table
-
-    def get_avg_computation_time_from_df(
-        self,
-        results_df: pd.DataFrame,
-    ):
-        """
-        dict_out = cs.get_avg_computation_time_from_df(results_df)
-        """
-
-        # Set up the dictionary
-        data_dict = {}
-
-        time_per_sim = []
-        for plot_idx, sim_index in enumerate(results_df["Simulation"].unique()):
-            sim_mask = results_df["Simulation"] == sim_index
-            time_per_sim.append(
-                (results_df[sim_mask]["controller_time"].to_numpy()).mean(),
-            )
-
-        data_dict["AveragePerSim"] = time_per_sim
-        data_dict["OverallAverage"] = np.array(time_per_sim).mean()
-
-        return data_dict
