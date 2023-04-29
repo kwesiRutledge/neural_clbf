@@ -75,7 +75,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 64,
+        "batch_size": 128,
         "controller_period": 0.1,
         "start_x": start_x,
         "simulation_dt": 0.025,
