@@ -51,7 +51,8 @@ class CaseStudySafetyExperiment(Experiment):
         self,
         name: str,
         start_x: torch.Tensor,
-        start_theta_hat: torch.Tensor = None,
+        start_theta_hat: torch.Tensor,
+        start_theta: torch.Tensor,
         n_sims_per_start: int = 5,
         t_sim: float = 5.0,
         plot_x_indices: List[int] = [],
@@ -76,6 +77,8 @@ class CaseStudySafetyExperiment(Experiment):
         # Save parameters
         self.start_x = start_x
         self.start_theta_hat = start_theta_hat
+        self.start_theta = start_theta
+
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
 
@@ -124,10 +127,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = controller_under_test.dynamics_model.n_params
         Theta = controller_under_test.dynamics_model.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
-            controller_under_test.dynamics_model, self.start_x,
-            n_sims_per_start=self.n_sims_per_start,
-        )
+        x_sim_start = self.start_x.clone()
+        theta_sim_start = self.start_theta.clone()
+        theta_hat_sim_start = self.start_theta_hat.clone()
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -293,10 +295,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
-            dynamics, self.start_x,
-            n_sims_per_start=self.n_sims_per_start,
-        )
+        x_sim_start = self.start_x.clone()
+        theta_sim_start = self.start_theta.clone()
+        theta_hat_sim_start = self.start_theta_hat.clone()
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -448,12 +449,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
-            dynamics, self.start_x,
-            n_sims_per_start=self.n_sims_per_start,
-        )
-        if theta_hat_sim_start_in is not None:  # Set value of theta_hat if provided
-            theta_hat_sim_start = theta_hat_sim_start_in
+        x_sim_start = self.start_x.clone()
+        theta_sim_start = self.start_theta.clone()
+        theta_hat_sim_start = self.start_theta_hat.clone()
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []
@@ -677,12 +675,12 @@ class CaseStudySafetyExperiment(Experiment):
                 t_eval=timepts)
             t, y, u = resp.time, resp.outputs, resp.inputs
 
-            print("y = ", y)
+            # print("y = ", y)
             # Compile all input trajectories
             control_sequences[x0_index, :, :] = torch.tensor(u.T)
 
         # Simulate the system with optimized trajectory
-        print(u)
+        # print(u)
         df_trajopt = self.run_trajopt_controlled(
             dynamics,
             controller_period,
@@ -741,10 +739,9 @@ class CaseStudySafetyExperiment(Experiment):
         n_theta = dynamics.n_params
         Theta = dynamics.Theta
 
-        x_sim_start, theta_sim_start, theta_hat_sim_start = create_initial_states_parameters_and_estimates(
-            dynamics, self.start_x,
-            n_sims_per_start=self.n_sims_per_start,
-        )
+        x_sim_start = self.start_x
+        theta_sim_start = self.start_theta
+        theta_hat_sim_start = self.start_theta_hat
 
         # Generate a random scenario for each rollout from the given scenarios
         random_scenarios = []

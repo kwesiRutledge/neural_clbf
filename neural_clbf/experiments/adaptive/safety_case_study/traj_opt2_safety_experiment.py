@@ -51,6 +51,8 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
         self,
         name: str,
         start_x: torch.Tensor,
+        start_theta_hat: torch.Tensor,
+        start_theta: torch.Tensor,
         n_sims_per_start: int = 5,
         t_sim: float = 5.0,
         plot_x_indices: List[int] = [],
@@ -74,6 +76,9 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
 
         # Save parameters
         self.start_x = start_x
+        self.start_theta_hat = start_theta_hat
+        self.start_theta = start_theta
+
         self.n_sims_per_start = n_sims_per_start
         self.t_sim = t_sim
 
@@ -97,7 +102,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
             R: np.array = None,
             P: np.array = None,
             N_timepts: int = 100,
-    ) -> pd.DataFrame:
+    ) -> Tuple[pd.DataFrame, List[float]]:
         """
         results_df = self.run(dynamics, controller_period, dynamics_update, Tf, u0, uf, constraints, Q, R, P, N_timepts)
         Description:
@@ -177,7 +182,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
         u_current = torch.zeros(x_sim_start.shape[0], n_controls, device=device)
         controller_update_freq = int(controller_period / delta_t)
         prog_bar_range = tqdm.trange(
-            0, num_timesteps, desc=self.name + ": MPC Simulation", leave=True
+            0, num_timesteps, desc=self.name + ": Simulation", leave=True
         )
         for tstep in prog_bar_range:
             # Get the control input at the current state if it's time
@@ -256,7 +261,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
                 # Maintain constant belief about parameters
                 theta_hat_current[i, :] = theta_hat_current[i, :]  # + delta_t * theta_hat_dot.squeeze()
 
-        return pd.DataFrame(results)
+        return pd.DataFrame(results), traj_opt_times
 
     def synthesize_trajectories(
         self,
@@ -309,7 +314,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
 
         # Create optimized trajectory for each ic
         n_x0s = start_x.shape[0]
-        theta_samples = dynamics.sample_Theta_space(n_x0s).numpy()
+        theta_samples = self.start_theta_hat.numpy()
         traj_opt_times = []
         control_sequences = torch.zeros((n_x0s, N_timepts, dynamics.n_controls))
         state_sequences = torch.zeros((n_x0s, N_timepts, dynamics.n_dims))

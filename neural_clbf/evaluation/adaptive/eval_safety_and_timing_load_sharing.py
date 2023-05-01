@@ -26,10 +26,15 @@ from neural_clbf.experiments import (
 )
 from neural_clbf.experiments.adaptive.safety_case_study import (
     counts_to_latex_table, tabulate_number_of_reaches,
-    CaseStudySafetyExperimentMPC,
+    CaseStudySafetyExperimentMPC, CaseStudySafetyExperimentTrajOpt2,
+    create_initial_states_parameters_and_estimates,
 )
 from neural_clbf.experiments.adaptive import (
     RolloutParameterConvergenceExperiment, CaseStudySafetyExperiment,
+)
+
+from neural_clbf.evaluation.adaptive import (
+    load_yaml_trajectory_data,
 )
 
 import numpy as np
@@ -209,16 +214,16 @@ def inflate_context_using_hyperparameters(hyperparams):
     obs_rad = nominal_scenario["obstacle_width"] / 2.0
     start_x = torch.tensor(
         [
-            [obs[0],                obs[1]-3.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
-            [obs[0],                obs[1]-3.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0],                obs[1]-3.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-3.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-3.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
-            [obs[0]-0.5*obs_rad,    obs[1]-3.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-3.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-3.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
-            [obs[0]+0.5 * obs_rad,  obs[1]-3.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-3.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            [obs[0],                obs[1]-4.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
+            [obs[0],                obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+            [obs[0],                obs[1]-4.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
+            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
+            [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
+            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
             # [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
             # [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
             # [0.1, -0.05, 0.3, 0.0, 0.0, 0.0],
@@ -317,6 +322,7 @@ def main(args):
         Runs all timings and other things.
     """
     # Constants
+    t_sim = 15.0
 
     # Load aclbf Data from file
     controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt, controller_state_dict = extract_hyperparams_from_args(args)
@@ -327,38 +333,43 @@ def main(args):
     controller_to_test = controller_state_dict
     controller_to_test.experiment_suite = experiment_suite
 
+    # Create trajectories
+    _, theta0, theta_hat0 = create_initial_states_parameters_and_estimates(
+        dynamics_model, x0,
+        n_sims_per_start=1,
+    )
+
     # Load trajectory optimization data from file
     #yaml_filename = "data/safety_scalar_case_study_data_Apr-10-2023-02:49:17.yml"
     # yaml_filename = "data/safety_scalar_case_study_data_Apr-10-2023-03:30:46.yml"
     if args.yaml_filename is not None:
-        yaml_filename = args.yaml_filename
-        trajopt_file_data = yaml.load(open(yaml_filename, "r"), Loader=yaml.FullLoader)
-        U_trajopt = torch.zeros(
-            (trajopt_file_data["num_x0s"], trajopt_file_data["horizon"], dynamics_model.n_controls)
-        )
-        X_trajopt = torch.zeros(
-            (trajopt_file_data["num_x0s"], trajopt_file_data["horizon"]+1, dynamics_model.n_dims)
-        )
-        for ic_index in range(trajopt_file_data["num_x0s"]):
-            U_trajopt[ic_index, :, :] = torch.tensor(trajopt_file_data["U"+str(ic_index)])
-            X_trajopt[ic_index, :, :] = torch.tensor(trajopt_file_data["X"+str(ic_index)])
+        U_trajopt, X_trajopt = load_yaml_trajectory_data(args.yaml_filename)
 
     # Create the safety case study experiment
     safety_case_study_experiment = CaseStudySafetyExperiment(
         "Safety Case Study",
-        x0,
+        x0, theta_hat0, theta0,
         n_sims_per_start=1,
-        t_sim=15.0,
+        t_sim=t_sim,
         plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
         plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
     )
     controller_to_test.experiment_suite = ExperimentSuite([safety_case_study_experiment])
 
+    safety_trajopt_exp = CaseStudySafetyExperimentTrajOpt2(
+        "Safety Case Study - TrajOpt2",
+        x0, theta_hat0, theta0,
+        n_sims_per_start=1,
+        t_sim=t_sim,
+        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
+        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
+    )
+
     safety_mpc_exp = CaseStudySafetyExperimentMPC(
         "Safety Case Study - MPC",
         x0,
         n_sims_per_start=1,
-        t_sim=15.0,
+        t_sim=t_sim,
         plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
         plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
     )
@@ -388,66 +399,67 @@ def main(args):
     #     results_df, controller_to_test.dynamics_model,
     # )
 
-    # # - Optimized Trajectory Safety Testing #2 (in-function traj opt)
-    # def lsm_update(t, x, u, params):
-    #     """
-    #     dxdt = lsm_update(t,x,u, params)
-    #     Description:
-    #         This function defines the dynamics of the system.
-    #     """
-    #     # Constants
-    #     m = dynamics_model.m
-    #     gravity = 9.81
-    #     theta = params.get("theta", np.array([-0.15, 0.4, 0.1]))
-    #
-    #     # Unpack the state
-    #     p = x[0:3]
-    #     v = x[3:6]
-    #
-    #     # Algorithm
-    #     f = np.zeros((6,))
-    #     f[0:3] = v
-    #     f[3:6] = (1.0 / m) * np.diag([dynamics_model.K_x, dynamics_model.K_y, dynamics_model.K_z]) @ p
-    #     f[-1] = f[-1] - gravity
-    #
-    #     F = (1.0 / m) * np.vstack(
-    #         (np.zeros((3, dynamics_model.n_controls)), -np.diag([dynamics_model.K_x, dynamics_model.K_y, dynamics_model.K_z]))
-    #     )
-    #
-    #     g = (1.0 / m) * np.vstack(
-    #         (np.zeros((3, dynamics_model.n_controls)), np.eye(dynamics_model.n_controls))
-    #     )
-    #
-    #     return f + F @ theta + g @ u
-    #
-    # obs_center = np.array([
-    #     dynamics_model.nominal_scenario["obstacle_center_x"],
-    #     dynamics_model.nominal_scenario["obstacle_center_y"],
-    #     dynamics_model.nominal_scenario["obstacle_center_z"],
-    # ])
-    # constraints = []
-    # constraints.append(
-    #     (
-    #         optimize.NonlinearConstraint,
-    #         lambda x, u: np.linalg.norm(x[0:3] - obs_center),
-    #         1.5 * (dynamics_model.nominal_scenario["obstacle_width"] / 2.0),
-    #         float('Inf'),
-    #     )
-    # )
-    #
-    # trajopt_results_df2, trajopt_synthesis_times = safety_case_study_experiment.run_trajopt_with_synthesis(
-    #     controller_to_test.dynamics_model, controller_to_test.controller_period,
-    #     lsm_update,
-    #     P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
-    #     Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
-    #     R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
-    #     N_timepts=20,
-    #     u0=np.array([-1.0, 1.0, 100.0]),
-    #     constraints=constraints,
-    # )
-    # counts_trajopt2 = tabulate_number_of_reaches(
-    #     trajopt_results_df2, controller_to_test.dynamics_model,
-    # )
+    # - Optimized Trajectory Safety Testing #2 (in-function traj opt)
+    def lsm_update(t, x, u, params):
+        """
+        dxdt = lsm_update(t,x,u, params)
+        Description:
+            This function defines the dynamics of the system.
+        """
+        # Constants
+        m = dynamics_model.m
+        gravity = 9.81
+        theta = params.get("theta", np.array([-0.15, 0.4, 0.1]))
+
+        # Unpack the state
+        p = x[0:3]
+        v = x[3:6]
+
+        # Algorithm
+        f = np.zeros((6,))
+        f[0:3] = v
+        f[3:6] = (1.0 / m) * np.diag([dynamics_model.K_x, dynamics_model.K_y, dynamics_model.K_z]) @ p
+        f[-1] = f[-1] - gravity
+
+        F = (1.0 / m) * np.vstack(
+            (np.zeros((3, dynamics_model.n_controls)), -np.diag([dynamics_model.K_x, dynamics_model.K_y, dynamics_model.K_z]))
+        )
+
+        g = (1.0 / m) * np.vstack(
+            (np.zeros((3, dynamics_model.n_controls)), np.eye(dynamics_model.n_controls))
+        )
+
+        return f + F @ theta + g @ u
+
+    obs_center = np.array([
+        dynamics_model.nominal_scenario["obstacle_center_x"],
+        dynamics_model.nominal_scenario["obstacle_center_y"],
+        dynamics_model.nominal_scenario["obstacle_center_z"],
+    ])
+    constraints = []
+    constraints.append(
+        (
+            optimize.NonlinearConstraint,
+            lambda x, u: np.linalg.norm(x[0:3] - obs_center),
+            1.5 * (dynamics_model.nominal_scenario["obstacle_width"] / 2.0),
+            float('Inf'),
+        )
+    )
+
+    trajopt2_results_df, trajopt2_synthesis_times = safety_trajopt_exp.run(
+        controller_to_test.dynamics_model, controller_to_test.controller_period,
+        lsm_update,
+        Tf=t_sim,
+        P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
+        Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
+        R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
+        N_timepts=20,
+        u0=np.array([-1.0, 1.0, 100.0]),
+        constraints=constraints,
+    )
+    counts_trajopt2 = tabulate_number_of_reaches(
+        trajopt2_results_df, controller_to_test.dynamics_model,
+    )
 
     counts_trajopt = None
     counts_mpc = None

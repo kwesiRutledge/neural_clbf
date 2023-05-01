@@ -14,6 +14,9 @@ from neural_clbf.experiments import (
     RolloutStateParameterSpaceExperimentMultiple,
     RolloutManipulatorConvergenceExperiment
 )
+from neural_clbf.experiments.adaptive import (
+    aCLFCountourExperiment_StateSlices,
+)
 
 import numpy as np
 
@@ -74,7 +77,7 @@ def extract_hyperparams_from_args(args):
 
     return controller_from_checkpoint, saved_hyperparams, saved_Vnn, aclbf_controller
 
-def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFController:
+def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFController:
     """
     inflate_context_using_hyperparameters
     Description
@@ -83,6 +86,8 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
     # Constants
     simulation_dt = hyperparams["simulation_dt"]
     controller_period = hyperparams["controller_period"]
+
+    highlight_level = args.highlight_level
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(
@@ -183,16 +188,91 @@ def inflate_context_using_hyperparameters(hyperparams: Dict)->NeuralaCLBFControl
         n_sims_per_start=1,
         t_sim=10.0,
     )
+    x_ub, x_lb = dynamics_model.state_limits
+    obs_center = np.array([
+        nominal_scenario["obstacle_center_x"],
+        nominal_scenario["obstacle_center_y"],
+        nominal_scenario["obstacle_center_z"],
+    ])
+    obs_width = nominal_scenario["obstacle_width"]
+    V_contour_experiment5 = aCLFCountourExperiment_StateSlices(
+        "V_Contour (state slices only) 1",
+        x_domain=[
+            (x_lb[LoadSharingManipulator.P_X], x_ub[LoadSharingManipulator.P_X]),
+            (x_lb[LoadSharingManipulator.P_Y], x_ub[LoadSharingManipulator.P_Y])
+        ],  # plotting domain
+        n_grid=50,
+        x_axis_index=LoadSharingManipulator.P_X,
+        y_axis_index=LoadSharingManipulator.P_Y,
+        x_axis_label="$s_x$",
+        y_axis_label="$s_y$",
+        default_param_estimate=torch.tensor(dynamics_model.Theta.chebXc).reshape(
+            (LoadSharingManipulator.N_PARAMETERS, 1)),
+        default_state=torch.tensor([0.3, 0.3, 0.3, 0.0, 0.0, 0.0]).reshape(
+            (LoadSharingManipulator.N_DIMS, 1)),
+        plot_highlight_region=highlight_level is not None,
+        default_highlight_level=highlight_level,
+        plot_goal_region=True,
+    )
+    # V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
+    #     "V_Contour (state slices only) 2",
+    #     x_domain=[
+    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
+    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
+    #     ],  # plotting domain
+    #     n_grid=50,
+    #     x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+    #     y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
+    #     x_axis_label="$s_x$",
+    #     y_axis_label="$s_y$",
+    #     plot_unsafe_region=False,
+    #     default_state=torch.tensor([-0.5, -0.5, torch.pi / 4]).reshape(
+    #         (dynamics_model.n_dims, 1),
+    #     ),
+    #     default_param_estimate=torch.tensor([dynamics_model.s_width / 2.0, lb[1] * 0.5]).reshape(
+    #         (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+    #     plot_highlight_region=args.highlight_level is not None,
+    #     default_highlight_level=args.highlight_level,
+    #     plot_goal_region=True,
+    # )
+    # V_contour_experiment7 = aCLFCountourExperiment_StateSlices(
+    #     "V_Contour (state slices only) 3",
+    #     x_domain=[
+    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
+    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
+    #     ],  # plotting domain
+    #     n_grid=50,
+    #     x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
+    #     y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
+    #     x_axis_label="$s_x$",
+    #     y_axis_label="$s_y$",
+    #     plot_unsafe_region=False,
+    #     default_state=torch.tensor([-0.5, -0.5, torch.pi / 4]).reshape(
+    #         (dynamics_model.n_dims, 1),
+    #     ),
+    #     default_param_estimate=torch.tensor([dynamics_model.s_width / 2.0, ub[1] * 0.9]).reshape(
+    #         (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+    #     plot_highlight_region=args.highlight_level is not None,
+    #     default_highlight_level=args.highlight_level,
+    #     plot_goal_region=True,
+    # )
     # experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment3])
     # experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment4])
-    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, rollout_experiment3, rollout_experiment4])
+    experiment_suite = ExperimentSuite([
+        V_contour_experiment,
+        rollout_experiment2, rollout_experiment3, rollout_experiment4,
+        V_contour_experiment5,
+    ])
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
 def plot_controlled_load_sharing(args):
     controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt = extract_hyperparams_from_args(args)
 
-    dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(saved_hyperparams)
+    dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(
+        saved_hyperparams,
+        args,
+    )
     controller_pt.experiment_suite = experiment_suite
     controller_pt.dynamics_model.device = "cpu"
 
@@ -216,7 +296,13 @@ def plot_controlled_load_sharing(args):
         controller_pt, display_plots=False
     )
 
-    fig_titles = ["V-contour", "V-trajectories1", "V-trajectories2", "V-trajectories3", "u-trajectories", "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1"]
+    fig_titles = [
+        "V-contour",
+        "V-trajectories1", "V-trajectories2", "V-trajectories3",
+        "u-trajectories",
+        "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1",
+        "V-contour-slices1"
+    ]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)
@@ -237,6 +323,10 @@ if __name__ == "__main__":
     parser.add_argument(
         '--checkpoint_filename', type=str, default="",
         help='Checkpoint filename to load (default: ""). (Example: \'epoch=5-step=845.ckpt\')',
+    )
+    parser.add_argument(
+        '--highlight_level', type=float, default=0.1,
+        help='Level to highlight in the V-contour plot (default: None)',
     )
     args = parser.parse_args()
     # Plot controlled load sharing
