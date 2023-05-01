@@ -674,7 +674,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return u
 
-    def get_mpc_matrices(self, T=-1, dt: float=0.01):
+    def get_mpc_matrices(self, T: int = -1, dt: float = 0.01):
         """
         get_mpc_matrices
         Description:
@@ -741,4 +741,4 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             This function computes the mpc control that should steer the system
             closer to the trajectory defined by X.
         """
-        return self.basic_mpc1(x, self.controller_dt, horizon=horizon)
+        return self.basic_mpc1(x, self.controller_dt, N_mpc=horizon)

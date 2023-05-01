@@ -391,7 +391,7 @@ class TestTrajOpt2SafetyExperiment(unittest.TestCase):
 
             return f + F @ theta + g @ u
 
-        results_df = experiment0.run(
+        results_df, _, _, _ = experiment0.run(
             dynamics, 0.1, dynamics_update,
             Tf=5.0,
             u0=u0, uf=uf,

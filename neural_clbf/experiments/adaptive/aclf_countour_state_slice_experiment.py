@@ -362,7 +362,7 @@ class aCLFCountourExperiment_StateSlices(Experiment):
             results_df[self.y_axis_label],
             results_df["V"],
             colors=["blue"],
-            levels=[0.0],
+            levels=[0.05],
         )
 
         # Make the legend

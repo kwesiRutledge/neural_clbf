@@ -422,6 +422,7 @@ class aCLFController(Controller):
         list_LGi_V: torch.Tensor,
         LGammadVG_V: torch.Tensor,
         relaxation_penalty: float,
+        Q: np.array=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Determine the control input for a given state using a QP. Solves the QP using
         Gurobi, which does not allow for backpropagation.
@@ -460,6 +461,10 @@ class aCLFController(Controller):
         # This reduces to (ignoring constant terms)
         #
         #           u^T I u - 2 u_ref^T u + relaxation_penalty * r^2
+
+        # Input Processing
+        if Q is None:
+            Q = np.eye(self.dynamics_model.n_controls)
 
         # Constants
         batch_size = x.shape[0]
@@ -537,7 +542,7 @@ class aCLFController(Controller):
                 # r = model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY)
 
             # Define the cost
-            Q = np.eye(n_controls)
+            #Q = np.eye(n_controls)
             u_ref_np = u_ref[batch_idx, :].detach().cpu().numpy()
             objective = u @ Q @ u - 2 * u_ref_np @ Q @ u + u_ref_np @ Q @ u_ref_np
             if allow_relaxation:
@@ -769,6 +774,7 @@ class aCLFController(Controller):
         relaxation_penalty: Optional[float] = None,
         u_ref: Optional[torch.Tensor] = None,
         requires_grad: bool = False,
+        Q: np.array = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Description
@@ -784,6 +790,7 @@ class aCLFController(Controller):
                    dimensions bs x self.dynamics_model.n_controls. If not provided,
                    default to calling self.u_reference.
             requires_grad: if True, use a differentiable layer
+            Q: the Q matrix used to weight the inputs given to the CLF QP
         returns:
             u: bs x self.dynamics_model.n_controls tensor of control inputs
             relaxation: bs x 1 tensor of how much the CLF had to be relaxed in each
@@ -815,11 +822,25 @@ class aCLFController(Controller):
             )
         else:
             return self._solve_CLF_QP_gurobi(
-                x, u_ref, V, Lf_V, Lg_V, LF_V, LFGammadV_V, list_LGi_V, LGammadVG_V, relaxation_penalty
+                x, u_ref, V, Lf_V, Lg_V, LF_V,
+                LFGammadV_V, list_LGi_V, LGammadVG_V,
+                relaxation_penalty,
+                Q=Q,
             )
 
-    def u(self, x, theta_hat: torch.Tensor) -> torch.Tensor:
-        """Get the control input for a given state"""
+    def u(self, x, theta_hat: torch.Tensor, Q_u: np.array=None) -> torch.Tensor:
+        """
+        u_t = aclf_controller.u(x, theta_hat)
+        u_t = aclf_controller.u(x, theta_hat, Q_u)
+        Description:
+            Get the control input for a given state
+        Input:
+            x: bs x self.dynamics_model.n_dims tensor of state
+            theta_hat: bs x self.dynamics_model.n_params tensor of state
+            Q_u: the self.dynamics_model.n_controls x self.dynamics_model.n_controls
+                Q matrix used to weight the inputs given to the CLF QP
+
+        """
         u, _ = self.solve_CLF_QP(x, theta_hat)
         return u
 

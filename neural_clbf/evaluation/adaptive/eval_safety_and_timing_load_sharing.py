@@ -314,6 +314,53 @@ def inflate_context_using_hyperparameters(hyperparams):
     return dynamics_model, scenarios, data_module, experiment_suite, start_x
 
 
+def create_case_study_experiments(
+        x0: torch.tensor,
+        theta_hat0: torch.tensor,
+        theta0: torch.tensor,
+        t_sim: float,
+        controller_to_test: "Controller",
+):
+    """
+    safety_case_study_experiment, safety_trajopt_exp, safety_mpc_exp = create_case_study_experiments(
+        x0, theta_hat0, theta0,
+        t_sim, controller_to_test,
+    )
+    Description:
+
+    """
+
+    # Algorithms
+    safety_case_study_experiment = CaseStudySafetyExperiment(
+        "Safety Case Study",
+        x0, theta_hat0, theta0,
+        n_sims_per_start=1,
+        t_sim=t_sim,
+        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
+        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
+    )
+    controller_to_test.experiment_suite = ExperimentSuite([safety_case_study_experiment])
+
+    safety_trajopt_exp = CaseStudySafetyExperimentTrajOpt2(
+        "Safety Case Study - TrajOpt2",
+        x0, theta_hat0, theta0,
+        n_sims_per_start=1,
+        t_sim=t_sim,
+        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
+        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
+    )
+
+    safety_mpc_exp = CaseStudySafetyExperimentMPC(
+        "Safety Case Study - MPC",
+        x0, theta_hat0, theta0,
+        n_sims_per_start=1,
+        t_sim=t_sim,
+        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
+        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
+    )
+
+    return safety_case_study_experiment, safety_trajopt_exp, safety_mpc_exp
+
 def main(args):
     """
     main
@@ -346,40 +393,20 @@ def main(args):
         U_trajopt, X_trajopt = load_yaml_trajectory_data(args.yaml_filename)
 
     # Create the safety case study experiment
-    safety_case_study_experiment = CaseStudySafetyExperiment(
-        "Safety Case Study",
+    safety_case_study_experiment, safety_trajopt_exp, safety_mpc_exp = create_case_study_experiments(
         x0, theta_hat0, theta0,
-        n_sims_per_start=1,
-        t_sim=t_sim,
-        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
-        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
-    )
-    controller_to_test.experiment_suite = ExperimentSuite([safety_case_study_experiment])
-
-    safety_trajopt_exp = CaseStudySafetyExperimentTrajOpt2(
-        "Safety Case Study - TrajOpt2",
-        x0, theta_hat0, theta0,
-        n_sims_per_start=1,
-        t_sim=t_sim,
-        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
-        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
-    )
-
-    safety_mpc_exp = CaseStudySafetyExperimentMPC(
-        "Safety Case Study - MPC",
-        x0,
-        n_sims_per_start=1,
-        t_sim=t_sim,
-        plot_x_indices=[LoadSharingManipulator.P_X, LoadSharingManipulator.P_Y, LoadSharingManipulator.P_Z],
-        plot_x_labels=["$p_x$", "$p_y$", "$p_z$"],
+        t_sim, controller_to_test,
     )
 
     # Run the experiments
     aclbf_counts, aclbf_results_df = None, None
     counts_nominal, nominal_results_df = None, None
     counts_trajopt2, trajopt2_results_df, trajopt2_synthesis_times = None, None, None
+    counts_trajopt, trajopt_results_df = None, None
+    counts_mpc, mpc_results_df = None, None
 
     # - aCLBF Controller Safety Testing
+    controller_to_test.clf_relaxation_penalty = 1e3
     aclbf_results_df = safety_case_study_experiment.run(controller_to_test)
     aclbf_counts = tabulate_number_of_reaches(
         aclbf_results_df, controller_to_test.dynamics_model,
@@ -392,12 +419,6 @@ def main(args):
     counts_nominal = tabulate_number_of_reaches(
         nominal_results_df, controller_to_test.dynamics_model,
     )
-
-    # - MPC Controller Safety Testing
-    # results_df = safety_mpc_exp.run(controller_to_test)
-    # counts = tabulate_number_of_reaches(
-    #     results_df, controller_to_test.dynamics_model,
-    # )
 
     # - Optimized Trajectory Safety Testing #2 (in-function traj opt)
     def lsm_update(t, x, u, params):
@@ -446,24 +467,43 @@ def main(args):
         )
     )
 
-    trajopt2_results_df, trajopt2_synthesis_times = safety_trajopt_exp.run(
-        controller_to_test.dynamics_model, controller_to_test.controller_period,
-        lsm_update,
-        Tf=t_sim,
-        P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
-        Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
-        R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
-        N_timepts=20,
-        u0=np.array([-1.0, 1.0, 100.0]),
-        constraints=constraints,
-    )
-    counts_trajopt2 = tabulate_number_of_reaches(
-        trajopt2_results_df, controller_to_test.dynamics_model,
-    )
+    # trajopt2_results_df, trajopt2_synthesis_times, X_trajopt, U_trajopt, t_trajopt, trajopt_durations = safety_trajopt_exp.run(
+    #     controller_to_test.dynamics_model, controller_to_test.controller_period,
+    #     lsm_update,
+    #     Tf=t_sim,
+    #     P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
+    #     Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
+    #     R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
+    #     N_timepts=20,
+    #     u0=np.array([-1.0, 1.0, 100.0]),
+    #     constraints=constraints,
+    # )
+    # counts_trajopt2 = tabulate_number_of_reaches(
+    #     trajopt2_results_df, controller_to_test.dynamics_model,
+    # )
 
-    counts_trajopt = None
-    counts_mpc = None
+    # - MPC Controller Safety Testing
+    # mpc_results_df = safety_mpc_exp.run(
+    #     controller_to_test.dynamics_model, controller_to_test.controller_period,
+    #     lsm_update,
+    #     Tf=t_sim,
+    #     P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
+    #     Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
+    #     R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
+    #     N_timepts=20,
+    #     u0=np.array([-1.0, 1.0, 100.0]),
+    #     constraints=constraints,
+    #     X_trajopt=X_trajopt,
+    #     U_trajopt=U_trajopt,
+    #     t_trajopt=t_trajopt,
+    #     trajopt_durations=trajopt_durations,
+    # )
+    # counts_mpc = tabulate_number_of_reaches(
+    #     mpc_results_df, controller_to_test.dynamics_model,
+    # )
+
     if args.yaml_filename is not None:
+
         # - Optimized Trajectory Safety Testing
         trajopt_results_df = safety_case_study_experiment.run_trajopt_controlled(
             controller_to_test.dynamics_model, controller_to_test.controller_period, U_trajopt,
@@ -506,6 +546,7 @@ def main(args):
         nominal_results_df=nominal_results_df,
         trajopt2_results_df=trajopt2_results_df,
         trajopt2_synthesis_times=trajopt2_synthesis_times,
+        mpc_results_df=mpc_results_df,
     )
 
     # fig_handles = controller_to_test.experiment_suite.run_all_and_plot(

@@ -36,10 +36,10 @@ if TYPE_CHECKING:
     from neural_clbf.systems import ObservableSystem  # noqa
 
 
-class CaseStudySafetyExperimentTrajOpt2(Experiment):
+class CaseStudySafetyExperimentMPC(Experiment):
     """
-    experim = CaseStudySafetyExperiment("Case Study 1", start_x, n_sims_per_start=5, t_sim=5.0)
-    experim = CaseStudySafetyExperiment("Case Study 2", start_x, n_sims_per_start=5, t_sim=5.0, x_indices=[0, 1], x_labels=["x", "y"])
+    experim = CaseStudySafetyExperimentMPC("Case Study 1", start_x, n_sims_per_start=5, t_sim=5.0)
+    experim = CaseStudySafetyExperimentMPC("Case Study 2", start_x, n_sims_per_start=5, t_sim=5.0, x_indices=[0, 1], x_labels=["x", "y"])
 
     Description:
         An experiment for plotting rollout performance of controllers.
@@ -72,7 +72,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
                               per row in start_x
             t_sim: the amount of time to simulate for
         """
-        super(CaseStudySafetyExperimentTrajOpt2, self).__init__(name)
+        super(CaseStudySafetyExperimentMPC, self).__init__(name)
 
         # Save parameters
         self.start_x = start_x
@@ -102,7 +102,12 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
             R: np.array = None,
             P: np.array = None,
             N_timepts: int = 100,
-    ) -> Tuple[pd.DataFrame, List[float], torch.tensor, torch.tensor, np.array, List[float]]:
+            mpc_horizon: int = 10,
+            U_trajopt: torch.Tensor = None,
+            X_trajopt: torch.Tensor = None,
+            t_trajopt: torch.Tensor = None,
+            trajopt_durations: List[float] = None,
+    ) -> Tuple[pd.DataFrame, List[float], torch.tensor, torch.tensor]:
         """
         results_df, traj_opt_times, control_sequences, state_sequences = self.run(
             dynamics,
@@ -129,6 +134,12 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
             format (i.e. each row should correspond to a single observation from the
             experiment).
         """
+        # Input Processing
+        self.U_trajopt = U_trajopt
+        self.X_trajopt = X_trajopt
+        if trajopt_durations is not None:
+            traj_opt_times = trajopt_durations
+
         # Constants
         scenarios = [dynamics.nominal_scenario]
         results = []  # Set up a dataframe to store the results
@@ -170,15 +181,20 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
         theta_current = theta_sim_start.to(device)
         theta_hat_current = theta_hat_sim_start.to(device)
 
-        # Optimize Trajectories
-        control_sequences, theta_samples, traj_opt_times, t, state_sequences = self.synthesize_trajectories(
-            dynamics, dynamics_update,
-            Tf,
-            u0= u0, uf=uf,
-            constraints= constraints,
-            Q=Q, R=R, P=P,
-            N_timepts=N_timepts,
-        )
+        # Optimize Trajectories (if none are given)
+        if (self.X_trajopt is None) or (self.U_trajopt is None) or (t_trajopt is None):
+            control_sequences, theta_samples, traj_opt_times, t, state_sequences = self.synthesize_trajectories(
+                dynamics, dynamics_update,
+                Tf,
+                u0=u0, uf=uf,
+                constraints=constraints,
+                Q=Q, R=R, P=P,
+                N_timepts=N_timepts,
+            )
+
+            self.X_trajopt = state_sequences
+            self.U_trajopt = control_sequences
+            t_trajopt = t
 
         # See how long controller took
         controller_calls = 0
@@ -197,11 +213,14 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
             if tstep % controller_update_freq == 0:
                 start_time = time.time()
                 # Find input for this time window
-                time_window_indices = torch.nonzero(torch.tensor(t) <= tstep * delta_t)[-1]
+                time_window_indices = torch.nonzero(torch.tensor(t_trajopt) <= tstep * delta_t)[-1]
                 last_time_window_index = time_window_indices[-1]
-                u_current[:, :] = control_sequences[
-                    :, last_time_window_index, :,
-                ].reshape(x_sim_start.shape[0], n_controls)
+                u_current = dynamics.mpc_about_input_trajectory(
+                    x_current,
+                    theta_hat_current,
+                    self.X_trajopt,
+                    horizon=mpc_horizon,
+                )
                 end_time = time.time()
                 controller_calls += 1
                 controller_time += end_time - start_time
@@ -269,7 +288,7 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
                 # Maintain constant belief about parameters
                 theta_hat_current[i, :] = theta_hat_current[i, :]  # + delta_t * theta_hat_dot.squeeze()
 
-        return pd.DataFrame(results), traj_opt_times, control_sequences, state_sequences, t, traj_opt_times
+        return pd.DataFrame(results), traj_opt_times, self.U_trajopt, self.X_trajopt
 
     def synthesize_trajectories(
         self,

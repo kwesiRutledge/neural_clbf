@@ -169,7 +169,10 @@ class CaseStudySafetyExperiment(Experiment):
             # Get the control input at the current state if it's time
             if tstep % controller_update_freq == 0:
                 start_time = time.time()
-                u_current = controller_under_test.u(x_current, theta_hat_current)
+                u_current = controller_under_test.u(
+                    x_current, theta_hat_current,
+                    Q_u=np.diag([0.01, 0.01, 0.01]),
+                )
                 end_time = time.time()
                 controller_calls += 1
                 controller_time += end_time - start_time
@@ -1032,6 +1035,7 @@ class CaseStudySafetyExperiment(Experiment):
         nominal_results_df: pd.DataFrame = None,
         trajopt2_results_df: pd.DataFrame = None,
         trajopt2_synthesis_times: List[float] = None,
+        mpc_results_df: pd.DataFrame = None,
     ):
         """
         save_timing_data_table
@@ -1055,6 +1059,10 @@ class CaseStudySafetyExperiment(Experiment):
         if trajopt2_results_df is not None:
             trajopt2_data_dict = get_avg_computation_time_from_df(trajopt2_results_df)
 
+        mpc_data_dict = None
+        if mpc_results_df is not None:
+            mpc_data_dict = get_avg_computation_time_from_df(mpc_results_df)
+
         # Save the data to txt file
         with open(table_name, "w") as f:
             comments = [f"n_sims_per_start={self.n_sims_per_start}"]
@@ -1067,6 +1075,7 @@ class CaseStudySafetyExperiment(Experiment):
                 nominal_timing=nominal_data_dict,
                 trajopt2_timing=trajopt2_data_dict,
                 trajopt2_synthesis_times=trajopt2_synthesis_times,
+                mpc_timing=mpc_data_dict,
                 comments=comments,
             )
 
