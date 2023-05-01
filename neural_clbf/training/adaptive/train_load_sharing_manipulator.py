@@ -228,7 +228,7 @@ def main(args):
         clf_lambda=t_hyper["clf_lambda"],
         safe_level=t_hyper["safe_level"],
         controller_period=t_hyper["controller_period"],
-        clf_relaxation_penalty=1e2,
+        clf_relaxation_penalty=1e3,
         num_init_epochs=t_hyper["num_init_epochs"],
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
