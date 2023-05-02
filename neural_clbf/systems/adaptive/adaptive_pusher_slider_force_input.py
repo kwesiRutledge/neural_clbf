@@ -315,6 +315,11 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         return 0.1
 
     @property
+    def goal_tolerance(self):
+        """Return the tolerance of the goal region"""
+        return self.goal_radius
+
+    @property
     def u_eq(self):
         return torch.zeros((1, self.n_controls)).to(self.device)
 
