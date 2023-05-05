@@ -58,6 +58,10 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--gradient_clip_val', type=float, default=float('Inf'),
         help='Gradient clipping value (default: Inf)',
     )
+    ap.add_argument(
+        '--clf_relaxation_penalty', type=float, default=1e2,
+        help='Penalty for the relaxation of the CLF (default: 1e2)',
+    )
     # Including Certain Losses
     ap.add_argument(
         '--include_estimation_error_loss', type=bool, default=False,
