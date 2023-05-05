@@ -45,6 +45,7 @@ def timing_data_to_latex_table(
         trajopt2_timing: Dict[str, int] = None,
         mpc_timing: Dict[str, int] = None,
         trajopt2_synthesis_times: Dict[str, int] = None,
+        mpc_trajopt_synthesis_times: List[float] = None,
         comments: List[str] = None,
 ) -> str:
     """
@@ -93,7 +94,15 @@ def timing_data_to_latex_table(
         trajopt2_overall_compute_avg_timing = "{:.2f}".format(trajopt2_timing['OverallAverage'] * 1000)
         trajopt_avg_synthesis_time = "{:.2f}".format(np.mean(np.array(trajopt2_synthesis_times)) * 1000)
         lines_of_table += [
-            f"\t\t" + f"Trajopt2 & {trajopt_avg_synthesis_time} & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
+            f"\t\t" + f"TrajOpt & {trajopt_avg_synthesis_time} & {trajopt2_overall_compute_avg_timing} \\\\ \n"]
+        lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
+
+    # - (Hybrid) MPC about optimized trajectory
+    if mpc_timing is not None:
+        mpc_overall_compute_avg_timing = "{:.2f}".format(mpc_timing['OverallAverage'] * 1000)
+        mpc_avg_traj_synthesis_time = "{:.2f}".format(np.mean(np.array(mpc_trajopt_synthesis_times)) * 1000)
+        lines_of_table += [
+            f"\t\t" + f"MPC & {mpc_avg_traj_synthesis_time} & {mpc_overall_compute_avg_timing} \\\\ \n"]
         lines_of_table += [f"\t\t" + r"\hline" + f"\n"]
 
     # # - (Hybrid) MPC about optimized trajectory
@@ -453,3 +462,66 @@ def create_initial_states_parameters_and_estimates(
     )
 
     return x_sim_start, theta_sim_start, theta_hat_sim_start
+
+
+def save_timing_data_table(
+        table_name: str,
+        commit_prefix: str,
+        version_number: str,
+        aclbf_results_df: pd.DataFrame = None,
+        nominal_results_df: pd.DataFrame = None,
+        trajopt2_results_df: pd.DataFrame = None,
+        trajopt2_synthesis_times: List[float] = None,
+        mpc_results_df: pd.DataFrame = None,
+        mpc_trajopt_synthesis_times: List[float] = None,
+        # Extra data for documentation
+        n_sims_per_start: int = -1,
+        n_x0s: int = -1,
+    ):
+        """
+        save_timing_data_table
+        Description:
+            Saves a table of timing data to a txt file that can
+            be copied into a latex table.
+        """
+
+        # Constants
+
+        # Collect the data
+        aclbf_data_dict = None
+        if aclbf_results_df is not None:
+            aclbf_data_dict = get_avg_computation_time_from_df(aclbf_results_df)
+
+        nominal_data_dict = None
+        if nominal_results_df is not None:
+            nominal_data_dict = get_avg_computation_time_from_df(nominal_results_df)
+
+        trajopt2_data_dict = None
+        if trajopt2_results_df is not None:
+            trajopt2_data_dict = get_avg_computation_time_from_df(trajopt2_results_df)
+
+        mpc_data_dict = None
+        if mpc_results_df is not None:
+            mpc_data_dict = get_avg_computation_time_from_df(mpc_results_df)
+
+        # Save the data to txt file
+        with open(table_name, "w") as f:
+            if n_sims_per_start > 0:
+                comments = [f"n_sims_per_start={n_sims_per_start}"]
+            if n_x0s > 0:
+                comments += [f"n_x0={n_x0s}"]
+
+            comments += [f"commit_prefix={commit_prefix}"]
+            comments += [f"version_number={version_number}"]
+
+            lines = timing_data_to_latex_table(
+                aclbf_data_dict,
+                nominal_timing=nominal_data_dict,
+                trajopt2_timing=trajopt2_data_dict,
+                trajopt2_synthesis_times=trajopt2_synthesis_times,
+                mpc_timing=mpc_data_dict,
+                mpc_trajopt_synthesis_times=mpc_trajopt_synthesis_times,
+                comments=comments,
+            )
+
+            f.writelines(lines)

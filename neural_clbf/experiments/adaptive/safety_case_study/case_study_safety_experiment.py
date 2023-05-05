@@ -860,6 +860,7 @@ class CaseStudySafetyExperiment(Experiment):
         aclbf_results_df: pd.DataFrame = None,
         nominal_results_df: pd.DataFrame = None,
         trajopt2_results_df: pd.DataFrame = None,
+        mpc_results_df: pd.DataFrame = None,
         display_plots: bool = False,
     ) -> List[Tuple[str, figure]]:
         """
@@ -913,6 +914,16 @@ class CaseStudySafetyExperiment(Experiment):
             if not display_plots:
                 fig_handles.append(fig_handle3)
 
+        if mpc_results_df is not None:
+            fig_handle4 = self.plot_trajectory(
+                mpc_results_df,
+                controller_under_test.dynamics_model,
+                fig_name="Rollout (mpc)",
+            )
+
+            if not display_plots:
+                fig_handles.append(fig_handle4)
+
         if display_plots:
             plt.show()
             return fig_handles
@@ -948,7 +959,11 @@ class CaseStudySafetyExperiment(Experiment):
         fig.set_size_inches(9 * num_plots, 6)
 
         rollout_ax = fig.add_subplot(100+10*num_plots+1, projection="3d")
-        plot_rollouts(results_df, rollout_ax, dynamical_system, self.plot_x_labels)
+        plot_rollouts(
+            results_df, rollout_ax, dynamical_system, self.plot_x_labels,
+            x_limits=[-0.6, 0.6], y_limits=[-0.6, 0.6],
+            show_environment=False,
+        )
 
 
         # Plot the error
@@ -1025,58 +1040,3 @@ class CaseStudySafetyExperiment(Experiment):
             )
             error_ax.set_xlabel("$t$")
             error_ax.set_ylabel("$\| r(t) - r_{des}(t) \|$")
-
-    def save_timing_data_table(
-        self,
-        table_name: str,
-        commit_prefix: str,
-        version_number: str,
-        aclbf_results_df: pd.DataFrame = None,
-        nominal_results_df: pd.DataFrame = None,
-        trajopt2_results_df: pd.DataFrame = None,
-        trajopt2_synthesis_times: List[float] = None,
-        mpc_results_df: pd.DataFrame = None,
-    ):
-        """
-        save_timing_data_table
-        Description:
-            Saves a table of timing data to a txt file that can
-            be copied into a latex table.
-        """
-
-        # Constants
-
-        # Collect the data
-        aclbf_data_dict = None
-        if aclbf_results_df is not None:
-            aclbf_data_dict = get_avg_computation_time_from_df(aclbf_results_df)
-
-        nominal_data_dict = None
-        if nominal_results_df is not None:
-            nominal_data_dict = get_avg_computation_time_from_df(nominal_results_df)
-
-        trajopt2_data_dict = None
-        if trajopt2_results_df is not None:
-            trajopt2_data_dict = get_avg_computation_time_from_df(trajopt2_results_df)
-
-        mpc_data_dict = None
-        if mpc_results_df is not None:
-            mpc_data_dict = get_avg_computation_time_from_df(mpc_results_df)
-
-        # Save the data to txt file
-        with open(table_name, "w") as f:
-            comments = [f"n_sims_per_start={self.n_sims_per_start}"]
-            comments += [f"n_x0={self.start_x.shape[0]}"]
-            comments += [f"commit_prefix={commit_prefix}"]
-            comments += [f"version_number={version_number}"]
-
-            lines = timing_data_to_latex_table(
-                aclbf_data_dict,
-                nominal_timing=nominal_data_dict,
-                trajopt2_timing=trajopt2_data_dict,
-                trajopt2_synthesis_times=trajopt2_synthesis_times,
-                mpc_timing=mpc_data_dict,
-                comments=comments,
-            )
-
-            f.writelines(lines)

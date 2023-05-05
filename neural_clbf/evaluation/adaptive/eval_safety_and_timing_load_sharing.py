@@ -28,9 +28,10 @@ from neural_clbf.experiments.adaptive.safety_case_study import (
     counts_to_latex_table, tabulate_number_of_reaches,
     CaseStudySafetyExperimentMPC, CaseStudySafetyExperimentTrajOpt2,
     create_initial_states_parameters_and_estimates,
+    CaseStudySafetyExperiment, save_timing_data_table,
 )
 from neural_clbf.experiments.adaptive import (
-    RolloutParameterConvergenceExperiment, CaseStudySafetyExperiment,
+    RolloutParameterConvergenceExperiment,
 )
 
 from neural_clbf.evaluation.adaptive import (
@@ -217,13 +218,13 @@ def inflate_context_using_hyperparameters(hyperparams):
             [obs[0],                obs[1]-4.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
             [obs[0],                obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
             [obs[0],                obs[1]-4.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
-            [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
+            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            # [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
+            # [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
+            # [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
+            # [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
             # [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
             # [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
             # [0.1, -0.05, 0.3, 0.0, 0.0, 0.0],
@@ -406,7 +407,7 @@ def main(args):
     counts_mpc, mpc_results_df = None, None
 
     # - aCLBF Controller Safety Testing
-    controller_to_test.clf_relaxation_penalty = 1e3
+    controller_to_test.clf_relaxation_penalty = 1e4
     aclbf_results_df = safety_case_study_experiment.run(controller_to_test)
     aclbf_counts = tabulate_number_of_reaches(
         aclbf_results_df, controller_to_test.dynamics_model,
@@ -467,40 +468,40 @@ def main(args):
         )
     )
 
-    # trajopt2_results_df, trajopt2_synthesis_times, X_trajopt, U_trajopt, t_trajopt, trajopt_durations = safety_trajopt_exp.run(
-    #     controller_to_test.dynamics_model, controller_to_test.controller_period,
-    #     lsm_update,
-    #     Tf=t_sim,
-    #     P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
-    #     Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
-    #     R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
-    #     N_timepts=20,
-    #     u0=np.array([-1.0, 1.0, 100.0]),
-    #     constraints=constraints,
-    # )
-    # counts_trajopt2 = tabulate_number_of_reaches(
-    #     trajopt2_results_df, controller_to_test.dynamics_model,
-    # )
+    trajopt2_results_df, trajopt2_synthesis_times, X_trajopt, U_trajopt, t_trajopt, trajopt_durations = safety_trajopt_exp.run(
+        controller_to_test.dynamics_model, controller_to_test.controller_period,
+        lsm_update,
+        Tf=t_sim,
+        P=np.diag([5.0e3, 5.0e3, 5.0e3, 5.0e3, 5.0e3, 5.0e3]),
+        Q=np.diag([1.0e2, 1.0e2, 1.0e2, 3.0e1, 3.0e1, 3.0e1]),
+        R=np.diag([0.0e-2, 0.0e-2, 1.0e-1]),
+        N_timepts=20,
+        u0=np.array([-1.0, 1.0, 100.0]),
+        constraints=constraints,
+    )
+    counts_trajopt2 = tabulate_number_of_reaches(
+        trajopt2_results_df, controller_to_test.dynamics_model,
+    )
 
     # - MPC Controller Safety Testing
-    # mpc_results_df = safety_mpc_exp.run(
-    #     controller_to_test.dynamics_model, controller_to_test.controller_period,
-    #     lsm_update,
-    #     Tf=t_sim,
-    #     P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
-    #     Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
-    #     R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
-    #     N_timepts=20,
-    #     u0=np.array([-1.0, 1.0, 100.0]),
-    #     constraints=constraints,
-    #     X_trajopt=X_trajopt,
-    #     U_trajopt=U_trajopt,
-    #     t_trajopt=t_trajopt,
-    #     trajopt_durations=trajopt_durations,
-    # )
-    # counts_mpc = tabulate_number_of_reaches(
-    #     mpc_results_df, controller_to_test.dynamics_model,
-    # )
+    mpc_results_df, mpc_traj_synthesis_times, X_mpc_trajopt, U_mpc_trajopt, t_mpc_trajopt, mpc_trajopt_durations = safety_mpc_exp.run(
+        controller_to_test.dynamics_model, controller_to_test.controller_period,
+        lsm_update,
+        Tf=t_sim,
+        P=np.diag([5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5, 5.0e5]),
+        Q=np.diag([1.0e4, 1.0e4, 1.0e4, 3.0e3, 3.0e3, 3.0e3]),
+        R=np.diag([0.0e-2, 0.0e-2, 0.0e-2]),
+        N_timepts=20,
+        u0=np.array([-1.0, 1.0, 100.0]),
+        constraints=constraints,
+        X_trajopt=X_trajopt,
+        U_trajopt=U_trajopt,
+        t_trajopt=t_trajopt,
+        trajopt_durations=trajopt_durations,
+    )
+    counts_mpc = tabulate_number_of_reaches(
+        mpc_results_df, controller_to_test.dynamics_model,
+    )
 
     if args.yaml_filename is not None:
 
@@ -539,7 +540,7 @@ def main(args):
         f.writelines(lines)
 
     # Save Timing Results to Table
-    safety_case_study_experiment.save_timing_data_table(
+    save_timing_data_table(
         "../datafiles/load_sharing/safety_case_study_timing_results.txt",
         args.commit_prefix, args.version_number,
         aclbf_results_df=aclbf_results_df,
@@ -547,6 +548,9 @@ def main(args):
         trajopt2_results_df=trajopt2_results_df,
         trajopt2_synthesis_times=trajopt2_synthesis_times,
         mpc_results_df=mpc_results_df,
+        mpc_trajopt_synthesis_times=trajopt2_synthesis_times,
+        n_sims_per_start=safety_case_study_experiment.n_sims_per_start,
+        n_x0s=x0.shape[0],
     )
 
     # fig_handles = controller_to_test.experiment_suite.run_all_and_plot(
@@ -557,10 +561,16 @@ def main(args):
         aclbf_results_df,
         nominal_results_df=nominal_results_df,
         trajopt2_results_df=trajopt2_results_df,
+        mpc_results_df=mpc_results_df,
         display_plots=False,
     )
 
-    fig_titles = ["case_study1-aclbf-perf", "case_study1-nominal-perf", "case_study1-trajopt2-perf"]
+    fig_titles = [
+        "case_study1-aclbf-perf",
+        "case_study1-nominal-perf",
+        "case_study1-trajopt2-perf",
+        "case_study1-mpc-perf",
+    ]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
         matplotlib.pyplot.figure(fig_obj.number)
