@@ -553,14 +553,14 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
         des_angle_greater_mask.logical_and_(
             des_angle > angle_upper,
         )
-        u_nominal[des_angle_greater_mask, :] = f_l / torch.norm(f_l)
+        u_nominal[des_angle_greater_mask, :] = f_u / torch.norm(f_u)
 
         # 2. Vector points below lower friction cone vector
         des_angle_less_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
         des_angle_less_mask.logical_and_(
             des_angle < angle_lower,
         )
-        u_nominal[des_angle_less_mask, :] = f_u / torch.norm(f_u)
+        u_nominal[des_angle_less_mask, :] = f_l / torch.norm(f_l)
 
         # 3. Vector points in the friction cone
         des_angle_in_fc_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
