@@ -95,7 +95,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 200,
         "trajectory_length": 20,
         "accelerator": accelerator,
-        "num_init_epochs": 20,
+        "num_init_epochs": 15,
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
         #"gradient_clip_val": args.gradient_clip_val,
