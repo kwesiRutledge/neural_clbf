@@ -584,9 +584,15 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         ax.set_ylabel('$p_y$')
         ax.set_zlabel('$p_z$')
 
-    def basic_mpc1(self, x: torch.Tensor, dt: float, N_mpc: int = 5) -> torch.Tensor:
+    def basic_mpc1(
+            self,
+            x: torch.Tensor,
+            dt: float,
+            U_traj: torch.Tensor,
+            N_mpc: int = 5,
+    ) -> torch.Tensor:
         """
-        basic_mpc1
+        u_qp = lsm.basic_mpc1(x,dt, U_traj, N_mpc)
         Description:
             From the set of batch states x, this function computes the batch of inputs
             that solve the basic linearized MPC.
