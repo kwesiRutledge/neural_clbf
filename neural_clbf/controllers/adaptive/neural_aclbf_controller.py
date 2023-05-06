@@ -61,6 +61,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         Gamma_factor: float = None,
         include_oracle_loss: bool = True,
         include_estimation_error_loss: bool = False,
+        Q_u: np.array = None,
     ):
         """Initialize the controller.
 
@@ -95,6 +96,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             clf_relaxation_penalty=clf_relaxation_penalty,
             controller_period=controller_period,
             Gamma_factor=Gamma_factor,
+            Q_u=Q_u,
         )
 
         self.save_hyperparameters()

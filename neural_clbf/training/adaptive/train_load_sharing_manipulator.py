@@ -75,8 +75,9 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 32,
+        "batch_size": 64,
         "controller_period": 0.1,
+        "Q_u": np.diag([1.0, 1.0, 0.1]),
         "start_x": start_x,
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
@@ -234,6 +235,7 @@ def main(args):
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
+        Q_u=t_hyper["Q_u"],
     )
 
     # Initialize the logger and trainer

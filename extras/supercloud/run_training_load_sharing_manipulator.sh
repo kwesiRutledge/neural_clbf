@@ -19,7 +19,7 @@ source activate neural_clbf
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive/
 python train_load_sharing_manipulator.py \
   --max_epochs 151 --clf_lambda 1.0 \
-  --safe_level 10.0 --clf_relaxation_penalty 1e4 \
+  --safe_level 10.0 \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
   --gradient_clip_val 1000.0
