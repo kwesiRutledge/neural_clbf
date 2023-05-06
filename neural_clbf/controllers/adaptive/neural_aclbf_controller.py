@@ -486,6 +486,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         n_controls = self.dynamics_model.n_controls
         n_params = self.dynamics_model.n_params
         V_Theta = pc.extreme(self.dynamics_model.Theta)
+        n_V_Theta = V_Theta.shape[0]
 
         # The aCLBF decrease condition requires that V is decreasing everywhere where
         # Va <= safe_level. We'll encourage this in three ways:
@@ -550,7 +551,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
                 Vdot = Vdot.reshape(Va.shape)
                 violation = F.relu(eps + Vdot + self.clf_lambda * Va)
                 violation = violation * condition_active
-                clbf_descent_term_lin = clbf_descent_term_lin + violation.mean()
+                clbf_descent_term_lin = clbf_descent_term_lin + (1./n_V_Theta) * violation.mean()
                 clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
                     violation.nelement() * self.n_scenarios
                 )
