@@ -33,6 +33,7 @@ class aCLFController(Controller):
         clf_relaxation_penalty: float = 50.0,
         controller_period: float = 0.01,
         Gamma_factor: float = None,
+        Q_u: np.array = None,
     ):
         """Initialize the controller.
 
@@ -68,6 +69,10 @@ class aCLFController(Controller):
             self.Gamma_factor = 1.0
         self.Gamma = torch.eye(self.dynamics_model.n_params) * self.Gamma_factor
 
+        # Save the control penalty matrices
+        self.Q_u = Q_u
+        if self.Q_u is None:
+            self.Q_u = np.eye(self.dynamics_model.n_controls)
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set
         # up the CVXPyLayers optimization. First, we define variables for each control
@@ -161,7 +166,7 @@ class aCLFController(Controller):
         )
 
         # And define the objective
-        objective_expression = cp.sum_squares(u - u_ref_param)
+        objective_expression = cp.quad_form(u - u_ref_param, self.Q_u)
         for r in clf_relaxations:
             objective_expression = objective_expression + cp.multiply(clf_relaxation_penalty_param, r)
         objective = cp.Minimize(objective_expression)
