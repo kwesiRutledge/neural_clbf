@@ -157,9 +157,9 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-1.0, 1.0),        # s_x
-        (-1.0, 1.0),        # s_y
-        (-np.pi, np.pi),    # s_theta
+        (-0.7, -0.4),  # s_x
+        (-0.8, -0.4),  # s_y
+        (0.0, np.pi / 2),  # s_theta
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
