@@ -427,7 +427,7 @@ class aCLFController(Controller):
         list_LGi_V: torch.Tensor,
         LGammadVG_V: torch.Tensor,
         relaxation_penalty: float,
-        Q_u: np.array=None,
+        Q: np.array=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Determine the control input for a given state using a QP. Solves the QP using
         Gurobi, which does not allow for backpropagation.
