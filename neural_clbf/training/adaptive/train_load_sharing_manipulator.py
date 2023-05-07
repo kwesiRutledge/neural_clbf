@@ -154,12 +154,12 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-0.4, 0.4),# p_x
-        (-0.4, 0.4),             # p_y
-        (0.0, 0.7),             # p_z
-        (-0.5, 0.5),            # v_x
-        (-0.5, 0.5),            # v_y
-        (-0.5, 0.5),            # v_z
+        (-1.0, 1.0),    # p_x
+        (-1.0, 1.0),    # p_y
+        (-1.0, 1.0),    # p_z
+        (-10.0, 10.0),  # v_x
+        (-10.0, 10.0),  # v_y
+        (-10.0, 10.0),  # v_z
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
