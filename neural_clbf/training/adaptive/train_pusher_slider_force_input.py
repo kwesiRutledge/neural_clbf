@@ -76,7 +76,7 @@ def create_training_hyperparams(args)-> Dict:
 
     # Create default number of maximum epochs
     hyperparams_for_evaluation = {
-        "batch_size": 128,
+        "batch_size": 64,
         "controller_period": 0.1,
         "start_x": start_x,
         "simulation_dt": 0.025,
@@ -156,9 +156,9 @@ def main(args):
 
     # Initialize the DataModule
     initial_conditions = [
-        (-0.7, -0.8),       # s_x
-        (-0.8, -0.8),        # s_y
-        (0.0, np.pi/2),   # s_theta
+        (-0.6, 0.6),       # s_x
+        (-0.6, 0.6),        # s_y
+        (-np.pi, np.pi),   # s_theta
     ]
     data_module = EpisodicDataModuleAdaptive(
         dynamics_model,
