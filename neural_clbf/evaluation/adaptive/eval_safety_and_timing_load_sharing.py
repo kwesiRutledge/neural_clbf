@@ -158,6 +158,14 @@ def extract_hyperparams_from_args(args):
         plot_unsafe_region=False,
     )
 
+    clf_relaxation_penalty = 1e2
+    if "clf_relaxation_penalty" in saved_hyperparams.keys():
+        clf_relaxation_penalty = saved_hyperparams["clf_relaxation_penalty"]
+
+    Q_u = np.diag([1.0 for i in range(dynamics_model.n_controls)])
+    if "Q_u" in saved_hyperparams.keys():
+        Q_u = saved_hyperparams["Q_u"]
+
     controller_from_state_dict = NeuralaCLBFController(
         dynamics_model,
         scenarios,
@@ -168,12 +176,13 @@ def extract_hyperparams_from_args(args):
         clf_lambda=saved_hyperparams["clf_lambda"],
         safe_level=saved_hyperparams["safe_level"],
         controller_period=saved_hyperparams["controller_period"],
-        clf_relaxation_penalty=1e2,
+        clf_relaxation_penalty=clf_relaxation_penalty,
         num_init_epochs=saved_hyperparams["num_init_epochs"],
         epochs_per_episode=100,
         barrier=saved_hyperparams["barrier"],
         Gamma_factor=saved_hyperparams["Gamma_factor"],
         include_oracle_loss=saved_hyperparams["include_oracle_loss"],
+        Q_u=Q_u,
     )
     controller_from_state_dict.load_state_dict(
         saved_state_dict,

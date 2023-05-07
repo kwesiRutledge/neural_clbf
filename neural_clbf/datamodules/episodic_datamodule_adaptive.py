@@ -42,6 +42,8 @@ class EpisodicDataModuleAdaptive(pl.LightningDataModule):
             model: the dynamics model to use in simulation
             initial_domain: the initial_domain to sample from, expressed as a list of
                              tuples denoting the min/max range for each dimension
+                             i.e., the initial conditions of each sampled trajectory.
+                             The fixed samples will be sampled from a DIFFERENT domain.
             trajectories_per_episode: the number of rollouts to conduct at each episode
             trajectory_length: the number of samples to collect in each trajectory
             fixed_samples: the number of uniform samples to collect

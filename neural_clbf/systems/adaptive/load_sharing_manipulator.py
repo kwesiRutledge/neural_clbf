@@ -588,7 +588,6 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             self,
             x: torch.Tensor,
             dt: float,
-            U_traj: torch.Tensor,
             N_mpc: int = 5,
     ) -> torch.Tensor:
         """

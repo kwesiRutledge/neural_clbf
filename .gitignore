@@ -146,6 +146,7 @@ neural_clbf/evaluation/datafiles/scalar_demo_capa2/*.txt
 neural_clbf/evaluation/datafiles/tumbling_target/*.png
 neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.png
 neural_clbf/evaluation/datafiles/pusher_slider_sticking/*.txt
+neural_clbf/experiments/adaptive/tests/figures/*.png
 
 # Mac Temporary Files
 *.DS_Store
