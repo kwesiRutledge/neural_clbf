@@ -75,7 +75,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 64,
+        "batch_size": 32,
         "controller_period": 0.1,
         "Q_u": np.diag([1.0, 1.0, 1.0]),
         "start_x": start_x,
@@ -95,8 +95,8 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 200,
         "trajectory_length": 20,
         "accelerator": accelerator,
-        "num_init_epochs": 15,
-        "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
+        "num_init_epochs": 10,
+        # "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
         #"gradient_clip_val": args.gradient_clip_val,
@@ -157,7 +157,7 @@ def main(args):
     initial_conditions = [
         (-1.0, 1.0),    # p_x
         (-1.0, 1.0),    # p_y
-        (-1.0, 1.0),    # p_z
+        ( 0.0, 1.0),    # p_z
         (-10.0, 10.0),  # v_x
         (-10.0, 10.0),  # v_y
         (-10.0, 10.0),  # v_z

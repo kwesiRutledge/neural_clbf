@@ -62,6 +62,10 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--clf_relaxation_penalty', type=float, default=1e2,
         help='Penalty for the relaxation of the CLF (default: 1e2)',
     )
+    ap.add_argument(
+        '--max_iters_cvxpylayer', type=int, default=int(5e7),
+        help='Maximum number of iterations for cvxpylayers (default: 5e7)',
+    )
     # Including Certain Losses
     ap.add_argument(
         '--include_estimation_error_loss', type=bool, default=False,

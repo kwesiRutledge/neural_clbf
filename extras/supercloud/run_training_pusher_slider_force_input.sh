@@ -22,5 +22,6 @@ python train_pusher_slider_force_input.py \
   --safe_level 10.0 \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
-  --include_estimation_error_loss True \
-  --gradient_clip_val 10000.0
+  --include_estimation_error_loss False \
+  --gradient_clip_val 10000.0 \
+  --max_iters_cvxpylayer 5000000
