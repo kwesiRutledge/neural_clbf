@@ -77,7 +77,7 @@ def create_training_hyperparams(args)-> Dict:
     hyperparams_for_evaluation = {
         "batch_size": 64,
         "controller_period": 0.1,
-        "Q_u": np.diag([1.0, 1.0, 0.1]),
+        "Q_u": np.diag([1.0, 1.0, 1.0]),
         "start_x": start_x,
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
@@ -96,6 +96,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 15,
+        "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
         #"gradient_clip_val": args.gradient_clip_val,
@@ -105,7 +106,7 @@ def create_training_hyperparams(args)-> Dict:
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
         # Rollout Experiment Parameters
-        "rollout_experiment_horizon": 15.0,
+        "rollout_experiment_horizon": 10.0,
         # Random Seed Info
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
@@ -236,6 +237,7 @@ def main(args):
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
         Q_u=t_hyper["Q_u"],
+        max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
     )
 
     # Initialize the logger and trainer

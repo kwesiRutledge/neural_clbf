@@ -95,6 +95,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 30,
         "n_fixed_samples": 20000,
         "num_init_epochs": 15,
+        "max_iters_cvxpylayer": int(5e5),  # default = 50000000 = 50 million
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
@@ -247,6 +248,7 @@ def main(args):
             Gamma_factor=t_hyper["Gamma_factor"],
             include_oracle_loss=t_hyper["include_oracle_loss"],
             include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
+            max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
         )
     elif args.checkpoint_path is not None:
         aclbf_controller = NeuralaCLBFController.load_from_checkpoint(

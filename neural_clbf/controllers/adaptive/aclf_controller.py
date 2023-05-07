@@ -34,6 +34,7 @@ class aCLFController(Controller):
         controller_period: float = 0.01,
         Gamma_factor: float = None,
         Q_u: np.array = None,
+        max_iters_cvxpylayer: int = 50000000,
     ):
         """Initialize the controller.
 
@@ -73,6 +74,7 @@ class aCLFController(Controller):
         self.Q_u = Q_u
         if self.Q_u is None:
             self.Q_u = np.eye(self.dynamics_model.n_controls)
+        self.max_iters_cvxpylayer = max_iters_cvxpylayer
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set
         # up the CVXPyLayers optimization. First, we define variables for each control
@@ -763,7 +765,7 @@ class aCLFController(Controller):
         # We've already created a parameterized QP solver, so we can use that
         result = self.differentiable_qp_solver(
             *params,
-            solver_args={"max_iters": 50000000},
+            solver_args={"max_iters": self.max_iters_cvxpylayer},
         )
 
         # Extract the results

@@ -62,6 +62,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
         include_oracle_loss: bool = True,
         include_estimation_error_loss: bool = False,
         Q_u: np.array = None,
+        max_iters_cvxpylayer: int = 50000000,
     ):
         """Initialize the controller.
 
@@ -97,6 +98,7 @@ class NeuralaCLBFController(aCLFController, pl.LightningModule):
             controller_period=controller_period,
             Gamma_factor=Gamma_factor,
             Q_u=Q_u,
+            max_iters_cvxpylayer=max_iters_cvxpylayer,
         )
 
         self.save_hyperparameters()
