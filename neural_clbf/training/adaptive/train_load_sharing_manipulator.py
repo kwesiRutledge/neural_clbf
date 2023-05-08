@@ -75,7 +75,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 32,
+        "batch_size": 16,
         "controller_period": 0.1,
         "Q_u": np.diag([1.0, 1.0, 0.01]),
         "start_x": start_x,
