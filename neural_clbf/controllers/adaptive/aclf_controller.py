@@ -774,13 +774,104 @@ class aCLFController(Controller):
 
         return u_result.type_as(x), r_result.type_as(x)
 
+    def _solve_CLF_QP_numerically(
+        self,
+        x: torch.tensor,
+        u_ref: Optional[torch.Tensor] = None,
+        relaxation_penalty: Optional[float] = None,
+        N_samples_per_dim: int = 20+1,
+    ):
+        """
+        _solve_CLF_QP_numerically
+        Description:
+
+        """
+
+        # Input Processing
+        if relaxation_penalty is None:
+            relaxation_penalty = self.clf_relaxation_penalty
+        else:
+            assert relaxation_penalty > 0, "relaxation_penalty must be positive"
+
+        if u_ref is None:
+            u_ref = torch.zeros(
+                (x.shape[0], self.dynamics_model.n_controls)
+            )
+
+
+        # Constants
+        dynamics_model = self.dynamics_model
+
+        # Algorithm
+        # Sample states
+        X_upper, X_lower = dynamics_model.control_limits
+        grid_pts_along_dim = []
+        for dim_index in range(dynamics_model.n_dims):
+            grid_pts_along_dim.append(
+                torch.linspace(X_lower[dim_index], X_upper[dim_index], N_samples_per_dim),
+            )
+
+        grid_pts = torch.cartesian_prod(
+            *grid_pts_along_dim,
+        )
+        grid_pts = grid_pts.reshape((grid_pts.shape[0], dynamics_model.n_dims))
+
+        # Evaluate constraint function and clf condition for each of these.
+        batch_size = grid_pts.shape[0]
+        V_Theta = pc.extreme(dynamics_model.Theta)
+        n_Theta = V_Theta.shape[0]
+
+        constraint_function0 = torch.zeros(
+            (batch_size, dynamics_model.n_dims, n_Theta)
+        )
+        for corner_index in range(n_Theta):
+
+            if torch.get_default_dtype() == torch.float32:
+                theta_sample_np = np.float32(V_Theta[corner_index, :])
+                v_Theta = torch.tensor(theta_sample_np)
+            else:
+                v_Theta = torch.tensor(V_Theta[corner_index, :])
+
+            v_Theta = v_Theta.reshape((1, dynamics_model.n_dims))
+            v_Theta = v_Theta.repeat((batch_size, 1))
+
+            constraint_function0[:, :, corner_index] = \
+                dynamics_model.closed_loop_dynamics(
+                    x.repeat((N_samples_per_dim, 1)), grid_pts,
+                    v_Theta,
+                )
+
+        # Find the set of all batch indicies where every dynamics evaluation
+        # is negative
+
+        rectified_relaxation_vector = torch.nn.functional.relu(
+            constraint_function0 * clf_relaxation_penalty,
+        )
+
+        penalties = torch.sum(rectified_relaxation_vector, dim=2).reshape((batch_size, 1))
+
+        obj = torch.zeros((batch_size, 1))
+        obj[:, :] = torch.nn.functional.bilinear(
+            grid_pts - u_ref.repeat(batch_size, 1),
+            grid_pts - u_ref.repeat(batch_size, 1),
+            self.Q_u,
+        )
+        obj[:, :] = obj[:, :] + penalties
+
+        # print(obj)
+        # print(torch.argmin(obj))
+
+        u_min = obj[torch.argmin(obj), :]
+        return u_min
+
     def solve_CLF_QP(
         self,
         x,
         theta_hat: torch.Tensor,
-        relaxation_penalty: Optional[float] = None,
         u_ref: Optional[torch.Tensor] = None,
+        relaxation_penalty: Optional[float] = None,
         requires_grad: bool = False,
+        use_cvxpylayer: bool = False,
         Q: np.array = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -823,10 +914,12 @@ class aCLFController(Controller):
 
         # Figure out if we need to use a differentiable solver (determined by whether
         # the input x requires a gradient or not)
-        if requires_grad:
+        if requires_grad and use_cvxpylayer:
             return self._solve_CLF_QP_cvxpylayers(
                 x, u_ref, V, relaxation_penalty
             )
+        elif requires_grad:
+            raise NotImplementedError("Numerical differentiable QP solver not implemented yet.")
         else:
             return self._solve_CLF_QP_gurobi(
                 x, u_ref, V, Lf_V, Lg_V, LF_V,

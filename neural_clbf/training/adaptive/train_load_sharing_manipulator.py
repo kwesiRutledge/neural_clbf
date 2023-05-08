@@ -75,7 +75,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 32,
+        "batch_size": 16,
         "controller_period": 0.1,
         "Q_u": np.diag([1.0, 1.0, 1.0]),
         "start_x": start_x,
@@ -91,8 +91,8 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         #"max_epochs": args.max_epochs,
-        "n_fixed_samples": 10000,
-        "trajectories_per_episode": 200,
+        "n_fixed_samples": 20000,
+        "trajectories_per_episode": 400,
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 10,
