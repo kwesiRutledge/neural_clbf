@@ -871,7 +871,7 @@ class aCLFController(Controller):
         u_ref: Optional[torch.Tensor] = None,
         relaxation_penalty: Optional[float] = None,
         requires_grad: bool = False,
-        use_cvxpylayer: bool = False,
+        use_cvxpylayer: bool = True,
         Q: np.array = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
