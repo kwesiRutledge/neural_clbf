@@ -153,7 +153,7 @@ class aCLFController(Controller):
                     + LF_Va_params[i][v_Theta_index] @ v_Theta + LFGammadV_Va_params[i][v_Theta_index]
                     + (Lg_Va_params[i][v_Theta_index] + sum_LG_i_Va + LGammadVaG_params[i][v_Theta_index]) @ u
                     + self.clf_lambda * Va_param
-                    - clf_relaxations[i]
+                    - clf_relaxations[0]
                     <= 0
                 )
 

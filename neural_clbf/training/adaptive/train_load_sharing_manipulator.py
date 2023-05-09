@@ -63,7 +63,6 @@ def create_training_hyperparams(args)-> Dict:
             [0.35, -0.35, 0.3, 0.0, 0.0, 0.0],
             [0.25, -0.35, 0.3, 0.0, 0.0, 0.0],
             [0.15, -0.2,  0.2, 0.0, 0.0, 0.0],
-
         ]
     ).to(accelerator)
 
@@ -75,7 +74,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     hyperparams_for_evaluation = {
-        "batch_size": 16,
+        "batch_size": 64,
         "controller_period": 0.1,
         "Q_u": np.diag([1.0, 1.0, 1.0]),
         "start_x": start_x,
