@@ -114,7 +114,10 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         self.device = device
 
         # Then initialize
-        super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
+        super().__init__(
+            nominal_scenario, Theta, dt, controller_dt,
+            device=device, scenarios=scenarios, theta=theta,
+        )
 
     def validate_scenario(self, s: Scenario) -> bool:
         """Check if a given set of parameters is valid
@@ -184,7 +187,11 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
             allowable control inputs for the system.
         """
         # Define U
-        U = pc.box2poly([(-250.0, 250.0) for i in range(self.n_controls)])
+        U = pc.box2poly([
+            (-25.0, 25.0),
+            (-25.0, 25.0),
+            (-250.0, 250.0)
+        ])
 
         return U
 

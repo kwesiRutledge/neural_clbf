@@ -155,6 +155,8 @@ class aCLFController2(Controller):
                     <= 0
                 )
 
+        # Relaxation Additional Constraint
+
         # Control limit constraints
         # upper_lim, lower_lim = self.dynamics_model.control_limits
         # for control_idx in range(self.dynamics_model.n_controls):
@@ -202,13 +204,16 @@ class aCLFController2(Controller):
         x_theta = torch.cat([x, theta_hat], dim=1)
 
         # First, get the Lyapunov function value and gradient at this state
-        P = self.dynamics_model.P.type_as(x_theta)
+        Px = self.dynamics_model.P.type_as(x_theta)
         # Reshape to use pytorch's bilinear function
-        P = P.reshape(
+        P = torch.zeros(
             1,
             self.dynamics_model.n_dims+self.dynamics_model.n_params,
             self.dynamics_model.n_dims+self.dynamics_model.n_params
         )
+        P[0, :self.dynamics_model.n_dims, :self.dynamics_model.n_dims] = Px
+        P[0, self.dynamics_model.n_dims:, self.dynamics_model.n_dims:] = torch.eye(self.dynamics_model.n_params)
+
         Va = 0.5 * F.bilinear(x_theta, x_theta, P).squeeze()
         Va = Va.reshape(x_theta.shape[0])
 
@@ -216,12 +221,13 @@ class aCLFController2(Controller):
         P = P.reshape(
             self.dynamics_model.n_dims+self.dynamics_model.n_params, self.dynamics_model.n_dims+self.dynamics_model.n_params
         )
-        JxV = F.linear(x, P[:self.dynamics_model.n_dims, :self.dynamics_model.n_dims]) + \
-              2*F.linear(theta_hat, P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims])
+        print(P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims].shape)
+        JxV = F.linear(x, P[:self.dynamics_model.n_dims, :self.dynamics_model.n_dims].T) + \
+              F.linear(theta_hat, P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims].T)
         JxV = JxV.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
 
-        JthV = F.linear(theta_hat, P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params]) + \
-                2*F.linear(x, P[:self.dynamics_model.n_dims, self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params])
+        JthV = F.linear(theta_hat, P[self.dynamics_model.n_dims:, self.dynamics_model.n_dims:].T) + \
+                F.linear(x, P[:self.dynamics_model.n_dims, self.dynamics_model.n_dims:].T)
         JthV = JthV.reshape(x_theta.shape[0], 1, self.dynamics_model.n_params)
 
         return Va, JxV, JthV

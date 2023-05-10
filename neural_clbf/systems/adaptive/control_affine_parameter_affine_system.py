@@ -69,6 +69,9 @@ class ControlAffineParameterAffineSystem(ABC):
             raise ValueError(f"Scenario not valid: {nominal_scenario}")
 
         self.nominal_scenario = nominal_scenario
+        if scenarios is None:
+            scenarios = [nominal_scenario]
+        self.scenarios = scenarios
 
         # Make sure the timestep is valid
         assert dt > 0.0
