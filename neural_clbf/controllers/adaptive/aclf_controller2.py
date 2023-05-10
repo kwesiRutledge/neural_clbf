@@ -16,7 +16,7 @@ from neural_clbf.controllers.controller import Controller
 from neural_clbf.experiments import ExperimentSuite
 
 
-class aCLFController(Controller):
+class aCLFController2(Controller):
     """
     A generic adaptive CLF-based controller, using the quadratic Lyapunov function found for
     the linearized system.
@@ -46,7 +46,7 @@ class aCLFController(Controller):
             clf_relaxation_penalty: the penalty for relaxing CLF conditions.
             controller_period: the timestep to use in simulating forward Vdot
         """
-        super(aCLFController, self).__init__(
+        super(aCLFController2, self).__init__(
             dynamics_model=dynamics_model,
             experiment_suite=experiment_suite,
             controller_period=controller_period,
@@ -80,9 +80,7 @@ class aCLFController(Controller):
         # up the CVXPyLayers optimization. First, we define variables for each control
         # input and the relaxation in each scenario
         u = cp.Variable(self.dynamics_model.n_controls)
-        clf_relaxations = []
-        for scenario in self.scenarios:
-            clf_relaxations.append(cp.Variable(1, nonneg=True))
+        clf_relaxation = cp.Variable(1, nonneg=True)
 
         # Next, we define the parameters that will be supplied at solve-time: the value
         # of the Lyapunov function, its Lie derivatives, the relaxation penalty, and
@@ -153,7 +151,7 @@ class aCLFController(Controller):
                     + LF_Va_params[i][v_Theta_index] @ v_Theta + LFGammadV_Va_params[i][v_Theta_index]
                     + (Lg_Va_params[i][v_Theta_index] + sum_LG_i_Va + LGammadVaG_params[i][v_Theta_index]) @ u
                     + self.clf_lambda * Va_param
-                    - clf_relaxations[i]
+                    - clf_relaxation
                     <= 0
                 )
 
@@ -169,14 +167,13 @@ class aCLFController(Controller):
 
         # And define the objective
         objective_expression = cp.quad_form(u - u_ref_param, self.Q_u)
-        for r in clf_relaxations:
-            objective_expression = objective_expression + cp.multiply(clf_relaxation_penalty_param, r)
+        objective_expression = objective_expression + cp.multiply(clf_relaxation_penalty_param, clf_relaxation)
         objective = cp.Minimize(objective_expression)
 
         # Finally, create the optimization problem
         problem = cp.Problem(objective, constraints)
         assert problem.is_dpp()
-        variables = [u] + clf_relaxations
+        variables = [u] + [clf_relaxation]
         parameters = [Va_param, u_ref_param, clf_relaxation_penalty_param]
         for s_idx in range(len(scenarios)):
             parameters = parameters + Lf_Va_params[s_idx] + Lg_Va_params[s_idx] + LF_Va_params[s_idx]
@@ -516,7 +513,7 @@ class aCLFController(Controller):
         # Solve a QP for each row in x
         bs = x.shape[0]
         u_result = torch.zeros(bs, n_controls)
-        r_result = torch.zeros(bs, n_scenarios, n_Theta_vertices)
+        r_result = torch.zeros(bs, n_scenarios)
         # r_result = torch.zeros(bs, n_scenarios)
         for batch_idx in range(bs):
             # Skip any bad points
@@ -543,9 +540,7 @@ class aCLFController(Controller):
                 U.A @ u <= U.b, name="u_constraint"
             )
             if allow_relaxation:
-                r_set = []
-                for corner_idx in range(n_Theta_vertices):
-                    r_set.append(model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY))
+                r = model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY)
                 # r = model.addMVar(n_scenarios, lb=0, ub=GRB.INFINITY)
 
             # Define the cost
@@ -553,12 +548,8 @@ class aCLFController(Controller):
             u_ref_np = u_ref[batch_idx, :].detach().cpu().numpy()
             objective = u @ Q @ u - 2 * u_ref_np @ Q @ u + u_ref_np @ Q @ u_ref_np
             if allow_relaxation:
-                for corner_idx in range(self.dynamics_model.Theta.dim):
-                    r = r_set[corner_idx]
-                    relax_penalties = relaxation_penalty * np.ones(n_scenarios)
-                    objective += relax_penalties @ r
-                # relax_penalties = relaxation_penalty * np.ones(n_scenarios)
-                # objective += relax_penalties @ r
+                relax_penalties = relaxation_penalty * np.ones(n_scenarios)
+                objective += relax_penalties @ r
 
             # Now build the CLF constraints
             for i in range(n_scenarios):
@@ -608,7 +599,6 @@ class aCLFController(Controller):
                         (Lg_V_np + sum_LG_V_np + LGammadVG_V_np) @ u + self.clf_lambda * V_np
                     #clf_constraint = Lf_V_np + Lg_V_np @ u + self.clf_lambda * V_np
                     if allow_relaxation:
-                        r = r_set[v_idx]
                         clf_constraint -= r[i]
 
                     model.addConstr(clf_constraint <= 0.0, name=f"Scenario {i}, Corner {v_idx} Decrease")
@@ -623,8 +613,7 @@ class aCLFController(Controller):
                 # that something has gone wrong
                 if allow_relaxation:
                     for i in range(n_scenarios):
-                        for v_Theta_idx in range(n_Theta_vertices):
-                            r_result[batch_idx, i, v_Theta_idx] = torch.tensor(float("nan"))
+                        r_result[batch_idx, i] = torch.tensor(float("nan"))
                 continue
 
             # Extract the results
@@ -632,9 +621,7 @@ class aCLFController(Controller):
                 u_result[batch_idx, i] = torch.tensor(u[i].x)
             if allow_relaxation:
                 for i in range(n_scenarios):
-                    for th_idx in range(n_Theta_vertices):
-                        r_result[batch_idx, i, th_idx] = torch.tensor(r_set[th_idx][i].x)
-                    # r_result[batch_idx, i] = torch.tensor(r[i].x)
+                    r_result[batch_idx, i] = torch.tensor(r[i].x)
 
         return u_result.type_as(x), r_result.type_as(x)
 

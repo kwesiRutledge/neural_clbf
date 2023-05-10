@@ -12,8 +12,8 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
-from neural_clbf.controllers import (
-    NeuralCLBFController, NeuralaCLBFController
+from neural_clbf.controllers.adaptive import (
+    NeuralaCLBFController, NeuralaCLBFController2,
 )
 from neural_clbf.datamodules import (
     EpisodicDataModule, EpisodicDataModuleAdaptive
@@ -75,7 +75,7 @@ def create_training_hyperparams(args)-> Dict:
 
     hyperparams_for_evaluation = {
         "batch_size": 64,
-        "controller_period": 0.1,
+        "controller_period": 0.025,
         "Q_u": np.diag([1.0, 1.0, 1.0]),
         "start_x": start_x,
         "simulation_dt": 0.025,
@@ -94,7 +94,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "accelerator": accelerator,
-        "num_init_epochs": 15,
+        "num_init_epochs": 30,
         # "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
@@ -219,7 +219,7 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    aclbf_controller = NeuralaCLBFController(
+    aclbf_controller = NeuralaCLBFController2(
         dynamics_model,
         scenarios,
         data_module,

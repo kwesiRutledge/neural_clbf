@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import tqdm
 import numpy as np
 import torch, os
+import osqp
+import scipy as sp
+from scipy import sparse
 
 from neural_clbf.systems.adaptive import LoadSharingManipulator
 
@@ -295,6 +298,227 @@ class TestLoadSharingManipulator(unittest.TestCase):
         if "/neural_clbf/systems/adaptive/tests" in os.getcwd():
             # Only save if we are running from inside tests directory
             fig.savefig("figures/lsm-plot_environment1.png")
+
+
+    def test_loadsharingmanipulator_basic_mpc1_1(self):
+        """
+        Description:
+            Tests that we can do MPC on a simple system.
+        """
+        # Discrete time model of a quadcopter
+        Ad = sparse.csc_matrix([
+            [1., 0., 0., 0., 0., 0., 0.1, 0., 0., 0., 0., 0.],
+            [0., 1., 0., 0., 0., 0., 0., 0.1, 0., 0., 0., 0.],
+            [0., 0., 1., 0., 0., 0., 0., 0., 0.1, 0., 0., 0.],
+            [0.0488, 0., 0., 1., 0., 0., 0.0016, 0., 0., 0.0992, 0., 0.],
+            [0., -0.0488, 0., 0., 1., 0., 0., -0.0016, 0., 0., 0.0992, 0.],
+            [0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0., 0.0992],
+            [0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0., 0.],
+            [0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0., 0.],
+            [0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 0., 0.],
+            [0.9734, 0., 0., 0., 0., 0., 0.0488, 0., 0., 0.9846, 0., 0.],
+            [0., -0.9734, 0., 0., 0., 0., 0., -0.0488, 0., 0., 0.9846, 0.],
+            [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.9846]
+        ])
+        Bd = sparse.csc_matrix([
+            [0., -0.0726, 0., 0.0726],
+            [-0.0726, 0., 0.0726, 0.],
+            [-0.0152, 0.0152, -0.0152, 0.0152],
+            [-0., -0.0006, -0., 0.0006],
+            [0.0006, 0., -0.0006, 0.0000],
+            [0.0106, 0.0106, 0.0106, 0.0106],
+            [0, -1.4512, 0., 1.4512],
+            [-1.4512, 0., 1.4512, 0.],
+            [-0.3049, 0.3049, -0.3049, 0.3049],
+            [-0., -0.0236, 0., 0.0236],
+            [0.0236, 0., -0.0236, 0.],
+            [0.2107, 0.2107, 0.2107, 0.2107]])
+        [nx, nu] = Bd.shape
+
+        # Constraints
+        u0 = 10.5916
+        umin = np.array([9.6, 9.6, 9.6, 9.6]) - u0
+        umax = np.array([13., 13., 13., 13.]) - u0
+        xmin = np.array([-np.pi / 6, -np.pi / 6, -np.inf, -np.inf, -np.inf, -1.,
+                         -np.inf, -np.inf, -np.inf, -np.inf, -np.inf, -np.inf])
+        xmax = np.array([np.pi / 6, np.pi / 6, np.inf, np.inf, np.inf, np.inf,
+                         np.inf, np.inf, np.inf, np.inf, np.inf, np.inf])
+
+        # Objective function
+        Q = sparse.diags([0., 0., 10., 10., 10., 10., 0., 0., 0., 5., 5., 5.])
+        QN = Q
+        R = 0.1 * sparse.eye(4)
+
+        # Initial and reference states
+        x0 = np.zeros(12)
+        xr = np.array([0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0.])
+
+        # Prediction horizon
+        N = 10
+
+        # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
+        # - quadratic objective
+        P = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN,
+                               sparse.kron(sparse.eye(N), R)], format='csc')
+        # - linear objective
+        q = np.hstack([np.kron(np.ones(N), -Q.dot(xr)), -QN.dot(xr),
+                       np.zeros(N * nu)])
+        # - linear dynamics
+        Ax = sparse.kron(sparse.eye(N + 1), -sparse.eye(nx)) + sparse.kron(sparse.eye(N + 1, k=-1), Ad)
+        Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, N)), sparse.eye(N)]), Bd)
+        Aeq = sparse.hstack([Ax, Bu])
+        leq = np.hstack([-x0, np.zeros(N * nx)])
+        ueq = leq
+        # - input and state constraints
+        Aineq = sparse.eye((N + 1) * nx + N * nu)
+        lineq = np.hstack([np.kron(np.ones(N + 1), xmin), np.kron(np.ones(N), umin)])
+        uineq = np.hstack([np.kron(np.ones(N + 1), xmax), np.kron(np.ones(N), umax)])
+        # - OSQP constraints
+        A = sparse.vstack([Aeq, Aineq], format='csc')
+        l = np.hstack([leq, lineq])
+        u = np.hstack([ueq, uineq])
+
+        # Create an OSQP object
+        prob = osqp.OSQP()
+
+        # Setup workspace
+        prob.setup(P, q, A, l, u, warm_start=True)
+
+        # Simulate in closed loop
+        nsim = 15
+        for i in range(nsim):
+            # Solve
+            res = prob.solve()
+
+            # Check solver status
+            if res.info.status != 'solved':
+                raise ValueError('OSQP did not solve the problem!')
+
+            self.assertEqual(res.info.status, 'solved')
+
+            # Apply first control input to the plant
+            ctrl = res.x[-N * nu:-(N - 1) * nu]
+            x0 = Ad.dot(x0) + Bd.dot(ctrl)
+
+            # Update initial state
+            l[:nx] = -x0
+            u[:nx] = -x0
+            prob.update(l=l, u=u)
+
+    def test_loadsharingmanipulator_basic_mpc1_2(self):
+        """
+        test_loadsharingmanipulator_basic_mpc1_2
+        Description:
+            Tests that we can do MPC on a simple system.
+        """
+
+        # Create Pusher Slider
+        scenario0 = {
+            "obstacle_center_x": 1.0,
+            "obstacle_center_y": 1.0,
+            "obstacle_center_z": 0.3,
+            "obstacle_width": 1.0,
+        }
+        th_dim = 3
+        A = np.vstack((np.eye(th_dim), -np.eye(th_dim)))
+        b = np.ones(th_dim * 2)
+        Theta = pc.Polytope(A, b)
+        sys0 = LoadSharingManipulator(scenario0, Theta, dt=0.025)
+
+        # Discrete time model of a quadcopter
+        Ad, Bd = sys0.linearized_dt_dynamics_matrices()
+        [nx, nu] = Bd.shape
+
+        x0 = np.zeros(nx)
+        x0_t = torch.tensor(x0).unsqueeze(0)
+        theta_hat_t = sys0.sample_Theta_space(1)
+        theta_hat = theta_hat_t.reshape((th_dim,)).numpy()
+
+        fd_t = sys0._f(
+            x0_t,
+            sys0.u_nominal(x0_t, theta_hat_t),
+        ) * sys0.dt
+        fd = fd_t.reshape((nx,)).numpy()
+        print("fd =", fd)
+
+        # Constraints
+        u0 = 0.5916
+        # umin = 200*np.array([-1.3, -1.3, -1.6]) - u0
+        # umax = 200*np.array([1.3, 1.3, 1.3]) - u0
+        umax_t, umin_t = sys0.control_limits
+        umax, umin = umax_t.numpy(), umin_t.numpy()
+        xmax_t, xmin_t = sys0.state_limits
+        xmax, xmin = xmax_t.numpy(), xmin_t.numpy()
+
+        # Objective function
+        Q = sparse.diags([10., 10., 10., 1., 1., 1.])
+        QN = Q
+        R = 0.1 * sparse.eye(nu)
+
+        # Initial and reference states
+        x0 = np.zeros((nx,))
+        xr = np.array([0., 0.5, 0.5, 0., 0., 0.])
+
+        # Prediction horizon
+        N = 10
+
+        # Cast MPC problem to a QP: x = (x(0),x(1),...,x(N),u(0),...,u(N-1))
+        # - quadratic objective
+        P = sparse.block_diag([sparse.kron(sparse.eye(N), Q), QN,
+                               sparse.kron(sparse.eye(N), R)], format='csc')
+        # - linear objective
+        q = np.hstack([np.kron(np.ones(N), -Q.dot(xr)), -QN.dot(xr),
+                       np.zeros(N * nu)])
+        # - linear dynamics
+        Ax = sparse.kron(sparse.eye(N + 1), -sparse.eye(nx)) + sparse.kron(sparse.eye(N + 1, k=-1), Ad)
+        Bu = sparse.kron(sparse.vstack([sparse.csc_matrix((1, N)), sparse.eye(N)]), Bd)
+        Aeq = sparse.hstack([Ax, Bu])
+        # leq = np.hstack([-x0, np.zeros(N * nx)])
+        leq = np.hstack([-x0, np.kron(np.ones(N), -fd)])
+        ueq = leq
+        # - input and state constraints
+        Aineq = sparse.eye((N + 1) * nx + N * nu)
+        lineq = np.hstack([np.kron(np.ones(N + 1), xmin), np.kron(np.ones(N), umin)])
+        uineq = np.hstack([np.kron(np.ones(N + 1), xmax), np.kron(np.ones(N), umax)])
+        # - OSQP constraints
+        A = sparse.vstack([Aeq, Aineq], format='csc')
+        l = np.hstack([leq, lineq])
+        u = np.hstack([ueq, uineq])
+
+        # Create an OSQP object
+        prob = osqp.OSQP()
+
+        # Setup workspace
+        prob.setup(P, q, A, l, u, warm_start=True)
+
+        # Simulate in closed loop
+        nsim = 15
+        for i in range(nsim):
+            # Solve
+            res = prob.solve()
+
+            print(i)
+
+            print(res.info)
+            print(res.info.status)
+
+            print("xmax = ", xmax, "xmin = ", xmin)
+            print("Aeq", Aeq)
+
+            # Check solver status
+            if res.info.status != 'solved':
+                raise ValueError('OSQP did not solve the problem!')
+
+            self.assertEqual(res.info.status, 'solved')
+
+            # Apply first control input to the plant
+            ctrl = res.x[-N * nu:-(N - 1) * nu]
+            x0 = Ad.dot(x0) + Bd.dot(ctrl) + fd
+
+            # Update initial state
+            l[:nx] = -x0
+            u[:nx] = -x0
+            prob.update(l=l, u=u)
 
 
 if __name__ == "__main__":
