@@ -227,13 +227,13 @@ def inflate_context_using_hyperparameters(hyperparams):
             [obs[0],                obs[1]-4.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
             [obs[0],                obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
             [obs[0],                obs[1]-4.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
-            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
-            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
-            # [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            # [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
-            # [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
-            # [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
-            # [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
+            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
+            [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
+            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
             # [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
             # [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
             # [0.1, -0.05, 0.3, 0.0, 0.0, 0.0],
@@ -416,7 +416,7 @@ def main(args):
     counts_mpc, mpc_results_df = None, None
 
     # - aCLBF Controller Safety Testing
-    controller_to_test.clf_relaxation_penalty = 1e4
+    #controller_to_test.clf_relaxation_penalty = 1e4
     aclbf_results_df = safety_case_study_experiment.run(controller_to_test)
     aclbf_counts = tabulate_number_of_reaches(
         aclbf_results_df, controller_to_test.dynamics_model,
@@ -545,7 +545,6 @@ def main(args):
             mpc_counts=counts_mpc,
             comments=comments,
         )
-        # print(lines)
         f.writelines(lines)
 
     # Save Timing Results to Table

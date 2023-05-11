@@ -506,6 +506,7 @@ def save_timing_data_table(
 
         # Save the data to txt file
         with open(table_name, "w") as f:
+            comments = []
             if n_sims_per_start > 0:
                 comments = [f"n_sims_per_start={n_sims_per_start}"]
             if n_x0s > 0:

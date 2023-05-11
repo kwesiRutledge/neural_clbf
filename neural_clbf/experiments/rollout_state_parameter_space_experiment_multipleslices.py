@@ -233,7 +233,7 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
                 log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
                 log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
                 log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
-                log_packet["r"] = r_current[sim_index, :, :].cpu().detach().numpy()
+                log_packet["r"] = r_current[sim_index, :].cpu().detach().numpy() # TODO: Warning: If using original NeuralaCLBF, you will need r_current[sim_index, :, :] instead.
                 log_packet["controller_time"] = controller_time_current_tstep
 
                 for i, save_index in enumerate(self.other_index):

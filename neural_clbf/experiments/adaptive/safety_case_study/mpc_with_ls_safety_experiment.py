@@ -203,12 +203,16 @@ class CaseStudySafetyExperimentMPC(Experiment):
         # Simulate!
         delta_t = dynamics.dt
         num_timesteps = int(self.t_sim // delta_t)
-        u_current = torch.zeros(x_sim_start.shape[0], n_controls, device=device)
+        u_current = torch.zeros(
+            (x_sim_start.shape[0], n_controls),
+            device=device,
+        )
         controller_update_freq = int(controller_period / delta_t)
         prog_bar_range = tqdm.trange(
             0, num_timesteps, desc=self.name + ": Simulation", leave=True
         )
         for tstep in prog_bar_range:
+            theta_hat_next = theta_hat_current.clone()
             # Get the control input at the current state if it's time
             if tstep % controller_update_freq == 0:
                 start_time = time.time()
@@ -221,6 +225,33 @@ class CaseStudySafetyExperimentMPC(Experiment):
                     self.X_trajopt,
                     horizon=mpc_horizon,
                 )
+
+                # Compute xdot
+                xdot = dynamics.closed_loop_dynamics(
+                    x_current, u_current, theta_current,
+                    random_scenarios[i],
+                )
+                FGsum = dynamics._F(x_current, random_scenarios[i])
+                tempG = dynamics._G(x_current, random_scenarios[i])
+                for theta_dim_index in range(dynamics.n_params):
+                    FGsum[:, :, theta_dim_index] += torch.bmm(
+                        tempG[:, :, :, theta_dim_index], u_current.unsqueeze(-1)
+                    ).squeeze(2)
+
+                xdot_subtract_term = xdot - \
+                    dynamics._f(x_current, random_scenarios[i]).squeeze(2) - \
+                    torch.bmm(
+                        dynamics._g(x_current, random_scenarios[i]),
+                        u_current.unsqueeze(-1),
+                    ).squeeze(2)
+
+                ls_sol = torch.linalg.lstsq(
+                    FGsum, xdot_subtract_term,
+                )
+                # print(ls_sol)
+
+                theta_hat_next = ls_sol.solution.clone()
+
                 end_time = time.time()
                 controller_calls += 1
                 controller_time += end_time - start_time
@@ -259,10 +290,10 @@ class CaseStudySafetyExperimentMPC(Experiment):
 
                     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
                     log_packet[plot_x_label] = x_value
-                log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                log_packet["state"] = x_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta_hat"] = theta_hat_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta"] = theta_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["u"] = u_current.clone()[sim_index, :].cpu().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -286,9 +317,9 @@ class CaseStudySafetyExperimentMPC(Experiment):
                 #     random_scenarios[i],
                 # )
                 # Maintain constant belief about parameters
-                theta_hat_current[i, :] = theta_hat_current[i, :]  # + delta_t * theta_hat_dot.squeeze()
+                theta_hat_current[i, :] = theta_hat_next[i, :] #theta_hat_current[i, :]  # + delta_t * theta_hat_dot.squeeze()
 
-        return pd.DataFrame(results), traj_opt_times, self.U_trajopt, self.X_trajopt
+        return pd.DataFrame(results), traj_opt_times, self.U_trajopt, self.X_trajopt, t_trajopt, traj_opt_times
 
     def synthesize_trajectories(
         self,
@@ -298,7 +329,7 @@ class CaseStudySafetyExperimentMPC(Experiment):
         u0: np.array = None,
         uf: np.array = None,
         constraints: List[Any] = [],
-        Q: np.diag = None,
+        Q: np.array = None,
         R: np.array = None,
         P: np.array = None,
         N_timepts: int = 100,
@@ -431,7 +462,7 @@ class CaseStudySafetyExperimentMPC(Experiment):
         fig_handle = self.plot_trajectory(
             results_df,
             dynamics,
-            fig_name="Rollout (trajopt2)",
+            fig_name="Rollout (MPC with LS)",
         )
         fig_handles.append(fig_handle)
 
@@ -547,52 +578,3 @@ class CaseStudySafetyExperimentMPC(Experiment):
             )
             error_ax.set_xlabel("$t$")
             error_ax.set_ylabel("$\| r(t) - r_{des}(t) \|$")
-
-    def save_timing_data_table(
-        self,
-        table_name: str,
-        commit_prefix: str,
-        version_number: str,
-        aclbf_results_df: pd.DataFrame = None,
-        nominal_results_df: pd.DataFrame = None,
-        trajopt2_results_df: pd.DataFrame = None,
-        trajopt2_synthesis_times: List[float] = None,
-    ):
-        """
-        save_timing_data_table
-        Description:
-            Saves a table of timing data to a txt file that can
-            be copied into a latex table.
-        """
-
-        # Constants
-
-        # Collect the data
-        aclbf_data_dict = None
-        if aclbf_results_df is not None:
-            aclbf_data_dict = self.get_avg_computation_time_from_df(aclbf_results_df)
-
-        nominal_data_dict = None
-        if nominal_results_df is not None:
-            nominal_data_dict = self.get_avg_computation_time_from_df(nominal_results_df)
-
-        trajopt2_data_dict = None
-        if trajopt2_results_df is not None:
-            trajopt2_data_dict = self.get_avg_computation_time_from_df(trajopt2_results_df)
-
-        # Save the data to txt file
-        with open(table_name, "w") as f:
-            comments = [f"n_sims_per_start={self.n_sims_per_start}"]
-            comments += [f"n_x0={self.start_x.shape[0]}"]
-            comments += [f"commit_prefix={commit_prefix}"]
-            comments += [f"version_number={version_number}"]
-
-            lines = timing_data_to_latex_table(
-                aclbf_data_dict,
-                nominal_timing=nominal_data_dict,
-                trajopt2_timing=trajopt2_data_dict,
-                trajopt2_synthesis_times=trajopt2_synthesis_times,
-                comments=comments,
-            )
-
-            f.writelines(lines)
