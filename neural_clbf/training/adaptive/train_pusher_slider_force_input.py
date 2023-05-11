@@ -37,6 +37,7 @@ import polytope as pc
 from typing import Dict
 
 import time
+import datetime
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -271,9 +272,11 @@ def main(args):
 
 
     # Initialize the logger and trainer
+    t = datetime.datetime(2012, 2, 23, 0, 0)
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/pusher_slider_sticking_force_input",
         name=f"commit_{current_git_hash()}",
+        version=f"version_{t.strftime('%m%d%Y_%H_%M_%S')}",
     )
     # trainer = pl.Trainer.from_argparse_args(
     #     args,

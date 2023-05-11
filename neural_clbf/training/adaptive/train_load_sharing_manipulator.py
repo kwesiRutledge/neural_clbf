@@ -242,7 +242,6 @@ def main(args):
 
     # Initialize the logger and trainer
     t = datetime.datetime(2012, 2, 23, 0, 0)
-    t.strftime('%m/%d/%Y')
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
