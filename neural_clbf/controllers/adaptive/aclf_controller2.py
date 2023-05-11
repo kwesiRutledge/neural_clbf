@@ -212,7 +212,9 @@ class aCLFController2(Controller):
             self.dynamics_model.n_dims+self.dynamics_model.n_params
         )
         P[0, :self.dynamics_model.n_dims, :self.dynamics_model.n_dims] = Px
-        P[0, self.dynamics_model.n_dims:, self.dynamics_model.n_dims:] = torch.eye(self.dynamics_model.n_params)
+        P[0, self.dynamics_model.n_dims:, self.dynamics_model.n_dims:] = torch.zeros(
+            (self.dynamics_model.n_params, self.dynamics_model.n_params)
+        )
 
         Va = 0.5 * F.bilinear(x_theta, x_theta, P).squeeze()
         Va = Va.reshape(x_theta.shape[0])
