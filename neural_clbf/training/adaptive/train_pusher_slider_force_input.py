@@ -321,27 +321,27 @@ def main(args):
     torch.save(
         aclbf_controller.V_nn,
         tb_logger.save_dir + "/" + tb_logger.name +
-        "/version_" + str(tb_logger.version) + "/Vnn.pt"
+        "/" + str(tb_logger.version) + "/Vnn.pt"
     )
 
     # Record Hyperparameters in small pytorch format
     torch.save(
         t_hyper,
         tb_logger.save_dir + "/" + tb_logger.name +
-        "/version_" + str(tb_logger.version) + "/hyperparams.pt"
+        "/" + str(tb_logger.version) + "/hyperparams.pt"
     )
 
     # Save model
     torch.save(
         aclbf_controller.state_dict(),
         tb_logger.save_dir + "/" + tb_logger.name +
-        "/version_" + str(tb_logger.version) + "/state_dict.pt"
+        "/" + str(tb_logger.version) + "/state_dict.pt"
     )
 
     torch.save(
         aclbf_controller,
         tb_logger.save_dir + "/" + tb_logger.name +
-        "/version_" + str(tb_logger.version) + "/controller.pt"
+        "/" + str(tb_logger.version) + "/controller.pt"
     )
 
 if __name__ == "__main__":
