@@ -272,7 +272,7 @@ def main(args):
 
 
     # Initialize the logger and trainer
-    t = datetime.datetime(2012, 2, 23, 0, 0)
+    t = datetime.datetime.now()
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/pusher_slider_sticking_force_input",
         name=f"commit_{current_git_hash()}",
