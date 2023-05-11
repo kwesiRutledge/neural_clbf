@@ -34,6 +34,7 @@ import polytope as pc
 from typing import Dict
 
 import time
+import datetime
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 
@@ -240,9 +241,12 @@ def main(args):
     )
 
     # Initialize the logger and trainer
+    t = datetime.datetime(2012, 2, 23, 0, 0)
+    t.strftime('%m/%d/%Y')
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
+        version=f"{t.strftime('%m%d%Y_%H_%M_%S')}",
     )
 
     if t_hyper["number_of_gpus"] <= 1:
