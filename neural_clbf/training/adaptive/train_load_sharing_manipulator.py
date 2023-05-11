@@ -95,7 +95,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "accelerator": accelerator,
-        "num_init_epochs": 45,
+        "num_init_epochs": 55,
         # "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
