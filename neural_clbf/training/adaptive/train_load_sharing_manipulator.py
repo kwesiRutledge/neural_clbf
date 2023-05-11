@@ -246,7 +246,7 @@ def main(args):
     tb_logger = pl_loggers.TensorBoardLogger(
         "logs/load_sharing_manipulator",
         name=f"commit_{current_git_hash()}",
-        version=f"{t.strftime('%m%d%Y_%H_%M_%S')}",
+        version=f"version_{t.strftime('%m%d%Y_%H_%M_%S')}",
     )
 
     if t_hyper["number_of_gpus"] <= 1:
