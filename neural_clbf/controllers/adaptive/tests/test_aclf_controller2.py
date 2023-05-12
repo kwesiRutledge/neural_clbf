@@ -25,8 +25,10 @@ from neural_clbf.experiments import (
 )
 
 import unittest
-
 from typing import List
+import diffqcqp as dqcqp
+
+from qpth.qp import QPFunction
 
 class TestaCLFController2(unittest.TestCase):
     def test_aclfcontroller_layerconcept1(self):
@@ -492,7 +494,146 @@ class TestaCLFController2(unittest.TestCase):
         print(u_qp)
         print("r = ", r_qp)
 
-        self.assertGreaterEqual(r_qp, 0.0)
+        self.assertAlmostEqual(float(r_qp), 0.0, places=5)
+        # self.assertGreaterEqual(r_qp, 0.0)
+
+    def test_aclfcontroller2__solve_CLF_QP_cvxpylayers2(self):
+        """
+        Description:
+            Tests that cvxpylayers is solving the right problem. Is it close to Gurobi's solution?
+        """
+
+        # Constants
+        lsm0, controller0 = self.get_lsm_with_aclfcontroller1()
+
+        relaxation_penalty = 1e3
+
+        # Define initial state and parameter estimate
+        x0 = 0.5*torch.ones((1, lsm0.n_dims))
+        theta_hat0 = torch.Tensor([0.2, 0.5, 0.25]).reshape(
+            (1, lsm0.n_params)
+        )
+
+        V0 = controller0.V(x0, theta_hat0)
+
+        # Run solve
+        u_qp_cvxpylayers, r_qp_cvxpylayers = controller0._solve_CLF_QP_cvxpylayers(
+            x0,
+            lsm0.u_nominal(x0, theta_hat0),
+            V0,
+            relaxation_penalty,
+        )
+
+        self.assertAlmostEqual(float(r_qp_cvxpylayers), 0.0, places=5)
+
+        u_qp_gurobi, r_qp_gurobi = controller0.solve_CLF_QP(
+            x0, theta_hat0,
+            u_ref=lsm0.u_nominal(x0, theta_hat0),
+            relaxation_penalty=relaxation_penalty,
+        )
+
+        # self.assertGreaterEqual(r_qp, 0.0)
+
+        print("u_qp_cvxpylayers = ", u_qp_cvxpylayers)
+        print("u_qp_gurobi = ", u_qp_gurobi)
+
+        self.assertLessEqual(torch.norm(u_qp_cvxpylayers - u_qp_gurobi), 1e-5)
+        self.assertAlmostEqual(float(r_qp_gurobi), float(r_qp_cvxpylayers), places=5)
+
+    def test_aclfcontroller2_solve_CLF_QP_qpth1(self):
+        """
+        Description:
+            Testing the ability of QPTH to solve the CLFQP that we're interested in solving.
+        """
+
+        # Create constants
+        lsm0, controller0 = self.get_lsm_with_aclfcontroller1()
+        relaxation_penalty = 1e3
+        x0 = 0.5 * torch.ones((1, lsm0.n_dims))  # initial state
+        x0[0, LoadSharingManipulator.P_Z] = 0.1
+        x0[0, LoadSharingManipulator.V_Z] = 0.0
+        x0[0, LoadSharingManipulator.V_X] = 0.0
+        x0[0, LoadSharingManipulator.V_Y] = 0.0
+        theta_hat0 = torch.Tensor([0.2, 0.5, 0.25]).reshape(  # initial parameter estimate
+            (1, lsm0.n_params)
+        )
+        batch_size = 1
+
+        # Create objective
+        Q_u = torch.eye(lsm0.n_controls)
+        Q_r = torch.ones((1, 1)) * 1e-4
+
+        Q = torch.zeros((lsm0.n_controls + 1, lsm0.n_controls + 1))
+        Q[:lsm0.n_controls, :lsm0.n_controls] = Q_u
+        Q[-1, -1] = Q_r
+        Q = Q.repeat(batch_size, 1, 1)
+
+        q_u = torch.zeros((lsm0.n_controls))
+        q_r = torch.zeros((1))
+        q_r[0] = relaxation_penalty
+        q = torch.hstack((q_u, q_r))
+        q = q.repeat(batch_size, 1)
+
+        # Create constraints
+        V0 = controller0.V(x0, theta_hat0)
+        Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = controller0.V_lie_derivatives(x0, theta_hat0)
+        print("Lie derivatives")
+        print("Lf_V = ", Lf_V)
+        print("LF_V = ", LF_V)
+        print("LFGammadV_V = ", LFGammadV_V)
+        print("Lg_V = ", Lg_V)
+        print("list_LGi_V = ", list_LGi_V)
+        print("LGammadVG_V = ", LGammadVG_V)
+        n_scenarios = len(controller0.scenarios)
+        sum_LG_V = torch.zeros((batch_size, n_scenarios, lsm0.n_controls), device=x0.device)
+        for theta_dim in range(lsm0.n_params):
+            sum_LG_V = sum_LG_V + \
+                       torch.bmm(theta_hat0[:, theta_dim].reshape((batch_size, 1, 1)), list_LGi_V[theta_dim]).to(x0.device)
+
+        #G_u = torch.tensor(lsm0.U.A).repeat(batch_size, 1, 1)
+        dhdt_lhs = Lg_V[:, 0, :].unsqueeze(1) + sum_LG_V + LGammadVG_V
+        G_u = torch.zeros(
+            (batch_size, lsm0.U.A.shape[0]+dhdt_lhs.shape[1], lsm0.U.A.shape[1]),
+        )
+        G_u[:, :lsm0.U.A.shape[0], :lsm0.U.A.shape[1]] = torch.tensor(lsm0.U.A)
+        G_u[:, lsm0.U.A.shape[0]:, :] = dhdt_lhs
+        print("dhdt_lhs = ", dhdt_lhs)
+
+        G_r = torch.tensor([[-1.0]]).repeat(batch_size, 1)
+        G = torch.zeros(
+            (batch_size, G_u.shape[1]+1, G_u.shape[2]+1)
+        )
+        G[:, :G_u.shape[1], :G_u.shape[2]] = G_u
+        # Define lie derivative columns in G_u
+        lie_deriv_rows = [G_u.shape[1]-1]
+        G[:, lie_deriv_rows, G_u.shape[2]] = -1.0
+        G[:, G_u.shape[1]:, G_u.shape[2]:] = G_r
+
+        h_u = torch.zeros(
+            (batch_size, G_u.shape[1])
+        )
+        h_u[:, :lsm0.U.b.shape[0]] = torch.tensor(lsm0.U.b).repeat(batch_size, 1)
+        h_u[:, lsm0.U.b.shape[0]:] = -Lf_V[:, 0, :] - torch.bmm(
+            LF_V[:, 0, :].unsqueeze(1),
+            theta_hat0.reshape((batch_size, theta_hat0.shape[1], 1)),
+        ) - LFGammadV_V[:, 0, :].unsqueeze(1) - controller0.clf_lambda * V0
+
+        h_r = torch.zeros((batch_size, 1))
+        h_r[:, 0] = 0.0
+        h = torch.zeros(
+            (batch_size, h_u.shape[1] + h_r.shape[1])
+        )
+        h[:, :h_u.shape[1]] = h_u
+        h[:, -1] = h_r
+
+        A = torch.zeros((batch_size, 0, G.shape[2]))
+        b = torch.zeros((batch_size, 0))
+
+        z = QPFunction()(Q, q, G, h, A, b)
+
+        print("z = ", z)
+
+        self.assertGreaterEqual(z[0,-1], 0)
 
 
 if __name__ == "__main__":

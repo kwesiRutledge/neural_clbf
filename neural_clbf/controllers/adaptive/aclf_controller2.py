@@ -200,8 +200,18 @@ class aCLFController2(Controller):
             JxV: bs x 1 x self.dynamics_model.n_dims Jacobian of each row of Va wrt x
             JthV: bs x 1 x self.dynamics_model.n_params Jacobian of each row of Va wrt theta_hat
         """
+        batch_size = x.shape[0]
+
         # Create batches of x-theta pairs
         x_theta = torch.cat([x, theta_hat], dim=1)
+        x_theta0 = torch.zeros(x_theta.shape).type_as(x_theta)
+        x0 = self.dynamics_model.goal_point(theta_hat).type_as(x_theta)
+        theta_hat0 = torch.tensor(
+            self.dynamics_model.sample_polytope_center(self.dynamics_model.Theta)
+        ).type_as(x_theta).repeat(batch_size, 1)
+
+        x_theta0[:, :self.dynamics_model.n_dims] = x0
+        x_theta0[:, self.dynamics_model.n_dims:] = theta_hat0
 
         # First, get the Lyapunov function value and gradient at this state
         Px = self.dynamics_model.P.type_as(x_theta)
@@ -216,21 +226,20 @@ class aCLFController2(Controller):
             (self.dynamics_model.n_params, self.dynamics_model.n_params)
         )
 
-        Va = 0.5 * F.bilinear(x_theta, x_theta, P).squeeze()
-        Va = Va.reshape(x_theta.shape[0])
+        Va = 0.5 * F.bilinear(x_theta - x_theta0, x_theta-x_theta0, P).squeeze()
+        Va = Va.reshape(batch_size)
 
         # Reshape again for the gradient calculation
         P = P.reshape(
             self.dynamics_model.n_dims+self.dynamics_model.n_params, self.dynamics_model.n_dims+self.dynamics_model.n_params
         )
-        print(P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims].shape)
-        JxV = F.linear(x, P[:self.dynamics_model.n_dims, :self.dynamics_model.n_dims].T) + \
-              F.linear(theta_hat, P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims].T)
-        JxV = JxV.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
+        JxV = F.linear(x-x0, P[:self.dynamics_model.n_dims, :self.dynamics_model.n_dims].T) + \
+              F.linear(theta_hat-theta_hat0, P[self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params, :self.dynamics_model.n_dims].T)
+        JxV = JxV.reshape(batch_size, 1, self.dynamics_model.n_dims)
 
-        JthV = F.linear(theta_hat, P[self.dynamics_model.n_dims:, self.dynamics_model.n_dims:].T) + \
-                F.linear(x, P[:self.dynamics_model.n_dims, self.dynamics_model.n_dims:].T)
-        JthV = JthV.reshape(x_theta.shape[0], 1, self.dynamics_model.n_params)
+        JthV = F.linear(theta_hat-theta_hat0, P[self.dynamics_model.n_dims:, self.dynamics_model.n_dims:].T) + \
+                F.linear(x-x0, P[:self.dynamics_model.n_dims, self.dynamics_model.n_dims:].T)
+        JthV = JthV.reshape(batch_size, 1, self.dynamics_model.n_params)
 
         return Va, JxV, JthV
 
@@ -781,83 +790,86 @@ class aCLFController2(Controller):
         Description:
 
         """
+        assert False, "This function is not implemented yet."
+
+        # TODO: Define this function and test it.
 
         # Input Processing
-        if relaxation_penalty is None:
-            relaxation_penalty = self.clf_relaxation_penalty
-        else:
-            assert relaxation_penalty > 0, "relaxation_penalty must be positive"
-
-        if u_ref is None:
-            u_ref = torch.zeros(
-                (x.shape[0], self.dynamics_model.n_controls)
-            )
-
-
-        # Constants
-        dynamics_model = self.dynamics_model
-
-        # Algorithm
-        # Sample states
-        X_upper, X_lower = dynamics_model.control_limits
-        grid_pts_along_dim = []
-        for dim_index in range(dynamics_model.n_dims):
-            grid_pts_along_dim.append(
-                torch.linspace(X_lower[dim_index], X_upper[dim_index], N_samples_per_dim),
-            )
-
-        grid_pts = torch.cartesian_prod(
-            *grid_pts_along_dim,
-        )
-        grid_pts = grid_pts.reshape((grid_pts.shape[0], dynamics_model.n_dims))
-
-        # Evaluate constraint function and clf condition for each of these.
-        batch_size = grid_pts.shape[0]
-        V_Theta = pc.extreme(dynamics_model.Theta)
-        n_Theta = V_Theta.shape[0]
-
-        constraint_function0 = torch.zeros(
-            (batch_size, dynamics_model.n_dims, n_Theta)
-        )
-        for corner_index in range(n_Theta):
-
-            if torch.get_default_dtype() == torch.float32:
-                theta_sample_np = np.float32(V_Theta[corner_index, :])
-                v_Theta = torch.tensor(theta_sample_np)
-            else:
-                v_Theta = torch.tensor(V_Theta[corner_index, :])
-
-            v_Theta = v_Theta.reshape((1, dynamics_model.n_dims))
-            v_Theta = v_Theta.repeat((batch_size, 1))
-
-            constraint_function0[:, :, corner_index] = \
-                dynamics_model.closed_loop_dynamics(
-                    x.repeat((N_samples_per_dim, 1)), grid_pts,
-                    v_Theta,
-                )
-
-        # Find the set of all batch indicies where every dynamics evaluation
-        # is negative
-
-        rectified_relaxation_vector = torch.nn.functional.relu(
-            constraint_function0 * clf_relaxation_penalty,
-        )
-
-        penalties = torch.sum(rectified_relaxation_vector, dim=2).reshape((batch_size, 1))
-
-        obj = torch.zeros((batch_size, 1))
-        obj[:, :] = torch.nn.functional.bilinear(
-            grid_pts - u_ref.repeat(batch_size, 1),
-            grid_pts - u_ref.repeat(batch_size, 1),
-            self.Q_u,
-        )
-        obj[:, :] = obj[:, :] + penalties
-
-        # print(obj)
-        # print(torch.argmin(obj))
-
-        u_min = obj[torch.argmin(obj), :]
-        return u_min
+        # if relaxation_penalty is None:
+        #     relaxation_penalty = self.clf_relaxation_penalty
+        # else:
+        #     assert relaxation_penalty > 0, "relaxation_penalty must be positive"
+        #
+        # if u_ref is None:
+        #     u_ref = torch.zeros(
+        #         (x.shape[0], self.dynamics_model.n_controls)
+        #     )
+        #
+        #
+        # # Constants
+        # dynamics_model = self.dynamics_model
+        #
+        # # Algorithm
+        # # Sample states
+        # X_upper, X_lower = dynamics_model.control_limits
+        # grid_pts_along_dim = []
+        # for dim_index in range(dynamics_model.n_dims):
+        #     grid_pts_along_dim.append(
+        #         torch.linspace(X_lower[dim_index], X_upper[dim_index], N_samples_per_dim),
+        #     )
+        #
+        # grid_pts = torch.cartesian_prod(
+        #     *grid_pts_along_dim,
+        # )
+        # grid_pts = grid_pts.reshape((grid_pts.shape[0], dynamics_model.n_dims))
+        #
+        # # Evaluate constraint function and clf condition for each of these.
+        # batch_size = grid_pts.shape[0]
+        # V_Theta = pc.extreme(dynamics_model.Theta)
+        # n_Theta = V_Theta.shape[0]
+        #
+        # constraint_function0 = torch.zeros(
+        #     (batch_size, dynamics_model.n_dims, n_Theta)
+        # )
+        # for corner_index in range(n_Theta):
+        #
+        #     if torch.get_default_dtype() == torch.float32:
+        #         theta_sample_np = np.float32(V_Theta[corner_index, :])
+        #         v_Theta = torch.tensor(theta_sample_np)
+        #     else:
+        #         v_Theta = torch.tensor(V_Theta[corner_index, :])
+        #
+        #     v_Theta = v_Theta.reshape((1, dynamics_model.n_dims))
+        #     v_Theta = v_Theta.repeat((batch_size, 1))
+        #
+        #     constraint_function0[:, :, corner_index] = \
+        #         dynamics_model.closed_loop_dynamics(
+        #             x.repeat((N_samples_per_dim, 1)), grid_pts,
+        #             v_Theta,
+        #         )
+        #
+        # # Find the set of all batch indicies where every dynamics evaluation
+        # # is negative
+        #
+        # rectified_relaxation_vector = torch.nn.functional.relu(
+        #     constraint_function0 * clf_relaxation_penalty,
+        # )
+        #
+        # penalties = torch.sum(rectified_relaxation_vector, dim=2).reshape((batch_size, 1))
+        #
+        # obj = torch.zeros((batch_size, 1))
+        # obj[:, :] = torch.nn.functional.bilinear(
+        #     grid_pts - u_ref.repeat(batch_size, 1),
+        #     grid_pts - u_ref.repeat(batch_size, 1),
+        #     self.Q_u,
+        # )
+        # obj[:, :] = obj[:, :] + penalties
+        #
+        # # print(obj)
+        # # print(torch.argmin(obj))
+        #
+        # u_min = obj[torch.argmin(obj), :]
+        # return u_min
 
     def solve_CLF_QP(
         self,

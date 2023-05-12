@@ -378,7 +378,7 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         f[:, LoadSharingManipulator.P_X, 0] = v_x
         f[:, LoadSharingManipulator.P_Y, 0] = v_y
         f[:, LoadSharingManipulator.P_Z, 0] = v_z
-        f[:, LoadSharingManipulator.V_X, 0] = (1/m) * K_x * p_x
+        f[:, LoadSharingManipulator.V_X, 0] = (1 / m) * K_x * p_x
         f[:, LoadSharingManipulator.V_Y, 0] = (1 / m) * K_y * p_y
         f[:, LoadSharingManipulator.V_Z, 0] = (1 / m) * K_z * p_z - gravity
 

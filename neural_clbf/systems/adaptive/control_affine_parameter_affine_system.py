@@ -881,6 +881,32 @@ class ControlAffineParameterAffineSystem(ABC):
 
         return np.dot(V.T, comb_rand_var).T
 
+    def sample_polytope_center(self, P: pc.Polytope)->np.array:
+        """
+        get_N_samples_from_polytope
+        Description:
+            This function retrieves N samples from the polytope P.
+            Used to more efficiently produce samples (only have to compute extremes once.)
+
+        Returns:
+            (N_samples,) array containing the center point
+        """
+
+        # Compute V Representation
+        V = pc.extreme(P)
+
+        # print(V is None)
+        if V is None:
+            # I suspect this means that the polytope contains a singleton.
+            # Select the element at the boundary to get the correct sample.
+            return P.b[:P.dim].reshape((P.dim, 1))
+
+        n_V = V.shape[0]
+
+        # Random Variable
+        comb_rand_var = np.ones((n_V,))*float(1/n_V)
+        return np.dot(V.T, comb_rand_var).T
+
     def compute_simple_aCLF_estimator_dynamics(self, x:torch.Tensor, theta_hat:torch.Tensor, params:Scenario):
         """
 

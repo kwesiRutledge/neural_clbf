@@ -520,6 +520,32 @@ class TestLoadSharingManipulator(unittest.TestCase):
             u[:nx] = -x0
             prob.update(l=l, u=u)
 
+    def test_loadsharingmanipulator_sample_polytope_center1(self):
+        """
+        test_loadsharingmanipulator_sample_polytope_center1
+        Description:
+            This test verifies that the center of the polytope (as sampled) is in the right place)
+        """
+
+        scenario0 = {
+            "obstacle_center_x": 1.0,
+            "obstacle_center_y": 1.0,
+            "obstacle_center_z": 0.3,
+            "obstacle_width": 1.0,
+        }
+        th_dim = 3
+        A = np.vstack((np.eye(th_dim), -np.eye(th_dim)))
+        b = np.ones(th_dim * 2)
+        Theta = pc.Polytope(A, b)
+        sys0 = LoadSharingManipulator(scenario0, Theta, dt=0.025)
+
+        center = sys0.sample_polytope_center(Theta)
+
+        self.assertAlmostEqual(
+            np.linalg.norm(center - np.array([0.0, 0.0, 0.0])),
+            0.0,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

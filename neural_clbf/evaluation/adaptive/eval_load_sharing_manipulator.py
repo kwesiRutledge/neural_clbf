@@ -223,27 +223,25 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         default_highlight_level=highlight_level,
         plot_goal_region=True,
     )
-    # V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
-    #     "V_Contour (state slices only) 2",
-    #     x_domain=[
-    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_X], x_ub[AdaptivePusherSliderStickingForceInput.S_X]),
-    #         (x_lb[AdaptivePusherSliderStickingForceInput.S_Y], x_ub[AdaptivePusherSliderStickingForceInput.S_Y])
-    #     ],  # plotting domain
-    #     n_grid=50,
-    #     x_axis_index=AdaptivePusherSliderStickingForceInput.S_X,
-    #     y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
-    #     x_axis_label="$s_x$",
-    #     y_axis_label="$s_y$",
-    #     plot_unsafe_region=False,
-    #     default_state=torch.tensor([-0.5, -0.5, torch.pi / 4]).reshape(
-    #         (dynamics_model.n_dims, 1),
-    #     ),
-    #     default_param_estimate=torch.tensor([dynamics_model.s_width / 2.0, lb[1] * 0.5]).reshape(
-    #         (AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
-    #     plot_highlight_region=args.highlight_level is not None,
-    #     default_highlight_level=args.highlight_level,
-    #     plot_goal_region=True,
-    # )
+    V_contour_experiment6 = aCLFCountourExperiment_StateSlices(
+        "V_Contour (state slices only) 2",
+        x_domain=[
+            (x_lb[LoadSharingManipulator.P_X], x_ub[LoadSharingManipulator.P_X]),
+            (x_lb[LoadSharingManipulator.P_Z], x_ub[LoadSharingManipulator.P_Z])
+        ],  # plotting domain
+        n_grid=50,
+        x_axis_index=LoadSharingManipulator.P_X,
+        y_axis_index=LoadSharingManipulator.P_Z,
+        x_axis_label="$s_x$",
+        y_axis_label="$s_z$",
+        default_param_estimate=torch.tensor(dynamics_model.Theta.chebXc).reshape(
+            (LoadSharingManipulator.N_PARAMETERS, 1)),
+        default_state=torch.tensor([0.3, 0.3, 0.3, 0.0, 0.0, 0.0]).reshape(
+            (LoadSharingManipulator.N_DIMS, 1)),
+        plot_highlight_region=highlight_level is not None,
+        default_highlight_level=highlight_level,
+        plot_goal_region=True,
+    )
     # V_contour_experiment7 = aCLFCountourExperiment_StateSlices(
     #     "V_Contour (state slices only) 3",
     #     x_domain=[
@@ -270,7 +268,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
     experiment_suite = ExperimentSuite([
         V_contour_experiment,
         rollout_experiment2, rollout_experiment3, rollout_experiment4,
-        V_contour_experiment5,
+        V_contour_experiment5, V_contour_experiment6,
     ])
 
     return dynamics_model, scenarios, data_module, experiment_suite
@@ -360,7 +358,7 @@ def plot_controlled_load_sharing(args):
         ]
     )
 
-        controller_under_test.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
+        controller_under_test.experiment_suite.experiments[experiment_idx].t_sim = 45.0  #saved_hyperparams["rollout_experiment_horizon"]
 
     # Run the experiments and save the results
     fig_handles = controller_under_test.experiment_suite.run_all_and_plot(
@@ -372,7 +370,7 @@ def plot_controlled_load_sharing(args):
         "V-trajectories1", "V-trajectories2", "V-trajectories3",
         "u-trajectories",
         "x-convergence", "bad-estimator-traj", "u-trajectories-again", "pt-comparison-cloud1",
-        "V-contour-slices1"
+        "V-contour-slices1", "V-contour-slices2"
     ]
     for fh_idx, fh in enumerate(fig_handles):
         fig_name, fig_obj = fh
