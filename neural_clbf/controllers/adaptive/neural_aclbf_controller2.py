@@ -56,6 +56,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         epochs_per_episode: int = 5,
         penalty_scheduling_rate: float = 0.0,
         num_init_epochs: int = 5,
+        learn_shape_epochs: int = 0,
         barrier: bool = True,
         add_nominal: bool = False,
         normalize_V_nominal: bool = False,
@@ -86,6 +87,8 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
                                      disable penalty scheduling (use constant penalty)
             num_init_epochs: the number of epochs to pretrain the controller on the
                              linear controller
+            learn_shape_epochs: the number of epochs during which the shape of the CLBF
+                                is learned. After this, the descent and other losses are added.
             barrier: if True, train the CLBF to act as a barrier functions. If false,
                      effectively trains only a CLF.
             add_nominal: if True, add the nominal V
@@ -122,7 +125,10 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         self.primal_learning_rate = primal_learning_rate
         self.epochs_per_episode = epochs_per_episode
         self.penalty_scheduling_rate = penalty_scheduling_rate
+
         self.num_init_epochs = num_init_epochs
+        self.learn_shape_epochs = learn_shape_epochs
+
         self.barrier = barrier
         self.add_nominal = add_nominal
         self.normalize_V_nominal = normalize_V_nominal
@@ -729,7 +735,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         loss = []
 
         # The initial losses should decrease exponentially to zero, based on the epoch
-        epoch_count = max(self.current_epoch - self.num_init_epochs, 0)
+        epoch_count = max(self.current_epoch - self.num_init_epochs - self.learn_shape_epochs, 0)
         decrease_factor = 0.8 ** epoch_count
 
         #   1.) Compare the CLBF to the nominal solution
@@ -774,12 +780,13 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         # Compute the losses
         component_losses = {}
         component_losses.update(self.initial_loss(x, theta_hat))
-        component_losses.update(
-            self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
-        )
-        component_losses.update(
-            self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
-        )
+        if self.current_epoch > self.learn_shape_epochs:
+            component_losses.update(
+                self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+            )
+            component_losses.update(
+                self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
+            )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0).type_as(x)
