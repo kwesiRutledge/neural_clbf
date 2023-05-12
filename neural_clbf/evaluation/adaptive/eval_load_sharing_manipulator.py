@@ -6,7 +6,9 @@ from argparse import ArgumentParser
 from neural_clbf.controllers.adaptive import (
     NeuralaCLBFController,
 )
-from neural_clbf.systems.adaptive import LoadSharingManipulator
+from neural_clbf.systems.adaptive import (
+    LoadSharingManipulator, ControlAffineParameterAffineSystem,
+)
 from neural_clbf.datamodules import EpisodicDataModuleAdaptive
 from neural_clbf.experiments import (
     AdaptiveCLFContourExperiment, RolloutStateParameterSpaceExperiment,
@@ -20,7 +22,7 @@ from neural_clbf.experiments.adaptive import (
 
 import numpy as np
 
-from typing import Dict
+from typing import Dict, List, Tuple, Union, Any
 
 import polytope as pc
 
@@ -42,10 +44,10 @@ def extract_hyperparams_from_args(args):
     """
     # Constants
     commit_prefix = args.commit_prefix
-    version_to_load = args.version_number
+    version_to_load = args.version
 
     scalar_capa2_log_file_dir = "../../training/adaptive/logs/load_sharing_manipulator/"
-    scalar_capa2_log_file_dir += "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/"
+    scalar_capa2_log_file_dir += "commit_" + commit_prefix + "/version_" + version_to_load + "/"
 
     # Load the checkpoint file. This should include the experiment suite used during
     # training.
@@ -69,13 +71,20 @@ def extract_hyperparams_from_args(args):
         map_location=torch.device('cpu'),
     )
 
-    # Load the controller
-    aclbf_controller = torch.load(
-        scalar_capa2_log_file_dir + "controller.pt",
+    # Load the controller's state dict
+    saved_state_dict = torch.load(
+        scalar_capa2_log_file_dir + "state_dict.pt",
         map_location=torch.device('cpu'),
     )
 
-    return controller_from_checkpoint, saved_hyperparams, saved_Vnn, aclbf_controller
+    # Load the controller
+    aclbf_controller = None
+    # aclbf_controller = torch.load(
+    #     scalar_capa2_log_file_dir + "controller.pt",
+    #     map_location=torch.device('cpu'),
+    # )
+
+    return controller_from_checkpoint, saved_hyperparams, saved_Vnn, aclbf_controller, saved_state_dict
 
 def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFController:
     """
@@ -266,19 +275,81 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
 
     return dynamics_model, scenarios, data_module, experiment_suite
 
+def extract_controller_from_state_dict(
+    dynamics_model: ControlAffineParameterAffineSystem,
+    scenarios: List[Dict[str, torch.Tensor]],
+    data_module: EpisodicDataModuleAdaptive,
+    saved_hyperparams: Dict[str, Any],
+    experiment_suite: ExperimentSuite,
+    saved_state_dict,
+)->NeuralaCLBFController:
+    """
+    Extracts the controller from the state dict
+    """
+
+    # Input Processing
+    clf_relaxation_penalty = 1e2
+    if "clf_relaxation_penalty" in saved_hyperparams.keys():
+        clf_relaxation_penalty = saved_hyperparams["clf_relaxation_penalty"]
+
+    Q_u = np.diag([1.0, 1.0, 1.0])
+    if "Q_u" in saved_hyperparams.keys():
+        Q_u = saved_hyperparams["Q_u"]
+
+    # algorithm
+    controller_from_state_dict = NeuralaCLBFController(
+        dynamics_model,
+        scenarios,
+        data_module,
+        experiment_suite=experiment_suite,
+        clbf_hidden_layers=saved_hyperparams["clbf_hidden_layers"],
+        clbf_hidden_size=saved_hyperparams["clbf_hidden_size"],
+        clf_lambda=saved_hyperparams["clf_lambda"],
+        safe_level=saved_hyperparams["safe_level"],
+        controller_period=saved_hyperparams["controller_period"],
+        clf_relaxation_penalty=clf_relaxation_penalty,
+        num_init_epochs=saved_hyperparams["num_init_epochs"],
+        epochs_per_episode=100,
+        barrier=saved_hyperparams["barrier"],
+        Gamma_factor=saved_hyperparams["Gamma_factor"],
+        include_oracle_loss=saved_hyperparams["include_oracle_loss"],
+        Q_u=Q_u,
+    )
+    controller_from_state_dict.load_state_dict(
+        saved_state_dict,
+    )
+
+    return controller_from_state_dict
+
 def plot_controlled_load_sharing(args):
-    controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt = extract_hyperparams_from_args(args)
+    controller_ckpt, saved_hyperparams, saved_Vnn, controller_pt, saved_state_dict = extract_hyperparams_from_args(args)
 
     dynamics_model, scenarios, data_module, experiment_suite = inflate_context_using_hyperparameters(
         saved_hyperparams,
         args,
     )
-    controller_pt.experiment_suite = experiment_suite
-    controller_pt.dynamics_model.device = "cpu"
+    dynamics_model.device = "cpu"
+    # controller_pt.experiment_suite = experiment_suite
+    # controller_pt.dynamics_model.device = "cpu"
+
+    # Load new controller
+    controller_from_state_dict = extract_controller_from_state_dict(
+        dynamics_model,
+        scenarios,
+        data_module,
+        saved_hyperparams,
+        experiment_suite,
+        saved_state_dict,
+    )
+    controller_from_state_dict.experiment_suite = experiment_suite
+    controller_from_state_dict.dynamics_model.device = "cpu"
+
+    # SELECT CONTROLLER UNDER TEST
+    controller_under_test = controller_from_state_dict
 
     # Update parameters
     for experiment_idx in range(1, 1 + 1):
-        controller_pt.experiment_suite.experiments[experiment_idx].start_x = torch.tensor(
+        controller_under_test.experiment_suite.experiments[experiment_idx].start_x = torch.tensor(
         [
             [0.3, -0.3, 0.0, 0.0, 0.0, 0.0],
             # [0.7, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -289,11 +360,11 @@ def plot_controlled_load_sharing(args):
         ]
     )
 
-        controller_pt.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
+        controller_under_test.experiment_suite.experiments[experiment_idx].t_sim = 45.0 #saved_hyperparams["rollout_experiment_horizon"]
 
     # Run the experiments and save the results
-    fig_handles = controller_pt.experiment_suite.run_all_and_plot(
-        controller_pt, display_plots=False
+    fig_handles = controller_under_test.experiment_suite.run_all_and_plot(
+        controller_under_test, display_plots=False
     )
 
     fig_titles = [
@@ -317,7 +388,7 @@ if __name__ == "__main__":
         help='First seven letters of the commit id of the code used to generate the data (default: "dfbf44c")',
     )
     parser.add_argument(
-        '--version_number', type=int, default=0,
+        '--version', type=str, default="0",
         help='Version number of the data to load (default: 0)',
     )
     parser.add_argument(
