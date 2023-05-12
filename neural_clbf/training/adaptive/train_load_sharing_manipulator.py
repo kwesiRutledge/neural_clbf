@@ -95,7 +95,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 500,
         "trajectory_length": 20,
         "accelerator": accelerator,
-        "num_init_epochs": 55,
+        "num_init_epochs": 20,
         # "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
@@ -106,7 +106,7 @@ def create_training_hyperparams(args)-> Dict:
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": LoadSharingManipulator.P_X,
         # Rollout Experiment Parameters
-        "rollout_experiment_horizon": 10.0,
+        "rollout_experiment_horizon": 5.0,
         # Random Seed Info
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
@@ -232,6 +232,7 @@ def main(args):
         controller_period=t_hyper["controller_period"],
         clf_relaxation_penalty=t_hyper["clf_relaxation_penalty"],
         num_init_epochs=t_hyper["num_init_epochs"],
+        learn_shape_epochs=t_hyper["learn_shape_epochs"],
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],

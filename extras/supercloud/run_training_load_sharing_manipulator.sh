@@ -22,4 +22,5 @@ python train_load_sharing_manipulator.py \
   --safe_level 10.0 \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
-  --gradient_clip_val 5000.0 --clf_relaxation_penalty 1e3
+  --gradient_clip_val 5000.0 --clf_relaxation_penalty 1e3 \
+  --learn_shape_epochs 25

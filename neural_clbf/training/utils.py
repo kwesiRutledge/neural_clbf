@@ -66,6 +66,13 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--max_iters_cvxpylayer', type=int, default=int(5e7),
         help='Maximum number of iterations for cvxpylayers (default: 5e7)',
     )
+
+    # Number of Epochs to devote to X
+    ap.add_argument(
+        '--learn_shape_epochs', type=int, default=20,
+        help='Number of epochs to devote to learning the shape (default: 20)',
+    )
+
     # Including Certain Losses
     ap.add_argument(
         '--include_estimation_error_loss', type=bool, default=False,
