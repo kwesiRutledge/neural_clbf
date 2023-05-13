@@ -66,6 +66,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         include_estimation_error_loss: bool = False,
         Q_u: np.array = None,
         max_iters_cvxpylayer: int = 50000000,
+        show_debug_messages: bool = False,
     ):
         """Initialize the controller.
 
@@ -104,6 +105,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
             Gamma_factor=Gamma_factor,
             Q_u=Q_u,
             max_iters_cvxpylayer=max_iters_cvxpylayer,
+            show_debug_messages=show_debug_messages,
         )
 
         self.save_hyperparameters()
@@ -298,18 +300,19 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
             elif isinstance(layer, nn.ReLU):
                 JVxth = torch.matmul(torch.diag_embed(torch.sign(V)), JVxth)
 
-            smallJV_idcs = torch.norm(JVxth, dim=(1, 2)) <= 1e-6
-            if (torch.sum(smallJV_idcs) > 0) & (isinstance(layer, nn.Tanh)):
-                print("smallJV_idcs: ", smallJV_idcs)
-                print("x_norm = ", x_norm)
-                print("x_theta_norm[smallJV_idcs, :]: ", x_theta_norm[smallJV_idcs, :])
-                print("x_theta_norm: ", x_theta_norm)
-                print("# of Small JV_idcs: ", torch.sum(smallJV_idcs))
-                print("Last Tanh weight: ", torch.diag_embed(1 - V**2))
+            if self.show_debug_messages:
+                smallJV_idcs = torch.norm(JVxth, dim=(1, 2)) <= 1e-6
+                if (torch.sum(smallJV_idcs) > 0) & (isinstance(layer, nn.Tanh)):
+                    print("smallJV_idcs: ", smallJV_idcs)
+                    print("x_norm = ", x_norm)
+                    print("x_theta_norm[smallJV_idcs, :]: ", x_theta_norm[smallJV_idcs, :])
+                    print("x_theta_norm: ", x_theta_norm)
+                    print("# of Small JV_idcs: ", torch.sum(smallJV_idcs))
+                    print("Last Tanh weight: ", torch.diag_embed(1 - V**2))
 
-                print("V = ", V)
-                print("(V * V).sum(dim=1) = ", (V * V).sum(dim=1))
-                print("(V * V).sum(dim=1) = ", 0.5 * (V * V).sum(dim=1))
+                    print("V = ", V)
+                    print("(V * V).sum(dim=1) = ", (V * V).sum(dim=1))
+                    print("(V * V).sum(dim=1) = ", 0.5 * (V * V).sum(dim=1))
 
 
 

@@ -15,6 +15,7 @@ from neural_clbf.systems.utils import Scenario, ScenarioList
 from neural_clbf.controllers.controller import Controller
 from neural_clbf.experiments import ExperimentSuite
 
+from qpth.qp import QPFunction
 
 class aCLFController2(Controller):
     """
@@ -35,6 +36,7 @@ class aCLFController2(Controller):
         Gamma_factor: float = None,
         Q_u: np.array = None,
         max_iters_cvxpylayer: int = 50000000,
+        show_debug_messages: bool = False,
     ):
         """Initialize the controller.
 
@@ -75,6 +77,9 @@ class aCLFController2(Controller):
         if self.Q_u is None:
             self.Q_u = np.eye(self.dynamics_model.n_controls)
         self.max_iters_cvxpylayer = max_iters_cvxpylayer
+
+        # Save the debug flag
+        self.show_debug_messages = show_debug_messages
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set
         # up the CVXPyLayers optimization. First, we define variables for each control
@@ -354,24 +359,25 @@ class aCLFController2(Controller):
                 LGammadVG_V[:, i, :] = (LGammadVG_V_current + torch.matmul(gradV_x, GammadVG_i)).squeeze(1)
 
         eps = 1e-6
-        for b_idx in range(Lg_V.shape[0]):
-            if torch.norm(Lg_V[b_idx, :, :]) < eps:
-                print("Lg_V is zero")
-                print("x", x[b_idx, :])
-                print("theta_hat", theta_hat[b_idx, :])
-                print("dVdx", gradV_x[b_idx, :, :])
-                print("dVdtheta", gradV_theta.mT[b_idx, :, :])
-                print("V", V[b_idx])
-                print("Lf_V ", Lf_V[b_idx, :, :])
-                print("Lg_V ", Lg_V[b_idx, :, :])
-                print("LGammadVG_V ", LGammadVG_V[b_idx, :, :])
+        if self.show_debug_messages:
+            for b_idx in range(Lg_V.shape[0]):
+                if torch.norm(Lg_V[b_idx, :, :]) < eps:
+                    print("Lg_V is zero")
+                    print("x", x[b_idx, :])
+                    print("theta_hat", theta_hat[b_idx, :])
+                    print("dVdx", gradV_x[b_idx, :, :])
+                    print("dVdtheta", gradV_theta.mT[b_idx, :, :])
+                    print("V", V[b_idx])
+                    print("Lf_V ", Lf_V[b_idx, :, :])
+                    print("Lg_V ", Lg_V[b_idx, :, :])
+                    print("LGammadVG_V ", LGammadVG_V[b_idx, :, :])
 
-                # print(
-                #     "f = ", self.dynamics_model._f(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
-                #     " g = ", self.dynamics_model._g(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
-                #     " F = ", self.dynamics_model._F(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
-                #     " G = ", self.dynamics_model._G(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
-                # )
+                    # print(
+                    #     "f = ", self.dynamics_model._f(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                    #     " g = ", self.dynamics_model._g(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                    #     " F = ", self.dynamics_model._F(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                    #     " G = ", self.dynamics_model._G(x[b_idx, :].reshape(1, self.dynamics_model.n_dims), scenarios[0]), "\n",
+                    # )
 
         # return the Lie derivatives
         return Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V
@@ -871,6 +877,138 @@ class aCLFController2(Controller):
         # u_min = obj[torch.argmin(obj), :]
         # return u_min
 
+    def _solve_CLF_QP_qpth(
+        self,
+        x: torch.tensor,
+        theta_hat: torch.Tensor,
+        V: torch.Tensor,
+        relaxation_penalty: float,
+        Q_u: np.array = None,
+    ):
+        """
+        _solve_CLF_QP_qpth
+        Description:
+            Uses the qpth solver to solve the CLF QP.
+        Inputs:
+            x: batch_size x n_dims torch.Tensor
+            Q: n_controls x n_controls np.array
+                Will later convert to torch.Tensor in this function
+        Outputs:
+            u: bs x self.dynamics_model.n_controls tensor of control inputs
+            relaxation: bs x 1 tensor of how much the CLF had to be relaxed in each
+                        case
+        """
+
+        # Input Processing
+        relaxation_penalty = min(relaxation_penalty, 1e6)
+
+        if Q_u is None:
+            Q_u = self.Q_u
+
+        batch_size = x.shape[0]
+        assert theta_hat.shape[0] == batch_size, "theta_hat must have the same batch size as x"
+
+        # Constants
+        dynamics_model = self.dynamics_model
+
+        # Create objective
+        Q_u = torch.eye(dynamics_model.n_controls)
+        Q_r = torch.ones((1, 1)) * 1e-4
+
+        Q = torch.zeros((dynamics_model.n_controls + 1, dynamics_model.n_controls + 1))
+        Q[:dynamics_model.n_controls, :dynamics_model.n_controls] = Q_u
+        Q[-1, -1] = Q_r
+        Q = Q.repeat(batch_size, 1, 1)
+
+        q_u = -2. * torch.bmm(Q[:, :dynamics_model.n_controls, :dynamics_model.n_controls],
+                              dynamics_model.u_nominal(x, theta_hat).unsqueeze(2)).squeeze(2)
+        q_r = torch.zeros((1))
+        q_r[0] = relaxation_penalty
+
+        q = torch.zeros((batch_size, dynamics_model.n_controls + 1))
+        q[:, :dynamics_model.n_controls] = q_u
+        q[:, -1] = q_r
+        # q = q.repeat(batch_size, 1)
+
+        # Create constraints
+
+        V_Theta = pc.extreme(dynamics_model.Theta)
+        n_V_Theta = V_Theta.shape[0]
+        n_scenarios = len(self.scenarios)
+
+        G_u = torch.zeros(
+            (batch_size, dynamics_model.U.A.shape[0] + 1 * n_V_Theta, dynamics_model.U.A.shape[1]),
+        )
+        G_u[:, :dynamics_model.U.A.shape[0], :dynamics_model.U.A.shape[1]] = torch.tensor(dynamics_model.U.A)
+        for theta_index in range(n_V_Theta):
+            theta_i = torch.tensor(V_Theta[theta_index, :]).repeat(
+                (batch_size, 1)
+            ).type_as(x)
+
+            V_i = self.V(x, theta_hat)
+            Lf_V_i, LF_V_i, LFGammadV_V_i, Lg_V_i, list_LGi_V_i, LGammadVG_V_i = self.V_lie_derivatives(x, theta_hat)
+
+            sum_LG_V_i = torch.zeros((batch_size, n_scenarios, dynamics_model.n_controls), device=x.device)
+            for theta_dim in range(dynamics_model.n_params):
+                sum_LG_V_i = sum_LG_V_i + \
+                             torch.bmm(
+                                 theta_i[:, theta_dim].reshape((batch_size, 1, 1)), list_LGi_V_i[theta_dim]
+                             ).to(x.device)
+
+            # G_u = torch.tensor(dynamics_model.U.A).repeat(batch_size, 1, 1)
+            dhdt_lhs_i = Lg_V_i[:, 0, :].unsqueeze(1) + sum_LG_V_i + LGammadVG_V_i
+            G_u[:, dynamics_model.U.A.shape[0] + theta_index, :] = dhdt_lhs_i[:, 0, :]
+
+        G_r = torch.tensor([[-1.0]]).repeat(batch_size, 1, 1)
+
+        G = torch.zeros(
+            (batch_size, G_u.shape[1] + 1, G_u.shape[2] + 1)
+        )
+        G[:, :G_u.shape[1], :G_u.shape[2]] = G_u
+
+        # Define lie derivative columns in G_u
+        lie_deriv_rows = range(G_u.shape[1] - n_V_Theta, G_u.shape[1])
+        G[:, lie_deriv_rows, G_u.shape[2]] = -1.0
+        G[:, G_u.shape[1]:, G_u.shape[2]:] = G_r
+
+        h_u = torch.zeros(
+            (batch_size, G_u.shape[1])
+        )
+        h_u[:, :dynamics_model.U.b.shape[0]] = torch.tensor(dynamics_model.U.b).repeat(batch_size, 1)
+        for theta_index in range(n_V_Theta):
+            theta_i = torch.tensor(V_Theta[theta_index, :]).repeat(
+                (batch_size, 1)
+            ).type_as(x)
+
+            V_i = self.V(x, theta_i)
+            Lf_V_i, LF_V_i, LFGammadV_V_i, Lg_V_i, list_LGi_V_i, LGammadVG_V_i = self.V_lie_derivatives(
+                x, theta_i,
+            )
+            h_u[:, dynamics_model.U.b.shape[0] + theta_index:dynamics_model.U.b.shape[0] + theta_index + 1] = \
+                -Lf_V_i[:, 0, :] - \
+                torch.bmm(
+                    LF_V_i[:, 0, :].unsqueeze(1),
+                    theta_i.reshape((batch_size, theta_i.shape[1], 1)),
+                ).squeeze(2) - \
+                LFGammadV_V_i[:, 0, :] \
+                - self.clf_lambda * V_i.reshape((batch_size, 1)) \
+
+        h_r = torch.zeros((batch_size, 1))
+        h_r[:, 0] = 0.0
+        h = torch.zeros(
+            (batch_size, h_u.shape[1] + h_r.shape[1])
+        )
+        h[:, :h_u.shape[1]] = h_u
+        h[:, -1] = h_r.squeeze(1)
+
+        A = torch.zeros((batch_size, 0, G.shape[2]))
+        b = torch.zeros((batch_size, 0))
+
+        # Solve QP
+        z = QPFunction()(Q, q, G, h, A, b)
+
+        return z[:, :dynamics_model.n_controls], z[:, dynamics_model.n_controls:]
+
     def solve_CLF_QP(
         self,
         x,
@@ -878,7 +1016,7 @@ class aCLFController2(Controller):
         u_ref: Optional[torch.Tensor] = None,
         relaxation_penalty: Optional[float] = None,
         requires_grad: bool = False,
-        use_cvxpylayer: bool = True,
+        use_cvxpylayer: bool = False,
         Q: np.array = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -925,8 +1063,10 @@ class aCLFController2(Controller):
             return self._solve_CLF_QP_cvxpylayers(
                 x, u_ref, V, relaxation_penalty
             )
-        elif requires_grad:
-            raise NotImplementedError("Numerical differentiable QP solver not implemented yet.")
+        elif requires_grad and not use_cvxpylayer:
+            return self._solve_CLF_QP_qpth(
+                x, u_ref, V, relaxation_penalty=relaxation_penalty, Q_u=Q,
+            )
         else:
             return self._solve_CLF_QP_gurobi(
                 x, u_ref, V, Lf_V, Lg_V, LF_V,
