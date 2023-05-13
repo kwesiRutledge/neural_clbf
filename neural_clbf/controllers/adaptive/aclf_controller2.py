@@ -37,6 +37,7 @@ class aCLFController2(Controller):
         Q_u: np.array = None,
         max_iters_cvxpylayer: int = 50000000,
         show_debug_messages: bool = False,
+        diff_qp_layer_to_use: str = "cvxpylayer",
     ):
         """Initialize the controller.
 
@@ -80,6 +81,8 @@ class aCLFController2(Controller):
 
         # Save the debug flag
         self.show_debug_messages = show_debug_messages
+
+        self.diff_qp_layer_to_use = diff_qp_layer_to_use
 
         # Since we want to be able to solve the CLF-QP differentiably, we need to set
         # up the CVXPyLayers optimization. First, we define variables for each control
@@ -1016,7 +1019,6 @@ class aCLFController2(Controller):
         u_ref: Optional[torch.Tensor] = None,
         relaxation_penalty: Optional[float] = None,
         requires_grad: bool = False,
-        use_cvxpylayer: bool = False,
         Q: np.array = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -1059,14 +1061,19 @@ class aCLFController2(Controller):
 
         # Figure out if we need to use a differentiable solver (determined by whether
         # the input x requires a gradient or not)
-        if requires_grad and use_cvxpylayer:
-            return self._solve_CLF_QP_cvxpylayers(
-                x, u_ref, V, relaxation_penalty
-            )
-        elif requires_grad and not use_cvxpylayer:
-            return self._solve_CLF_QP_qpth(
-                x, u_ref, V, relaxation_penalty=relaxation_penalty, Q_u=Q,
-            )
+        if requires_grad:
+            if self.diff_qp_layer_to_use == "cvxpylayer":
+                return self._solve_CLF_QP_cvxpylayers(
+                    x, u_ref, V, relaxation_penalty
+                )
+            elif self.diff_qp_layer_to_use == "qpth":
+                return self._solve_CLF_QP_qpth(
+                    x, u_ref, V, relaxation_penalty=relaxation_penalty, Q_u=Q,
+                )
+            else:
+                raise ValueError(
+                    f"Unknown differentiable QP layer {self.diff_qp_layer_to_use}"
+                )
         else:
             return self._solve_CLF_QP_gurobi(
                 x, u_ref, V, Lf_V, Lg_V, LF_V,

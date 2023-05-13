@@ -66,6 +66,10 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--max_iters_cvxpylayer', type=int, default=int(5e7),
         help='Maximum number of iterations for cvxpylayers (default: 5e7)',
     )
+    ap.add_argument(
+        '--diff_qp_layer_to_use', type=str, default='cvxpylayer',
+        help='Which differentiable QP layer to use (default: cvxpylayer); options {cvxpylayer, qpth}',
+    )
 
     # Number of Epochs to devote to X
     ap.add_argument(

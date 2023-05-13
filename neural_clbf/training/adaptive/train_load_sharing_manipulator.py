@@ -68,7 +68,7 @@ def create_training_hyperparams(args)-> Dict:
     ).to(accelerator)
 
     nominal_scenario = {
-        "obstacle_center_x": 0.2,
+        "obstacle_center_x": -1.0,
         "obstacle_center_y": 0.1,
         "obstacle_center_z": 0.3,
         "obstacle_width": 0.2,
@@ -81,8 +81,8 @@ def create_training_hyperparams(args)-> Dict:
         "start_x": start_x,
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [0.175, 0.4, 0.2],
-        "Theta_ub": [0.225, 0.65, 0.3],
+        "Theta_lb": [0.175, 0.395, 0.195], #[0.175, 0.4, 0.2],
+        "Theta_ub": [0.180, 0.4, 0.2], #[0.225, 0.65, 0.3],
         "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.1,
         # "safe_level": 1.0,

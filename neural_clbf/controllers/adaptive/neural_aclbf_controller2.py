@@ -67,6 +67,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         Q_u: np.array = None,
         max_iters_cvxpylayer: int = 50000000,
         show_debug_messages: bool = False,
+        diff_qp_layer_to_use: str = "cvxpylayer",
     ):
         """Initialize the controller.
 
@@ -106,6 +107,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
             Q_u=Q_u,
             max_iters_cvxpylayer=max_iters_cvxpylayer,
             show_debug_messages=show_debug_messages,
+            diff_qp_layer_to_use=diff_qp_layer_to_use,
         )
 
         self.save_hyperparameters()
