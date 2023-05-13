@@ -76,6 +76,10 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--learn_shape_epochs', type=int, default=20,
         help='Number of epochs to devote to learning the shape (default: 20)',
     )
+    ap.add_argument(
+        '--learn_boundary_epochs', type=int, default=0,
+        help='Number of epochs to devote to learning the boundary (default: 0)',
+    )
 
     # Including Certain Losses
     ap.add_argument(

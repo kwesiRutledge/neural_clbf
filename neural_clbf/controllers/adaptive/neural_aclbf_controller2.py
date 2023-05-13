@@ -57,6 +57,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         penalty_scheduling_rate: float = 0.0,
         num_init_epochs: int = 5,
         learn_shape_epochs: int = 0,
+        learn_boundary_epochs: int = 0,
         barrier: bool = True,
         add_nominal: bool = False,
         normalize_V_nominal: bool = False,
@@ -91,6 +92,9 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
                              linear controller
             learn_shape_epochs: the number of epochs during which the shape of the CLBF
                                 is learned. After this, the descent and other losses are added.
+            learn_boundary_epochs: the number of epochs during which the boundaries of the CLBF
+                                is learned. This is learned after a general shape has been created
+                                and before the gradient losses are added.
             barrier: if True, train the CLBF to act as a barrier functions. If false,
                      effectively trains only a CLF.
             add_nominal: if True, add the nominal V
@@ -132,6 +136,7 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
 
         self.num_init_epochs = num_init_epochs
         self.learn_shape_epochs = learn_shape_epochs
+        self.learn_boundary_epochs = learn_boundary_epochs
 
         self.barrier = barrier
         self.add_nominal = add_nominal
@@ -785,10 +790,11 @@ class NeuralaCLBFController2(aCLFController2, pl.LightningModule):
         # Compute the losses
         component_losses = {}
         component_losses.update(self.initial_loss(x, theta_hat))
-        if self.current_epoch > self.learn_shape_epochs:
+        if self.current_epoch >= self.learn_shape_epochs:
             component_losses.update(
                 self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
             )
+        if self.current_epoch >= self.learn_shape_epochs + self.learn_boundary_epochs:
             component_losses.update(
                 self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
             )

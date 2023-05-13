@@ -233,12 +233,14 @@ def main(args):
         clf_relaxation_penalty=t_hyper["clf_relaxation_penalty"],
         num_init_epochs=t_hyper["num_init_epochs"],
         learn_shape_epochs=t_hyper["learn_shape_epochs"],
+        learn_boundary_epochs=t_hyper["learn_boundary_epochs"],
         epochs_per_episode=100,
         barrier=t_hyper["barrier"],
         Gamma_factor=t_hyper["Gamma_factor"],
         include_oracle_loss=t_hyper["include_oracle_loss"],
         Q_u=t_hyper["Q_u"],
         max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
+        diff_qp_layer_to_use=t_hyper["diff_qp_layer_to_use"],
     )
 
     # Initialize the logger and trainer
