@@ -216,7 +216,7 @@ class aCLFController2(Controller):
         x0 = self.dynamics_model.goal_point(theta_hat).type_as(x_theta)
         theta_hat0 = torch.tensor(
             self.dynamics_model.sample_polytope_center(self.dynamics_model.Theta)
-        ).type_as(x_theta).repeat(batch_size, 1)
+        ).to(x.device).type_as(x_theta).repeat(batch_size, 1)
 
         x_theta0[:, :self.dynamics_model.n_dims] = x0
         x_theta0[:, self.dynamics_model.n_dims:] = theta_hat0
@@ -915,20 +915,24 @@ class aCLFController2(Controller):
         dynamics_model = self.dynamics_model
 
         # Create objective
-        Q_u = torch.eye(dynamics_model.n_controls)
-        Q_r = torch.ones((1, 1)) * 1e-4
+        Q_u = torch.eye(dynamics_model.n_controls).to(x.device)
+        Q_r = torch.ones((1, 1)).to(x.device) * 1e-4
 
-        Q = torch.zeros((dynamics_model.n_controls + 1, dynamics_model.n_controls + 1))
+        Q = torch.zeros(
+            (dynamics_model.n_controls + 1, dynamics_model.n_controls + 1)
+        ).to(x.device)
         Q[:dynamics_model.n_controls, :dynamics_model.n_controls] = Q_u
         Q[-1, -1] = Q_r
         Q = Q.repeat(batch_size, 1, 1)
 
         q_u = -2. * torch.bmm(Q[:, :dynamics_model.n_controls, :dynamics_model.n_controls],
                               dynamics_model.u_nominal(x, theta_hat).unsqueeze(2)).squeeze(2)
-        q_r = torch.zeros((1))
+        q_r = torch.zeros(
+            (1)
+        ).to(x.device)
         q_r[0] = relaxation_penalty
 
-        q = torch.zeros((batch_size, dynamics_model.n_controls + 1))
+        q = torch.zeros((batch_size, dynamics_model.n_controls + 1)).to(x.device)
         q[:, :dynamics_model.n_controls] = q_u
         q[:, -1] = q_r
         # q = q.repeat(batch_size, 1)
@@ -941,12 +945,12 @@ class aCLFController2(Controller):
 
         G_u = torch.zeros(
             (batch_size, dynamics_model.U.A.shape[0] + 1 * n_V_Theta, dynamics_model.U.A.shape[1]),
-        )
-        G_u[:, :dynamics_model.U.A.shape[0], :dynamics_model.U.A.shape[1]] = torch.tensor(dynamics_model.U.A)
+        ).to(x.device)
+        G_u[:, :dynamics_model.U.A.shape[0], :dynamics_model.U.A.shape[1]] = torch.tensor(dynamics_model.U.A).to(x.device)
         for theta_index in range(n_V_Theta):
             theta_i = torch.tensor(V_Theta[theta_index, :]).repeat(
                 (batch_size, 1)
-            ).type_as(x)
+            ).type_as(x).to(x.device)
 
             V_i = self.V(x, theta_hat)
             Lf_V_i, LF_V_i, LFGammadV_V_i, Lg_V_i, list_LGi_V_i, LGammadVG_V_i = self.V_lie_derivatives(x, theta_hat)
@@ -962,11 +966,11 @@ class aCLFController2(Controller):
             dhdt_lhs_i = Lg_V_i[:, 0, :].unsqueeze(1) + sum_LG_V_i + LGammadVG_V_i
             G_u[:, dynamics_model.U.A.shape[0] + theta_index, :] = dhdt_lhs_i[:, 0, :]
 
-        G_r = torch.tensor([[-1.0]]).repeat(batch_size, 1, 1)
+        G_r = torch.tensor([[-1.0]]).to(x.device).repeat(batch_size, 1, 1)
 
         G = torch.zeros(
             (batch_size, G_u.shape[1] + 1, G_u.shape[2] + 1)
-        )
+        ).to(x.device)
         G[:, :G_u.shape[1], :G_u.shape[2]] = G_u
 
         # Define lie derivative columns in G_u
@@ -976,12 +980,12 @@ class aCLFController2(Controller):
 
         h_u = torch.zeros(
             (batch_size, G_u.shape[1])
-        )
-        h_u[:, :dynamics_model.U.b.shape[0]] = torch.tensor(dynamics_model.U.b).repeat(batch_size, 1)
+        ).to(x.device)
+        h_u[:, :dynamics_model.U.b.shape[0]] = torch.tensor(dynamics_model.U.b).to(x.device).repeat(batch_size, 1)
         for theta_index in range(n_V_Theta):
             theta_i = torch.tensor(V_Theta[theta_index, :]).repeat(
                 (batch_size, 1)
-            ).type_as(x)
+            ).type_as(x).to(x.device)
 
             V_i = self.V(x, theta_i)
             Lf_V_i, LF_V_i, LFGammadV_V_i, Lg_V_i, list_LGi_V_i, LGammadVG_V_i = self.V_lie_derivatives(
@@ -996,16 +1000,16 @@ class aCLFController2(Controller):
                 LFGammadV_V_i[:, 0, :] \
                 - self.clf_lambda * V_i.reshape((batch_size, 1)) \
 
-        h_r = torch.zeros((batch_size, 1))
+        h_r = torch.zeros((batch_size, 1)).to(x.device)
         h_r[:, 0] = 0.0
         h = torch.zeros(
             (batch_size, h_u.shape[1] + h_r.shape[1])
-        )
+        ).to(x.device)
         h[:, :h_u.shape[1]] = h_u
         h[:, -1] = h_r.squeeze(1)
 
-        A = torch.zeros((batch_size, 0, G.shape[2]))
-        b = torch.zeros((batch_size, 0))
+        A = torch.zeros((batch_size, 0, G.shape[2])).to(x.device)
+        b = torch.zeros((batch_size, 0)).to(x.device)
 
         # Solve QP
         z = QPFunction()(Q, q, G, h, A, b)
