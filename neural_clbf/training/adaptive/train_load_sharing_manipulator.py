@@ -71,7 +71,7 @@ def create_training_hyperparams(args)-> Dict:
         "obstacle_center_x": 0.2,
         "obstacle_center_y": 0.1,
         "obstacle_center_z": 0.3,
-        "obstacle_width": 0.2,
+        "obstacle_width": 0.15,
     }
 
     hyperparams_for_evaluation = {
