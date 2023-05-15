@@ -1,4 +1,4 @@
-"""Define a dymamical system for two drones"""
+"""Define a dymamical system for an drone system"""
 from typing import Tuple, Optional, List
 
 import torch
@@ -21,7 +21,7 @@ class Drone(ControlAffineSystem):
 
         u = [fx1 fy1 fx2 fy2]
 
-    representing the torque applied.
+    representing the force applied.
 
     The system is parameterized by
         m1: drone 1 mass
@@ -62,7 +62,7 @@ class Drone(ControlAffineSystem):
                             Requires keys ["m1", "m2"]
             dt: the timestep to use for the simulation
             controller_dt: the timestep for the LQR discretization. Defaults to dt
-            secarios: scenarios (If I make them)
+            scenarios: scenarios (If I make them)
         raises:
             ValueError if nominal_params are not valid for this system
         """
@@ -113,12 +113,12 @@ class Drone(ControlAffineSystem):
         upper_limit = torch.ones(self.n_dims)
         upper_limit[Drone.p1x] = 10.0
         upper_limit[Drone.p1y] = 10.0
-        upper_limit[Drone.v1x] = 2.0
-        upper_limit[Drone.v1y] = 2.0
+        upper_limit[Drone.v1x] = 5.0
+        upper_limit[Drone.v1y] = 5.0
         upper_limit[Drone.p2x] = 10.0
         upper_limit[Drone.p2y] = 10.0
-        upper_limit[Drone.v2x] = 2.0
-        upper_limit[Drone.v2y] = 2.0
+        upper_limit[Drone.v2x] = 5.0
+        upper_limit[Drone.v2y] = 5.0
 
         lower_limit = -1.0 * upper_limit
 
@@ -136,13 +136,10 @@ class Drone(ControlAffineSystem):
         upper_limit[Drone.f1y] = 1.0
         upper_limit[Drone.f2x] = 1.0
         upper_limit[Drone.f2y] = 1.0
-
+        
         lower_limit = -1.0 * upper_limit
 
         return (upper_limit, lower_limit)
-
-    def goal_point(self):
-        return torch.tensor([[9.0, 9.0, 1.0, 1.0, -9.0, -9.0, 0, 0]])
 
     def safe_mask(self, x):
         """Return the mask of x indicating safe regions for the obstacle task
@@ -156,21 +153,19 @@ class Drone(ControlAffineSystem):
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
         # Avoid walls
         wall = 10
-        wall_mask_x = torch.logical_or(x[:,0] <= wall, x[:,0] >= -wall)
-        wall_mask_y = torch.logical_or(x[:,1] <= wall, x[:,1] >= -wall)
-        wall_mask_1 = torch.logical_or(wall_mask_x, wall_mask_y)
-        safe_mask.logical_and_(wall_mask_1)
-
+        wall_mask = torch.logical_or(abs(x[:, 0]) <= wall, abs(x[:, 1]) <= wall)
+        safe_mask.logical_and_(wall_mask)
+        
         p1x = x[:, Drone.p1x]
         p1y = x[:, Drone.p1y]
         p2x = x[:, Drone.p2x]
         p2y = x[:, Drone.p2y]
 
-        collision = 1.0
+        collision = 0.1
 
         separation = (p1x - p2x) ** 2 + (p1y - p2y) ** 2
         separation = torch.sqrt(separation)
-        safe_mask = torch.logical_and(unsafe_mask, separation >= collision)
+        safe_mask = torch.logical_and(safe_mask, separation >= collision)
 
         return safe_mask
 
@@ -183,11 +178,12 @@ class Drone(ControlAffineSystem):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        unsafe_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
+        unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool)
+        
         # Avoid walls
         wall = 10
-        wall_mask = abs(x[:,0]) >= wall
-        unsafe_mask.logical_and_(wall_mask)
+        wall_mask = torch.logical_or(abs(x[:, 0]) > wall, abs(x[:, 1]) > wall)
+        unsafe_mask.logical_or(wall_mask)
         
         p1x = x[:, Drone.p1x]
         p1y = x[:, Drone.p1y]
@@ -211,7 +207,14 @@ class Drone(ControlAffineSystem):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        goal_mask = (x - self.goal_point).norm(dim=-1) <= 0.5
+        goal_mask = torch.ones_like(x[:, 0], dtype=torch.bool)
+
+        near_mask_0 = abs(x[:, 0] - 9.0) <= 0.3
+        goal_mask.logical_and_(near_mask_0)
+        near_mask_1 = abs(x[:, 1] - 9.0) <= 0.3
+        goal_mask.logical_and_(near_mask_1)
+
+        goal_mask.logical_and_(self.safe_mask(x))
 
         return goal_mask
 
@@ -231,24 +234,12 @@ class Drone(ControlAffineSystem):
         f = torch.zeros((batch_size, self.n_dims, 1))
         f = f.type_as(x)
 
-        # Extract the needed parameters
-        m1, m2 = params["m1"], params["m2"]
-        # and state variables
-        p1x = x[:, Drone.p1x]
-        p1y = x[:, Drone.p1y]
-        v1x = x[:, Drone.v1x]
-        v1y = x[:, Drone.v1y]
-        p2x = x[:, Drone.p2x]
-        p2y = x[:, Drone.p2y]
-        v2x = x[:, Drone.v2x]
-        v2y = x[:, Drone.v2y]
-
-        f[:, Drone.p1x, 0] = v1x
-        f[:, Drone.p1y, 0] = v1y
+        f[:, Drone.p1x, 0] = x[:, Drone.v1x]
+        f[:, Drone.p1y, 0] = x[:, Drone.v1y]
         f[:, Drone.v1x, 0] = 0
         f[:, Drone.v1y, 0] = 0
-        f[:, Drone.p2x, 0] = v2x
-        f[:, Drone.p2y, 0] = v2y
+        f[:, Drone.p2x, 0] = x[:, Drone.v2x]
+        f[:, Drone.p2y, 0] = x[:, Drone.v2y]
         f[:, Drone.v2x, 0] = 0
         f[:, Drone.v2y, 0] = 0
 
@@ -272,11 +263,6 @@ class Drone(ControlAffineSystem):
 
         # Extract the needed parameters
         m1, m2 = params["m1"], params["m2"]
-        # and state variables
-        p1x = x[:, Drone.p1x]
-        p1y = x[:, Drone.p1y]
-        p2x = x[:, Drone.p2x]
-        p2y = x[:, Drone.p2y]
 
         # Effect on drone 1 acceleration
         g[:, Drone.v1x, Drone.f1x] = 1 / m1

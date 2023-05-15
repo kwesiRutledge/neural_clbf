@@ -14,6 +14,7 @@ from neural_clbf.systems import Drone
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment,
+    RolloutTimeSeriesExperiment,
     RolloutStateSpaceExperiment,
 )
 from neural_clbf.training.utils import current_git_hash
@@ -24,18 +25,7 @@ torch.multiprocessing.set_sharing_strategy("file_system")
 batch_size = 64
 controller_period = 0.05
 
-start_x = torch.tensor(
-    [
-        [-4.0, # p1x
-        -4.0, # p1y
-        1.0, # v1x
-        1.0, # v1y
-        5.0, # p2x
-        5.0, # p2y
-        1.0, # v2x
-        1.0] # v2y
-    ]
-)
+start_x = torch.tensor([[-9.0, -9.0, 0.0, 0.0, 2.0, 2.0, 0.0, 0.0]])
 simulation_dt = 0.01
 
 
@@ -43,7 +33,10 @@ def main(args):
     # Define the scenarios
     nominal_params = {"m1": 1.0, "m2": 1.0}
     scenarios = [
-        nominal_params
+        nominal_params,
+        {"m1": 1.25, "m2": 1.0},  
+        {"m1": 1.0, "m2": 1.25},
+        {"m1": 1.25, "m2": 1.25},
     ]
 
     # Define the dynamics model
@@ -51,19 +44,18 @@ def main(args):
         nominal_params,
         dt=simulation_dt,
         controller_dt=controller_period,
-        scenarios=scenarios,
     )
 
     # Initialize the DataModule
     initial_conditions = [
-        (-10., 10.),  # p1x
-        (-10., 10.),  # p1y
-        (-10., 10.),  # v1x
-        (-10., 10.),  # v1y
-        (-10., 10.),  # p2x
-        (-10., 10.),  # p2y
-        (-10., 10.),  # v2x
-        (-10., 10.),  # v2y
+        (-10.0, 10.0),
+        (-10.0, 10.0),
+        (-4.0, 4.0),
+        (-4.0, 4.0),
+        (-10.0, 10.0),
+        (-10.0, 10.0),
+        (-4.0, 4.0),
+        (-4.0, 4.0),
     ]
     data_module = EpisodicDataModule(
         dynamics_model,
@@ -84,22 +76,23 @@ def main(args):
         n_grid=30,
         x_axis_index=Drone.p1x,
         y_axis_index=Drone.p1y,
-        x_axis_label="$p1x$",
-        y_axis_label="$p1y$",
+        x_axis_label="$x$",
+        y_axis_label="$y$",
         plot_unsafe_region=False,
     )
     rollout_experiment = RolloutStateSpaceExperiment(
         "Rollout",
         start_x,
-        plot_x_index=Drone.p1x,
-        plot_x_label="$p1x$",
-        plot_y_index=Drone.p1y,
-        plot_y_label="$p1y$",
+        Drone.p1x,
+        "$x$",
+        Drone.p1y,
+        "$y$",
         scenarios=scenarios,
         n_sims_per_start=1,
         t_sim=5.0,
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment])
+
 
     # Initialize the controller
     clbf_controller = NeuralCLBFController(
