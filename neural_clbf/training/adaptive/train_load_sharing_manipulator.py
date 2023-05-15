@@ -82,7 +82,7 @@ def create_training_hyperparams(args)-> Dict:
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [0.175, 0.4, 0.2], #[0.175, 0.4, 0.2],
-        "Theta_ub": [0.225, 0.45, 0.25], #[0.225, 0.65, 0.3],
+        "Theta_ub": [0.2, 0.425, 0.225], #[0.225, 0.65, 0.3],
         "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.1,
         # "safe_level": 1.0,
