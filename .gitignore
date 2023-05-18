@@ -123,6 +123,7 @@ venv.bak/
 # IDEs
 .idea
 .vscode
+*.code-workspace
 
 # Project-specific
 logs/
