@@ -5,7 +5,6 @@ from .neural_bf_controller import NeuralObsBFController
 from .neural_cbf_controller import NeuralCBFController
 from .neural_clbf_controller import NeuralCLBFController
 from .obs_mpc_controller import ObsMPCController
-from neural_clbf.controllers.adaptive.neural_aclbf_controller import NeuralaCLBFController
 
 __all__ = [
     "CLFController",

@@ -883,6 +883,7 @@ class TestaCLFController2(unittest.TestCase):
 
     def test_aclfcontroller2_solve_CLF_QP_qpth4(self):
         """
+        test_aclfcontroller2_solve_CLF_QP_qpth4
         Description:
             Testing the ability of QPTH to solve the CLFQP that we're interested in solving.
             Using batches of 10.
