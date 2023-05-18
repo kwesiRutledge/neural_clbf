@@ -209,7 +209,7 @@ class aCLFController3(Controller):
             problem, variables=variables, parameters=parameters
         )
 
-    def V_with_jacobian(self, x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.Tensor)\
+    def V_with_jacobian(self, x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor)\
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         V_with_jacobian
@@ -230,17 +230,17 @@ class aCLFController3(Controller):
         n_params = self.dynamics_model.n_params
 
         # Create batches of x-theta pairs
-        x_theta2 = torch.cat([x, theta_hat, thetea_err_estimate], dim=1)
+        x_theta2 = torch.cat([x, theta_hat, theta_err_hat], dim=1)
         x_theta0 = torch.zeros(x_theta2.shape).type_as(x_theta2)
         x0 = self.dynamics_model.goal_point(theta_hat).type_as(x_theta2)
         theta_hat0 = torch.tensor(
             self.dynamics_model.sample_polytope_center(self.dynamics_model.Theta)
         ).to(x.device).type_as(x_theta2).repeat(batch_size, 1)
-        thetea_err_estimate0 = torch.zeros(thetea_err_estimate.shape).type_as(x_theta2)
+        theta_err_hat0 = torch.zeros(theta_err_hat.shape).type_as(x_theta2)
 
         x_theta0[:, :self.dynamics_model.n_dims] = x0
         x_theta0[:, self.dynamics_model.n_dims:self.dynamics_model.n_dims+self.dynamics_model.n_params] = theta_hat0
-        x_theta0[:, self.dynamics_model.n_dims+self.dynamics_model.n_params:] = thetea_err_estimate0
+        x_theta0[:, self.dynamics_model.n_dims+self.dynamics_model.n_params:] = theta_err_hat0
 
         # First, get the Lyapunov function value and gradient at this state
         Px = self.dynamics_model.P.type_as(x_theta2)
@@ -272,15 +272,15 @@ class aCLFController3(Controller):
 
         return Va, JxV, JthV, JtherrV
 
-    def V(self, x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.tensor) -> torch.Tensor:
+    def V(self, x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.tensor) -> torch.Tensor:
         """Compute the value of the CLF"""
 
-        V, _, _, _ = self.V_with_jacobian(x, theta_hat, thetea_err_estimate)
+        V, _, _, _ = self.V_with_jacobian(x, theta_hat, theta_err_hat)
         return V
 
     def V_lie_derivatives(
         self,
-        x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.Tensor,
+        x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor,
         scenarios: Optional[ScenarioList] = None,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, List[torch.Tensor], torch.Tensor]:
         """Compute the Lie derivatives of the CLF V along the control-affine dynamics
@@ -314,7 +314,7 @@ class aCLFController3(Controller):
 
 
         # Get the Jacobian of V for each entry in the batch
-        V, gradV_x, gradV_theta, _ = self.V_with_jacobian(x, theta_hat, thetea_err_estimate)
+        V, gradV_x, gradV_theta, _ = self.V_with_jacobian(x, theta_hat, theta_err_hat)
 
         # We need to compute Lie derivatives for each scenario
         batch_size = x.shape[0]
@@ -411,7 +411,7 @@ class aCLFController3(Controller):
     def Vdot_for_scenario(
             self,
             scenario_idx: int,
-            x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.tensor,
+            x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.tensor,
             u: torch.Tensor, scenarios: Optional[ScenarioList] = None,
     ) -> torch.Tensor:
         """
@@ -437,7 +437,7 @@ class aCLFController3(Controller):
         theta_hat = theta_hat.to(x.device)
 
         # Compute Lie Derivatives
-        Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat, thetea_err_estimate)
+        Lf_Va, LF_Va, LFGammadVa_Va, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat, theta_err_hat)
         # print(
         #     "list_LGi_V = \n", list_LGi_V, "\n",
         # )
@@ -462,7 +462,7 @@ class aCLFController3(Controller):
 
         return Vdot
 
-    def u_reference(self, x: torch.tensor, theta_hat: torch.tensor, thetea_err_estimate: torch.tensor) -> torch.Tensor:
+    def u_reference(self, x: torch.tensor, theta_hat: torch.tensor, theta_err_hat: torch.tensor) -> torch.Tensor:
         """Determine the reference control input."""
         # Here we use the nominal controller as the reference, but subclasses can
         # override this
@@ -472,7 +472,7 @@ class aCLFController3(Controller):
         self,
         x: torch.Tensor,
         theta_hat: torch.tensor,
-        thetea_err_estimate: torch.tensor,
+        theta_err_hat: torch.tensor,
         u_ref: torch.Tensor,
         V: torch.Tensor,
         relaxation_penalty: float,
@@ -535,14 +535,14 @@ class aCLFController3(Controller):
         # binnum = [int(digit) for digit in binnum_as_str]  # Convert to list of digits
 
         # v_Theta = theta_hat_param + \
-        #           np.diag(binnum) * thetea_err_estimate_param - \
-        #           (np.eye(len(binnum)) - np.diag(binnum)) * thetea_err_estimate_param
+        #           np.diag(binnum) * theta_err_hat_param - \
+        #           (np.eye(len(binnum)) - np.diag(binnum)) * theta_err_hat_param
 
         #Theta_vertices = pc.extreme(self.dynamics_model.Theta)
         n_Theta_vertices = 2 ** n_params
 
         Theta_vertices = center_and_radius_to_vertices(
-            theta_hat, thetea_err_estimate,
+            theta_hat, theta_err_hat,
         )
 
         # Create the set of Lie derivatives
@@ -558,7 +558,7 @@ class aCLFController3(Controller):
                 v_Theta = Theta_vertices[v_Theta_index]
 
                 # Compute Lie Derivatives here
-                Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, v_Theta, thetea_err_estimate)
+                Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, v_Theta, theta_err_hat)
 
                 Thetas_Lf_V.append(Lf_V)
                 Thetas_LF_V.append(LF_V)
@@ -694,7 +694,7 @@ class aCLFController3(Controller):
         self,
         x: torch.Tensor,
         theta_hat: torch.tensor,
-        thetea_err_estimate: torch.tensor,
+        theta_err_hat: torch.tensor,
         u_ref: torch.Tensor,
         V: torch.Tensor,
         relaxation_penalty: float,
@@ -727,7 +727,7 @@ class aCLFController3(Controller):
         bs = x.shape[0]
 
         Theta_vertices = center_and_radius_to_vertices(
-            theta_hat, thetea_err_estimate,
+            theta_hat, theta_err_hat,
         )
         n_V_Theta = len(Theta_vertices)
 
@@ -750,7 +750,7 @@ class aCLFController3(Controller):
 
                 # Compute Lie Derivatives here
                 Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(
-                    x, theta0, thetea_err_estimate,
+                    x, theta0, theta_err_hat,
                 )
 
                 Thetas_Lf_V.append(Lf_V)
@@ -1082,7 +1082,7 @@ class aCLFController3(Controller):
         self,
         x,
         theta_hat: torch.Tensor,
-        thetea_err_estimate: torch.Tensor,
+        theta_err_hat: torch.Tensor,
         u_ref: Optional[torch.Tensor] = None,
         relaxation_penalty: Optional[float] = None,
         requires_grad: bool = False,
@@ -1109,8 +1109,8 @@ class aCLFController3(Controller):
                         case
         """
         # Get the value of the CLF and its Lie derivatives
-        V = self.V(x, theta_hat)
-        Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat)
+        V = self.V(x, theta_hat, theta_err_hat)
+        Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat, theta_err_hat)
 
         # Get the reference control input as well
         if u_ref is not None:
@@ -1120,7 +1120,7 @@ class aCLFController3(Controller):
             err_message += f" but got {u_ref.shape[1]}"
             assert u_ref.shape[1] == self.dynamics_model.n_controls, err_message
         else:
-            u_ref = self.u_reference(x, theta_hat)
+            u_ref = self.u_reference(x, theta_hat, theta_err_hat)
 
         # Apply default penalty if needed
         if relaxation_penalty is None:
@@ -1131,7 +1131,7 @@ class aCLFController3(Controller):
         if requires_grad:
             if (self.diff_qp_layer_to_use == "cvxpylayer") or (self.diff_qp_layer_to_use == "cvxpylayers"):
                 return self._solve_CLF_QP_cvxpylayers(
-                    x, theta_hat, thetea_err_estimate,
+                    x, theta_hat, theta_err_hat,
                     u_ref, V, relaxation_penalty
                 )
             elif self.diff_qp_layer_to_use == "qpth":
@@ -1144,12 +1144,12 @@ class aCLFController3(Controller):
                 )
         else:
             return self._solve_CLF_QP_gurobi(
-                x, theta_hat, thetea_err_estimate, u_ref,
-                relaxation_penalty,
+                x, theta_hat, theta_err_hat, u_ref,
+                V, relaxation_penalty,
                 Q=Q,
             )
 
-    def u(self, x, theta_hat: torch.Tensor, thetea_err_estimate: torch.Tensor, Q_u: np.array=None) -> torch.Tensor:
+    def u(self, x, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor, Q_u: np.array=None) -> torch.Tensor:
         """
         u_t = aclf_controller.u(x, theta_hat)
         u_t = aclf_controller.u(x, theta_hat, Q_u)
@@ -1162,12 +1162,12 @@ class aCLFController3(Controller):
                 Q matrix used to weight the inputs given to the CLF QP
 
         """
-        u, _ = self.solve_CLF_QP(x, theta_hat, thetea_err_estimate, Q=Q_u)
+        u, _ = self.solve_CLF_QP(x, theta_hat, theta_err_hat, Q=Q_u)
         return u
 
     def tau(
         self,
-        x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.Tensor,
+        x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor,
         u: torch.Tensor, scenario: Scenario,
     ) -> torch.Tensor:
         """
@@ -1184,10 +1184,10 @@ class aCLFController3(Controller):
         n_params = self.dynamics_model.n_params
 
         # Get the gradient of V w.r.t. x
-        _, dVdx, dVdth, dVerr = self.V_with_jacobian(x, theta_hat, thetea_err_estimate)
+        _, dVdx, dVdth, dVerr = self.V_with_jacobian(x, theta_hat, theta_err_hat)
 
         # Get the lie derivatives
-        Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat, thetea_err_estimate, [scenario])
+        Lf_V, LF_V, LFGammadV_V, Lg_V, list_LGi_V, LGammadVG_V = self.V_lie_derivatives(x, theta_hat, theta_err_hat, [scenario])
 
         # Compute tau (tau = LF_V + LGalpha_V)
 
@@ -1216,7 +1216,7 @@ class aCLFController3(Controller):
 
     def closed_loop_estimator_dynamics(
         self,
-        x: torch.Tensor, theta_hat: torch.Tensor, thetea_err_estimate: torch.Tensor,
+        x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor,
         u: torch.Tensor, scenario: Scenario,
     ) -> torch.Tensor:
         """
@@ -1237,7 +1237,7 @@ class aCLFController3(Controller):
 
         # Algorithm
 
-        tau = self.tau(x, theta_hat, thetea_err_estimate, u, scenario=scenario)
+        tau = self.tau(x, theta_hat, theta_err_hat, u, scenario=scenario)
 
         Gamma_copied = Gamma.repeat(batch_size, 1, 1)
 
@@ -1259,7 +1259,7 @@ class aCLFController3(Controller):
             x: torch.Tensor,
             theta_hat: torch.Tensor,
             theta: torch.Tensor,
-            theta_err_estimate: torch.Tensor,
+            theta_err_hat: torch.Tensor,
     ):
         """
         V_oracle
@@ -1277,7 +1277,7 @@ class aCLFController3(Controller):
         Gamma = self.Gamma.to(x.device)
 
         # Get Va
-        Va = self.V(x, theta_hat, theta_err_estimate)
+        Va = self.V(x, theta_hat, theta_err_hat)
 
         # Compute weighted theta_err term.
         theta_err = theta - theta_hat
