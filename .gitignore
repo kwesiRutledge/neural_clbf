@@ -128,6 +128,7 @@ venv.bak/
 logs/
 neural_clbf/systems/aerobench
 *devel*
+neural_clbf/training/adaptive/*.pth
 
 # Matlab files
 *.asv
