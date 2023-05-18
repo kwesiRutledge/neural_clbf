@@ -502,7 +502,12 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
 
         return u
 
-    def plot_environment(self, ax: Axes, theta: torch.tensor) -> None:
+    def plot_environment(
+            self,
+            ax: Axes,
+            theta: torch.tensor,
+            show_goal: bool = True,
+    ) -> None:
         """
         Description:
             Add a plot of the environment to the given figure. Defaults to do nothing
@@ -534,13 +539,14 @@ class LoadSharingManipulator(ControlAffineParameterAffineSystem):
         y = np.sin(u) * np.sin(v)
         z = np.cos(v)
 
-        ax.plot_surface(
-            goal[0, 0] + self.goal_tolerance * x,
-            goal[0, 1] + self.goal_tolerance * y,
-            goal[0, 2] + self.goal_tolerance * z,
-            color="g",
-            alpha=0.6,
-        )
+        if show_goal:
+            ax.plot_surface(
+                goal[0, 0] + self.goal_tolerance * x,
+                goal[0, 1] + self.goal_tolerance * y,
+                goal[0, 2] + self.goal_tolerance * z,
+                color="g",
+                alpha=0.6,
+            )
 
         # Plot obstacle!
         ax.plot_surface(

@@ -61,7 +61,7 @@ def extract_hyperparams_from_args(args):
     """
     # Constants
     commit_prefix = args.commit_prefix
-    version_to_load = args.version_number
+    version_to_load = args.version
 
     scalar_capa2_log_file_dir = "../../training/adaptive/logs/load_sharing_manipulator/"
     scalar_capa2_log_file_dir += "commit_" + commit_prefix + "/version_" + str(version_to_load) + "/"
@@ -222,18 +222,36 @@ def inflate_context_using_hyperparameters(hyperparams):
         nominal_scenario["obstacle_center_z"],
     ])
     obs_rad = nominal_scenario["obstacle_width"] / 2.0
+    # start_x = torch.tensor(
+    #     [
+    #         [obs[0],                obs[1]-4.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
+    #         [obs[0],                obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+    #         [obs[0],                obs[1]-4.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
+    #         [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
+    #         [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+    #         [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
+    #         [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
+    #         [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
+    #         [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
+    #         [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+    #         # [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
+    #         # [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
+    #         # [0.1, -0.05, 0.3, 0.0, 0.0, 0.0],
+    #         # [0.1, -0.1, 0.3, 0.0, 0.5, 0.0],
+    #     ]
+    # )
     start_x = torch.tensor(
         [
-            [obs[0],                obs[1]-4.5*obs_rad,     obs[2], 0.1, 0.0, 0.0],
-            [obs[0],                obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0],                obs[1]-4.5 * obs_rad,   obs[2]-0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5 * obs_rad,   obs[2]+0.5*obs_rad, 0.0, 0.1, 0.0],
-            [obs[0]-0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.1, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2], 0.0, 0.0, 0.0],
-            [obs[0]+0.5 * obs_rad,  obs[1]-4.5*obs_rad,     obs[2]+0.5*obs_rad, 0.0, 0.0, 0.0],
-            [obs[0]+0.5*obs_rad,    obs[1]-4.5*obs_rad,     obs[2]-0.5*obs_rad, 0.0, 0.0, 0.1],
+            [obs[0], obs[1] - 4.5 * obs_rad, obs[2], 0.1, 0.0, 0.0],
+            [obs[0], obs[1] - 4.5 * obs_rad, obs[2] + 0.5 * obs_rad, 0.0, 0.1, 0.0],
+            [obs[0], obs[1] - 4.5 * obs_rad, obs[2] - 0.5 * obs_rad, 0.0, 0.1, 0.0],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2], 0.0, 0.1, 0.0],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2] - 0.5 * obs_rad, 0.0, 0.0, 0.1],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2] + 0.5 * obs_rad, 0.0, 0.1, 0.0],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2] - 0.5 * obs_rad, 0.1, 0.0, 0.0],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2], 0.0, 0.0, 0.0],
+            [obs[0] + 1.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2] + 0.5 * obs_rad, 0.0, 0.0, 0.0],
+            [obs[0] + 0.5 * obs_rad, obs[1] - 4.5 * obs_rad, obs[2] - 0.5 * obs_rad, 0.0, 0.0, 0.1],
             # [0.3,  -0.4, 0.3, 0.0, 0.0, 0.0],
             # [0.2, -0.1, 0.3, 0.0, 0.0, 0.0],
             # [0.1, -0.05, 0.3, 0.0, 0.0, 0.0],
@@ -536,7 +554,7 @@ def main(args):
         comments = [f"n_sims_per_start={safety_case_study_experiment.n_sims_per_start}"]
         comments += [f"n_x0={x0.shape[0]}"]
         comments += [f"commit_prefix={args.commit_prefix}"]
-        comments += [f"version_number={args.version_number}"]
+        comments += [f"version_number={args.version}"]
 
         lines = counts_to_latex_table(
             aclbf_counts=aclbf_counts,
@@ -550,7 +568,7 @@ def main(args):
     # Save Timing Results to Table
     save_timing_data_table(
         "../datafiles/load_sharing/safety_case_study_timing_results.txt",
-        args.commit_prefix, args.version_number,
+        args.commit_prefix, args.version,
         aclbf_results_df=aclbf_results_df,
         nominal_results_df=nominal_results_df,
         trajopt2_results_df=trajopt2_results_df,
@@ -593,7 +611,7 @@ if __name__ == "__main__":
         help='First seven letters of the commit id of the code used to generate the data (default: "dfbf44c")',
     )
     parser.add_argument(
-        '--version_number', type=int, default=0,
+        '--version', type=str, default="0",
         help='Version number of the data to load (default: 0)',
     )
     parser.add_argument(

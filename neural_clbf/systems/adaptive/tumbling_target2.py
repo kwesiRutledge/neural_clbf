@@ -720,3 +720,22 @@ class TumblingTarget2(ControlAffineParameterAffineSystem):
 
             # Our A matrix is not controllable (one state is autonomously evolving without user input)
             #self.P = torch.tensor(continuous_lyap(Acl_list[0], Q))
+
+    def mpc_about_input_trajectory(
+            self,
+            x: torch.Tensor,
+            theta_hat: torch.Tensor,
+            X: torch.Tensor,
+            params: Scenario = None,
+            U: torch.Tensor = None,
+            horizon: int = 10,
+
+    ):
+        """
+        u = mpc_about_input_trajectory(x, theta_hat, X)
+        Description:
+            This function computes the mpc control that should steer the system
+            closer to the trajectory defined by X.
+        """
+        raise NotImplementedError("This function is not implemented yet.")
+        return False

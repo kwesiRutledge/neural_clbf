@@ -240,10 +240,10 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
 
                     x_value = x_current[sim_index, plot_x_index].cpu().numpy().item()
                     log_packet[plot_x_label] = x_value
-                log_packet["state"] = x_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta_hat"] = theta_hat_current[sim_index, :].cpu().detach().numpy()
-                log_packet["theta"] = theta_current[sim_index, :].cpu().detach().numpy()
-                log_packet["u"] = u_current[sim_index, :].cpu().detach().numpy()
+                log_packet["state"] = x_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta_hat"] = theta_hat_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["theta"] = theta_current.clone()[sim_index, :].cpu().numpy()
+                log_packet["u"] = u_current.clone()[sim_index, :].cpu().numpy()
                 log_packet["controller_time"] = controller_time_current_tstep
                 theta_error = theta_hat_current[sim_index, :] - theta_current[sim_index, :]
                 log_packet["theta_error_norm"] = torch.norm(theta_error)
@@ -377,6 +377,8 @@ class CaseStudySafetyExperimentTrajOpt2(Experiment):
             t, y, u = resp.time, resp.outputs, resp.inputs
 
             # Compile all input trajectories
+            u = u.reshape((dynamics.n_controls, N_timepts))
+            y = y.reshape((dynamics.n_dims, N_timepts))
             control_sequences[x0_index, :, :] = torch.tensor(u.T)
             state_sequences[x0_index, :, :] = torch.tensor(y.T)
 

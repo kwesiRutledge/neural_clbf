@@ -215,7 +215,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         y_axis_index=LoadSharingManipulator.P_Y,
         x_axis_label="$s_x$",
         y_axis_label="$s_y$",
-        default_param_estimate=torch.tensor(dynamics_model.Theta.chebXc).reshape(
+        default_param_estimate=torch.tensor(dynamics_model.sample_polytope_center(dynamics_model.Theta)).reshape(
             (LoadSharingManipulator.N_PARAMETERS, 1)),
         default_state=torch.tensor([0.3, 0.3, 0.3, 0.0, 0.0, 0.0]).reshape(
             (LoadSharingManipulator.N_DIMS, 1)),
@@ -234,7 +234,7 @@ def inflate_context_using_hyperparameters(hyperparams: Dict, args)->NeuralaCLBFC
         y_axis_index=LoadSharingManipulator.P_Z,
         x_axis_label="$s_x$",
         y_axis_label="$s_z$",
-        default_param_estimate=torch.tensor(dynamics_model.Theta.chebXc).reshape(
+        default_param_estimate=torch.tensor(dynamics_model.sample_polytope_center(dynamics_model.Theta)).reshape(
             (LoadSharingManipulator.N_PARAMETERS, 1)),
         default_state=torch.tensor([0.3, 0.3, 0.3, 0.0, 0.0, 0.0]).reshape(
             (LoadSharingManipulator.N_DIMS, 1)),
@@ -282,7 +282,8 @@ def extract_controller_from_state_dict(
     saved_state_dict,
 )->NeuralaCLBFController:
     """
-    Extracts the controller from the state dict
+    Description:
+        Extracts the controller from the state dict
     """
 
     # Input Processing

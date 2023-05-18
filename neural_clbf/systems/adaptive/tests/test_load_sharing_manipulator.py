@@ -284,7 +284,7 @@ class TestLoadSharingManipulator(unittest.TestCase):
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
 
-        sys0.plot_environment(ax, theta)
+        sys0.plot_environment(ax, theta, show_goal=False)
 
         ax.scatter(
             0.3, -0.3, 0.4,
