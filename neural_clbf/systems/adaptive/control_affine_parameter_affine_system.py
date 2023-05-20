@@ -802,7 +802,7 @@ class ControlAffineParameterAffineSystem(ABC):
         for param_index in range(self.n_params):
 
             theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
-            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls), device= self.device)
+            G_i = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
             G_i[:, :, :] = G[:, :, :, param_index]
             # Update g
             g_like = g_like + torch.mul(theta_i, G_i)

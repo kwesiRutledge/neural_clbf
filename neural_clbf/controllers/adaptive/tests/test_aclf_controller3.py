@@ -16,7 +16,6 @@ from neural_clbf.experiments.adaptive import (
 from neural_clbf.experiments import (
     RolloutStateParameterSpaceExperimentMultiple, ExperimentSuite,
 )
-
 from neural_clbf.controllers.adaptive import (
     aCLFController3,
 )
@@ -420,6 +419,53 @@ class TestaCLFController3(unittest.TestCase):
             torch.allclose(u, u_cvxpylayers, atol=1e-3),
         )
 
+
+    def test_solve_aCLF_membership_estimation_1(self):
+        """
+        test_solve_aCLF_membership_estimation_1
+        Description
+            Testing the cvxpylayers logic that I need to use for the estimation error update.
+            All of logic is placed in functions.
+        """
+
+        # Constants
+        lsm0, controller0 = self.get_lsm_with_aclfcontroller1()
+        n_dims = lsm0.n_dims
+        n_params = lsm0.n_params
+
+        # Create data
+        x = torch.tensor([
+            [0.3, -0.3, 0.4, 0.0, 0.0, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.2, 0.5, 0.25],
+        ])
+        theta = torch.tensor([
+            [0.2, 0.5, 0.25],
+        ])
+        theta_err_hat = torch.tensor([
+            [0.05, 0.05, 0.05],
+        ])
+
+        # Compute estimation error update
+        u = controller0.u(x, theta_hat, theta_err_hat)
+        x_dot = controller0.dynamics_model.closed_loop_dynamics(
+            x, u, theta,
+        )
+
+        #layer1 = define_set_valued_estimator_cvxpylayer1(lsm0)
+
+        # Use Layer
+        theta_err_hat_next = controller0.solve_aCLF_membership_estimation(
+            x, theta_hat,
+            u, x_dot,
+        )
+
+        # Check loss
+        self.assertTrue(
+            torch.all(torch.ge(theta_err_hat_next, 0.0)),
+        )
+        print(theta_err_hat_next)
 
 
 if __name__ == '__main__':

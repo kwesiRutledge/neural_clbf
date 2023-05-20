@@ -15,6 +15,7 @@ from neural_clbf.systems.utils import Scenario, ScenarioList
 from neural_clbf.controllers.controller import Controller
 from .adaptive_control_utils import (
     center_and_radius_to_vertices,
+    define_set_valued_estimator_cvxpylayer1,
 )
 from neural_clbf.experiments import ExperimentSuite
 
@@ -208,6 +209,8 @@ class aCLFController3(Controller):
         self.differentiable_qp_solver = CvxpyLayer(
             problem, variables=variables, parameters=parameters
         )
+
+        self.differentiable_set_member_estimator = define_set_valued_estimator_cvxpylayer1(self.dynamics_model)
 
     def V_with_jacobian(self, x: torch.Tensor, theta_hat: torch.Tensor, theta_err_hat: torch.Tensor)\
             -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -1292,3 +1295,72 @@ class aCLFController3(Controller):
         ).squeeze()
 
         return Va + err_term
+
+    def solve_aCLF_membership_estimation(
+        self,
+        x: torch.Tensor,
+        theta_hat: torch.Tensor,
+        u: torch.Tensor,
+        x_dot: torch.Tensor,
+        D: float = 1e-2,
+        layer_max_iters: int = int(1e6),
+    ):
+        """
+        solve_aCLF_membership_estimation
+        Description:
+            Solves the aCLF set membership estimation problem
+            with the differentiable layer defined by cvxpylayers.
+        Args:
+            x: bs x self.dynamics_model.n_dims tensor of state
+            theta_hat: bs x self.dynamics_model.n_params tensor of parameter estimate
+            u: bs x self.dynamics_model.n_controls tensor of control input
+            x_dot: bs x self.dynamics_model.n_dims tensor of state time derivative
+            D: float defining the error bound in the observed derivative
+        Returns:
+            theta_err_hat: bs x self.dynamics_model.n_params tensor of parameter error estimate
+        """
+        # Constants
+        bs = x.shape[0]
+        dynamics_model = self.dynamics_model
+        s = dynamics_model.nominal_scenario
+
+        # Create values of the components of the dynamics
+        f = dynamics_model._f(x, s)
+        F = dynamics_model._F(x, s)
+        g = dynamics_model._g(x, s)
+        G = dynamics_model._G(x, s)
+
+        # Create the cvxpy parameters
+        F_plus_Gu = F
+        for theta_index in range(self.dynamics_model.n_params):
+            F_plus_Gu = F_plus_Gu + torch.bmm(
+                G[:, :, :, theta_index], u.unsqueeze(2),
+            )
+
+        D_minus_extras1_val = D * torch.ones((bs, dynamics_model.n_dims)) - \
+                              x_dot + \
+                              f.squeeze(2) + \
+                              torch.bmm(g, u.unsqueeze(2)).squeeze(2)  # + \
+        # torch.bmm(F_plus_Gu, theta_hat.unsqueeze(2)).squeeze(2)
+
+        D_minus_extras2_val = D * torch.ones((bs, dynamics_model.n_dims)) + \
+                              x_dot - \
+                              f.squeeze(2) - \
+                              torch.bmm(g, u.unsqueeze(2)).squeeze(2)  # - \
+        # torch.bmm(F_plus_Gu, theta_hat.unsqueeze(2)).squeeze(2)
+
+        result = self.differentiable_set_member_estimator(
+            *[F_plus_Gu, D_minus_extras1_val, D_minus_extras2_val],
+            solver_args={"max_iters": layer_max_iters},
+        )
+
+        theta_err_hat_next = result[0] - theta_hat
+        theta_err_hat_next2 = theta_hat - result[1]
+
+        theta_err_hats = torch.stack([
+            theta_err_hat_next, theta_err_hat_next2,
+        ], dim=2)
+
+        return torch.max(theta_err_hats, dim=2)[0]
+
+        # TODO: Try to test this.
