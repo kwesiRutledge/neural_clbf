@@ -116,6 +116,7 @@ class AdaptiveCLFContourExperimentUncertainty(Experiment):
         """
         # Constants
         system = controller_under_test.dynamics_model
+        Theta = system.Theta
 
         # Sanity check: can only be called on a NeuralCLFController
         if not (
@@ -161,7 +162,7 @@ class AdaptiveCLFContourExperimentUncertainty(Experiment):
         if self.default_param_est_error_estimate is None:
             default_param_est_error_estimate = torch.ones(
                 (1, controller_under_test.dynamics_model.n_params), device=device,
-            )
+            ) * Theta.chebyR
         else:
             default_param_est_error_estimate = self.default_param_est_error_estimate
 

@@ -19,6 +19,7 @@ from neural_clbf.systems.utils import ScenarioList
 
 if TYPE_CHECKING:
     from neural_clbf.controllers import Controller, NeuralObsBFController  # noqa
+    from neural_clbf.controllers.adaptive import NeuralaCLBFController3
     from neural_clbf.systems import ObservableSystem  # noqa
 
 

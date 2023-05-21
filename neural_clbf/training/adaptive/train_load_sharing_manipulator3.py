@@ -197,6 +197,9 @@ def main(args):
         x_axis_label="$r_1$",
         theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
         plot_unsafe_region=False,
+        default_state= t_hyper["start_x"][1,:].unsqueeze(0),
+        default_param_estimate= torch.tensor([0.175, 0.4, 0.2], device=device).unsqueeze(0),
+        default_param_est_error_estimate= torch.tensor([0.05, 0.05, 0.05], device=device).unsqueeze(0),
     )
     rollout_experiment = RolloutStateParameterSpaceExperiment(
         "Rollout",
