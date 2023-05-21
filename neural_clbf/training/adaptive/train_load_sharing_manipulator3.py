@@ -56,8 +56,8 @@ def create_training_hyperparams(args)-> Dict:
         accelerator = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        # accelerator = "mps"
-        accelerator = "cpu"
+        accelerator = "mps"
+        # accelerator = "cpu"
 
     # Get initial conditions for the experiment
     start_x = torch.tensor(

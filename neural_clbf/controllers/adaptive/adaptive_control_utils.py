@@ -40,7 +40,7 @@ def center_and_radius_to_vertices(
         binnum_as_str = bin(vertex_index)[2:].zfill(dim)  # Convert number to binary string
         binnum = [float(digit) for digit in binnum_as_str]  # Convert to list of digits
 
-        binnum_t = torch.tensor(binnum, dtype=torch.get_default_dtype())
+        binnum_t = torch.tensor(binnum, dtype=torch.get_default_dtype()).to(center.device)
 
         v_Theta = center.unsqueeze(2) + \
                   torch.bmm(torch.diag(binnum_t).repeat(batch_size, 1, 1), radius.unsqueeze(2)) - \
@@ -129,13 +129,20 @@ def linearized_clf_value_with_jacobians_uncertain(
     # Compute the linearized CLF value
 
     # Create batches of x-theta pairs
-    x_theta_therr = torch.cat([x, theta_hat, theta_err_hat], dim=1)
-    x_theta0 = torch.zeros(x_theta_therr.shape).type_as(x_theta_therr)
+    x_theta_therr = torch.cat([x, theta_hat, theta_err_hat], dim=1).to(x.device)
+    x_theta0 = torch.zeros(
+        x_theta_therr.shape,
+        device=x.device,
+    ).type_as(x_theta_therr)
     x0 = dynamics.goal_point(theta_hat).type_as(x_theta_therr)
     theta_hat0 = torch.tensor(
-        dynamics.sample_polytope_center(dynamics.Theta)
+        dynamics.sample_polytope_center(dynamics.Theta),
+        dtype=torch.get_default_dtype(),
     ).to(x.device).type_as(x_theta_therr).repeat(batch_size, 1)
-    theta_err_hat0 = torch.zeros(theta_err_hat.shape).type_as(x_theta_therr)
+    theta_err_hat0 = torch.zeros(
+        theta_err_hat.shape,
+        device=x.device,
+    ).type_as(x_theta_therr)
 
     x_theta0[:, :dynamics.n_dims] = x0
     x_theta0[:, dynamics.n_dims:dynamics.n_dims + dynamics.n_params] = theta_hat0
@@ -143,14 +150,15 @@ def linearized_clf_value_with_jacobians_uncertain(
 
     # First, get the Lyapunov function value and gradient at this state
     Px = dynamics.P.type_as(x_theta_therr)
-    Ptherr = torch.eye(dynamics.n_params).type_as(x_theta_therr)
+    Ptherr = torch.eye(dynamics.n_params, device=x.device).type_as(x_theta_therr)
     # Reshape to use pytorch's bilinear function
     P = torch.zeros(
         1, n_dims + 2 * n_params, n_dims + 2 * n_params,
-    )
+    ).to(x.device)
     P[0, :dynamics.n_dims, :dynamics.n_dims] = Px
     P[0, n_dims:n_dims + n_params, n_dims:n_dims + n_params] = torch.zeros(
-        (dynamics.n_params, dynamics.n_params)
+        (dynamics.n_params, dynamics.n_params),
+        device=x.device,
     )
     P[0, n_dims + n_params:, n_dims + n_params:] = Ptherr
 

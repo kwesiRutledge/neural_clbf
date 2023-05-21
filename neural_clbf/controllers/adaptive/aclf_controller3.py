@@ -1337,13 +1337,13 @@ class aCLFController3(Controller):
                 G[:, :, :, theta_index], u.unsqueeze(2),
             )
 
-        D_minus_extras1_val = D * torch.ones((bs, dynamics_model.n_dims)) - \
+        D_minus_extras1_val = D * torch.ones((bs, dynamics_model.n_dims)).to(x.device) - \
                               x_dot + \
                               f.squeeze(2) + \
                               torch.bmm(g, u.unsqueeze(2)).squeeze(2)  # + \
         # torch.bmm(F_plus_Gu, theta_hat.unsqueeze(2)).squeeze(2)
 
-        D_minus_extras2_val = D * torch.ones((bs, dynamics_model.n_dims)) + \
+        D_minus_extras2_val = D * torch.ones((bs, dynamics_model.n_dims)).to(x.device) + \
                               x_dot - \
                               f.squeeze(2) - \
                               torch.bmm(g, u.unsqueeze(2)).squeeze(2)  # - \
@@ -1359,8 +1359,8 @@ class aCLFController3(Controller):
 
         theta_err_hats = torch.stack([
             theta_err_hat_next, theta_err_hat_next2,
-        ], dim=2)
+        ], dim=2).to(x.device)
 
-        return torch.max(theta_err_hats, dim=2)[0]
+        return torch.max(theta_err_hats, dim=2)[0].to(x.device)
 
         # TODO: Try to test this.
