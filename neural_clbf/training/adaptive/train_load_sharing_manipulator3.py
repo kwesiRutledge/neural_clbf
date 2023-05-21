@@ -1,5 +1,5 @@
 """
-train_load_sharing_manipulator.py
+train_load_sharing_manipulator3.py
 Description:
     This script trains an aCLBF for the load sharing manipulator system defined in systems/load_sharing_manipulator.py.
 """
@@ -13,7 +13,7 @@ from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
 from neural_clbf.controllers.adaptive import (
-    NeuralaCLBFController, NeuralaCLBFController2,
+    NeuralaCLBFController, NeuralaCLBFController2, NeuralaCLBFController3,
 )
 from neural_clbf.datamodules import (
     EpisodicDataModule, EpisodicDataModuleAdaptive
@@ -24,6 +24,10 @@ from neural_clbf.experiments import (
     CLFContourExperiment, AdaptiveCLFContourExperiment,
     RolloutStateSpaceExperiment, RolloutStateParameterSpaceExperiment,
     RolloutStateParameterSpaceExperimentMultiple,
+)
+from neural_clbf.experiments.adaptive_w_uncertainty import (
+    AdaptiveCLFContourExperimentUncertainty,
+    RolloutStateParameterSpaceExperimentMultipleUncertainty,
 )
 from neural_clbf.training.utils import (
     current_git_hash, initialize_training_arg_parser
@@ -180,7 +184,7 @@ def main(args):
     lb_Vcontour = lb[t_hyper["contour_exp_theta_index"]]
     ub_Vcontour = ub[t_hyper["contour_exp_theta_index"]]
     theta_range_Vcontour = ub_Vcontour - lb_Vcontour
-    V_contour_experiment = AdaptiveCLFContourExperiment(
+    V_contour_experiment = AdaptiveCLFContourExperimentUncertainty(
         "V_Contour",
         x_domain=[
             (dynamics_model.state_limits[1][LoadSharingManipulator.P_X],
@@ -205,7 +209,7 @@ def main(args):
         n_sims_per_start=1,
         t_sim=t_hyper["rollout_experiment_horizon"],
     )
-    rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
+    rollout_experiment2 = RolloutStateParameterSpaceExperimentMultipleUncertainty(
         "Rollout (Multiple Slices)",
         t_hyper["start_x"],
         [LoadSharingManipulator.P_X, LoadSharingManipulator.V_X, LoadSharingManipulator.P_Y],
@@ -220,7 +224,7 @@ def main(args):
     #experiment_suite = ExperimentSuite([V_contour_experiment])
 
     # Initialize the controller
-    aclbf_controller = NeuralaCLBFController2(
+    aclbf_controller = NeuralaCLBFController3(
         dynamics_model,
         scenarios,
         data_module,
