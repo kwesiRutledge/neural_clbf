@@ -10,7 +10,7 @@ from .adaptive_pusher_slider_force_input_more_obstacles import AdaptivePusherSli
 
 __all__ = [
     "ControlAffineParameterAffineSystem",
-    "LoadSharingManipulator"
+    "LoadSharingManipulator",
     "ScalarCAPA2Demo",
     "TumblingTarget",
     "TumblingTarget2",

@@ -99,6 +99,9 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 30,
         "n_fixed_samples": 20000,
         "num_init_epochs": 15,
+        "goal_loss_weight": 2.5e2,
+        "safe_loss_weight": 1e2,
+        "unsafe_loss_weight": 2.5e2,
         # "max_iters_cvxpylayer": int(1e7),  # default = 50000000 = 50 million
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
@@ -117,7 +120,7 @@ def create_training_hyperparams(args)-> Dict:
         "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
         # Observation error
-        "observation_error": 1e-1,
+        "observation_error": 1e-2,
     }
 
     for k in args.__dict__:
@@ -256,6 +259,9 @@ def main(args):
             include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
             max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
             observation_error=t_hyper["observation_error"],
+            goal_loss_weight=t_hyper["goal_loss_weight"],
+            safe_loss_weight=t_hyper["safe_loss_weight"],
+            unsafe_loss_weight=t_hyper["unsafe_loss_weight"],
         )
     elif args.checkpoint_path is not None:
         aclbf_controller = NeuralaCLBFController3.load_from_checkpoint(
