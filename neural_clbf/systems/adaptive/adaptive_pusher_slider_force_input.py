@@ -838,8 +838,6 @@ class AdaptivePusherSliderStickingForceInput(ControlAffineParameterAffineSystem)
                 scaled_vec = (s_length/2.0) * norm_vec
 
                 th_in_contact_point_frame = s_th # - np.pi / 2
-                print(s_th)
-                exit(
                 rotation_matrix = torch.tensor([
                     [np.cos(th_in_contact_point_frame), -np.sin(th_in_contact_point_frame)],
                     [np.sin(th_in_contact_point_frame), np.cos(th_in_contact_point_frame)]
