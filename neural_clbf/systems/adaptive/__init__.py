@@ -6,6 +6,7 @@ from .scalar_demo_capa2_system import ScalarCAPA2Demo
 from .tumbling_target import TumblingTarget
 from .tumbling_target2 import TumblingTarget2
 from .adaptive_pusher_slider_force_input import AdaptivePusherSliderStickingForceInput
+from .adaptive_pusher_slider_force_input_more_obstacles import AdaptivePusherSliderStickingForceInput_MoreObstacles
 
 __all__ = [
     "ControlAffineParameterAffineSystem",
@@ -14,6 +15,7 @@ __all__ = [
     "TumblingTarget",
     "TumblingTarget2",
     "AdaptivePusherSliderStickingForceInput",
+    "AdaptivePusherSliderStickingForceInput_MoreObstacles",
 ]
 
 # try:

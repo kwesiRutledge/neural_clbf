@@ -1333,9 +1333,9 @@ class aCLFController3(Controller):
         # Create the cvxpy parameters
         F_plus_Gu = F
         for theta_index in range(self.dynamics_model.n_params):
-            F_plus_Gu = F_plus_Gu + torch.bmm(
+            F_plus_Gu[:, :, theta_index] = F_plus_Gu[:, :, theta_index] + torch.bmm(
                 G[:, :, :, theta_index], u.unsqueeze(2),
-            )
+            ).squeeze()
 
         D_minus_extras1_val = D * torch.ones((bs, dynamics_model.n_dims)).to(x.device) - \
                               x_dot + \

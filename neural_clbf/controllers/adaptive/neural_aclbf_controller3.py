@@ -73,6 +73,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         goal_loss_weight: float = 1e2,
         safe_loss_weight: float = 1e2,
         unsafe_loss_weight: float = 1e2,
+        observation_error: float = 1e-2,
     ):
         """Initialize the controller.
 
@@ -212,6 +213,8 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         self.goal_loss_weight = goal_loss_weight
         self.safe_loss_weight = safe_loss_weight
         self.unsafe_loss_weight = unsafe_loss_weight
+
+        self.observation_error = observation_error
 
     def prepare_data(self):
         return self.datamodule.prepare_data()
@@ -499,6 +502,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         unsafe_mask: torch.Tensor,
         accuracy: bool = False,
         requires_grad: bool = False,
+        D: float = 1e-2,
     ) -> List[Tuple[str, torch.Tensor]]:
         """
         Evaluate the loss on the CLBF due to the descent condition
@@ -619,6 +623,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
             theta_err_hat_next = self.solve_aCLF_membership_estimation(
                 x, theta_hat,
                 u_qp, xdot,
+                D=D,
             )
 
             V_next = self.V(x_next, theta_hat_next, theta_err_hat_next)
@@ -788,7 +793,11 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
             )
         if self.current_epoch >= self.learn_shape_epochs + self.learn_boundary_epochs:
             component_losses.update(
-                self.descent_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
+                self.descent_loss(
+                    x, theta_hat, theta_err_hat, theta,
+                    goal_mask, safe_mask, unsafe_mask,
+                    requires_grad=True, D=self.observation_error,
+                )
             )
 
         # Compute the overall loss by summing up the individual losses
@@ -862,7 +871,9 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         component_losses.update(
             self.boundary_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask)
         )
-        component_losses.update(self.descent_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask))
+        component_losses.update(
+            self.descent_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask, D=self.observation_error)
+        )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0, device=x.device).type_as(x)
@@ -876,7 +887,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
             self.boundary_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask, accuracy=True)
         )
         component_losses.update(
-            self.descent_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask, accuracy=True)
+            self.descent_loss(x, theta_hat, theta_err_hat, theta, goal_mask, safe_mask, unsafe_mask, accuracy=True, D=self.observation_error)
         )
 
         batch_dict = {"val_loss": total_loss, **component_losses}

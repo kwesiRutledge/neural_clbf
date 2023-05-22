@@ -1,5 +1,5 @@
 """
-case_study_safety_experiment.py
+case_study_safety_experiment_ua.py
 Description
     Simulate a rollout and plot in state space
 """
@@ -174,8 +174,8 @@ class CaseStudySafetyExperiment(Experiment):
             if tstep % controller_update_freq == 0:
                 start_time = time.time()
                 u_current = controller_under_test.u(
-                    x_current, theta_hat_current,
-                    Q_u=np.diag([0.01, 0.01, 0.01]),
+                    x_current, theta_hat_current, theta_err_hat_current,
+                    # Q_u=np.diag([0.01, 0.01, 0.01]),
                 )
                 end_time = time.time()
                 controller_calls += 1
@@ -200,7 +200,7 @@ class CaseStudySafetyExperiment(Experiment):
             # Get the Lyapunov function if applicable
             V: Optional[torch.Tensor] = None
             if hasattr(controller_under_test, "V") and h is None:
-                V = controller_under_test.V(x_current, theta_hat_current)  # type: ignore
+                V = controller_under_test.V(x_current, theta_hat_current, theta_err_hat_current)  # type: ignore
 
             # Log the current state and control for each simulation
             for sim_index in range(n_sims):
@@ -241,21 +241,31 @@ class CaseStudySafetyExperiment(Experiment):
 
             # Simulate forward using the dynamics
             for i in range(n_sims):
+                theta_hat_dot = controller_under_test.closed_loop_estimator_dynamics(
+                    x_current[i, :].unsqueeze(0),
+                    theta_hat_current[i, :].unsqueeze(0),
+                    theta_err_hat_current[i, :].unsqueeze(0),
+                    u_current[i, :].unsqueeze(0),
+                    random_scenarios[i],
+                )
+                theta_hat_current[i, :] = theta_hat_current[i, :] + delta_t * theta_hat_dot.squeeze()
+
                 xdot = controller_under_test.dynamics_model.closed_loop_dynamics(
                     x_current[i, :].unsqueeze(0),
                     u_current[i, :].unsqueeze(0),
                     theta_current[i, :].unsqueeze(0),  # Theta should never change. Theta hat will.
                     random_scenarios[i],
                 )
-                x_current[i, :] = x_current[i, :] + delta_t * xdot.squeeze()
 
-                theta_hat_dot = controller_under_test.closed_loop_estimator_dynamics(
+                theta_err_hat_current[i, :] = controller_under_test.solve_aCLF_membership_estimation(
                     x_current[i, :].unsqueeze(0),
-                    theta_current[i, :].unsqueeze(0),  # Theta should never change. Theta hat will.
+                    theta_hat_current[i, :].unsqueeze(0),
                     u_current[i, :].unsqueeze(0),
-                    random_scenarios[i],
+                    xdot,
                 )
-                theta_hat_current[i, :] = theta_hat_current[i, :] + delta_t * theta_hat_dot.squeeze()
+
+                # Lastly update x_current
+                x_current[i, :] = x_current[i, :] + delta_t * xdot.squeeze()
 
         return pd.DataFrame(results)
 
