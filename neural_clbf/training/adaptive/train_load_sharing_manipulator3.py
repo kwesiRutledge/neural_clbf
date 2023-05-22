@@ -16,7 +16,7 @@ from neural_clbf.controllers.adaptive import (
     NeuralaCLBFController, NeuralaCLBFController2, NeuralaCLBFController3,
 )
 from neural_clbf.datamodules import (
-    EpisodicDataModule, EpisodicDataModuleAdaptive
+    EpisodicDataModule, EpisodicDataModuleAdaptive, EpisodicDataModuleAdaptive_UncertaintyAware
 )
 from neural_clbf.systems.adaptive import LoadSharingManipulator
 from neural_clbf.experiments import (
@@ -166,7 +166,7 @@ def main(args):
         (-0.5, 0.5),  # v_y
         (-0.5, 0.5),  # v_z
     ]
-    data_module = EpisodicDataModuleAdaptive(
+    data_module = EpisodicDataModuleAdaptive_UncertaintyAware(
         dynamics_model,
         initial_conditions,
         trajectories_per_episode=t_hyper["trajectories_per_episode"],

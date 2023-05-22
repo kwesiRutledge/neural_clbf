@@ -23,6 +23,6 @@ python train_load_sharing_manipulator3.py \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
   --gradient_clip_val 5000.0 --clf_relaxation_penalty 1e4 \
-  --learn_shape_epochs 45 --learn_boundary_epochs 20 \
+  --learn_shape_epochs 25 --learn_boundary_epochs 20 \
   --diff_qp_layer_to_use cvxpylayer
 
