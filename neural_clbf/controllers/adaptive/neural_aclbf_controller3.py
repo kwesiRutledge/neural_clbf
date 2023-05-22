@@ -450,7 +450,8 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
         theta_err = theta - theta_hat
         V_goal_pt = self.V(goal_as_batch, theta, theta_err_hat)
-        goal_term = self.goal_loss_weight * (V_goal_pt - theta_err.norm(dim=1)).mean()
+        #goal_term = self.goal_loss_weight * (V_goal_pt - theta_err.norm(dim=1)).mean()
+        goal_term = self.goal_loss_weight * V_goal_pt.mean()
         loss.append(("CLBF goal term", goal_term))
 
         # Only train these terms if we have a barrier requirement
