@@ -100,6 +100,9 @@ def create_training_hyperparams(args)-> Dict:
         "trajectory_length": 20,
         "accelerator": accelerator,
         "num_init_epochs": 20,
+        "goal_loss_weight": 1e3,
+        "safe_loss_weight": 1e3,
+        "unsafe_loss_weight": 1e3,
         # "max_iters_cvxpylayer": int(1e5), #default = 50000000 = 50 million
         #"use_oracle_loss": args.use_oracle_loss,
         #"barrier": args.barrier,
@@ -248,6 +251,9 @@ def main(args):
         Q_u=t_hyper["Q_u"],
         max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
         diff_qp_layer_to_use=t_hyper["diff_qp_layer_to_use"],
+        goal_loss_weight=t_hyper["goal_loss_weight"],
+        safe_loss_weight=t_hyper["safe_loss_weight"],
+        unsafe_loss_weight=t_hyper["unsafe_loss_weight"],
     )
 
     # Initialize the logger and trainer

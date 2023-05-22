@@ -70,6 +70,9 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         max_iters_cvxpylayer: int = 50000000,
         show_debug_messages: bool = False,
         diff_qp_layer_to_use: str = "cvxpylayer",
+        goal_loss_weight: float = 1e2,
+        safe_loss_weight: float = 1e2,
+        unsafe_loss_weight: float = 1e2,
     ):
         """Initialize the controller.
 
@@ -204,6 +207,11 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         # Define training outputs for convenient passing of data during on_train_epoch_end()
         self.training_step_outputs = []
         self.validation_step_outputs = []
+
+        # Add weights for some loss terms
+        self.goal_loss_weight = goal_loss_weight
+        self.safe_loss_weight = safe_loss_weight
+        self.unsafe_loss_weight = unsafe_loss_weight
 
     def prepare_data(self):
         return self.datamodule.prepare_data()
@@ -423,6 +431,9 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         returns:
             loss: a list of tuples containing ("category_name", loss_value).
         """
+        # Input Processing
+
+        # Constants
         eps = 1e-2
         # Compute loss to encourage satisfaction of the following conditions...
         loss = []
@@ -436,7 +447,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
         goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
         theta_err = theta - theta_hat
         V_goal_pt = self.V(goal_as_batch, theta, theta_err_hat)
-        goal_term = 1e2 * (V_goal_pt - theta_err.norm(dim=1)).mean()
+        goal_term = self.goal_loss_weight * (V_goal_pt - theta_err.norm(dim=1)).mean()
         loss.append(("CLBF goal term", goal_term))
 
         # Only train these terms if we have a barrier requirement
@@ -446,7 +457,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
             if len(V_safe) > 0:
                 # Nonzero number of safe points found in data
                 safe_violation = F.relu(eps + V_safe - self.safe_level)
-                safe_V_term = 1e2 * safe_violation.mean()
+                safe_V_term = self.safe_loss_weight * safe_violation.mean()
                 loss.append(("CLBF safe region term", safe_V_term))
                 if accuracy:
                     safe_V_acc = (safe_violation <= eps).sum() / safe_violation.nelement()
@@ -462,7 +473,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
             if len(V_unsafe) > 0:
                 # Nonzero number of unsafe points found in data
                 unsafe_violation = F.relu(eps + self.unsafe_level - V_unsafe)
-                unsafe_V_term = 1e2 * unsafe_violation.mean()
+                unsafe_V_term = self.unsafe_loss_weight * unsafe_violation.mean()
                 loss.append(("CLBF unsafe region term", unsafe_V_term))
                 if accuracy:
                     unsafe_V_acc = (
