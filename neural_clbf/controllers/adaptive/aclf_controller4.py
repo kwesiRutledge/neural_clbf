@@ -607,7 +607,7 @@ class aCLFController4(Controller):
                 V_np = V[batch_idx].detach().cpu().numpy()
 
                 for v_idx in range(n_Theta_vertices):
-                    v_Theta = Theta_vertices[v_idx][batch_idx, :].clone().numpy()
+                    v_Theta = Theta_vertices[v_idx][batch_idx, :].cpu().numpy()
 
                     # Retrieve lie derivatives
                     Lf_V_torch = Thetas_Lf_V_scenarios[i][v_idx]
