@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J pusher_slider_training
+#SBATCH -J PS-train-UA
 #SBATCH -o outputs/pusher-slider-%j.stdout
 #SBATCH -e outputs/pusher-slider-%j.stderr
 #SBATCH -c 40
