@@ -18,7 +18,7 @@ from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
 from neural_clbf.experiments import ExperimentSuite
 
 from neural_clbf.controllers.adaptive.adaptive_control_utils import (
-    center_and_radius_to_vertices,
+    center_and_radius_to_vertices, violation_weighting_function1,
 )
 
 import polytope as pc
@@ -608,13 +608,16 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, params=s)
             x_next = x + self.dynamics_model.dt * xdot
             theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
-            V_next = self.V(x_next, theta_hat_next).detach()
+            V_next = self.V(x_next, theta_hat_next)
             violation = F.relu(
                 eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
             )
             violation = violation * condition_active
 
-            clbf_descent_term_sim = clbf_descent_term_sim + violation.mean()
+            clbf_descent_term_sim = clbf_descent_term_sim + \
+                                    (violation_weighting_function1(
+                                        self.dynamics_model, x, theta_hat,
+                                    ) * violation).mean()
             clbf_descent_acc_sim = clbf_descent_acc_sim + (violation <= eps).sum() / (
                 violation.nelement() * self.n_scenarios
             )

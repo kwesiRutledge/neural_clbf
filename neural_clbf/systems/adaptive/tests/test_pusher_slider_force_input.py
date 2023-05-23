@@ -718,7 +718,7 @@ class TestStringMethods(unittest.TestCase):
         for k in range(N_traj):
             x_k = x_trajectory[:, k].reshape(1, 3)
             u_k = torch.tensor(U_dist.sample((1, 2)))
-            u_k[0, 1] = 7.0
+            u_k[0, 0] = 7.0
 
             x_kp1 = x_k + ps.dt * ps.closed_loop_dynamics(
                 x_k, u_k, theta.reshape((1, ps.n_params)))

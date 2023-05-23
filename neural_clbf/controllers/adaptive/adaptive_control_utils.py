@@ -195,3 +195,21 @@ def linearized_clf_value_uncertain(
     )
 
     return Va
+
+def violation_weighting_function1(
+    dynamics: ControlAffineParameterAffineSystem,
+    x: torch.Tensor,
+    theta_hat: torch.Tensor,
+    scale_factor: float = 1e2,
+) -> (torch.Tensor):
+    # Constants
+
+    # Algorithm 1: Weight according to distance to goal
+    x0 = dynamics.goal_point(theta_hat).type_as(x)
+    delta0 = torch.norm(x - x0, dim=1)
+
+    # Higher weight to points closer to the goal
+    w = scale_factor * torch.exp(-delta0)
+
+    return w
+

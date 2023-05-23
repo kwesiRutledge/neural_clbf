@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J load_sharing_manipulator_training
+#SBATCH -J LSM-train-CE
 #SBATCH -o outputs/loaded-manipulator-%j.stdout
 #SBATCH -e outputs/loaded-manipulator-%j.stderr
 #SBATCH -c 40
