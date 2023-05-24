@@ -767,7 +767,7 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             radially_unbounded_loss = radially_unbounded_loss + violations.mean()
 
         # Create loss
-        loss.append(("Radially Unbounded Loss", radially_unbounded_loss))
+        loss.append(("Radially Unbounded Loss 1", radially_unbounded_loss))
 
         return loss
 
@@ -798,12 +798,12 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
 
         x_ub, x_lb = self.dynamics_model.state_limits
         x_width = x_ub - x_lb
-        x_width_max = torch.max(x_width)[0]
+        x_width_max = torch.max(x_width)
 
         theta_min = torch.min(torch.tensor(V_Theta), dim=0)[0]
         theta_max = torch.max(torch.tensor(V_Theta), dim=0)[0]
         theta_width = theta_max - theta_min
-        theta_width_max = torch.max(theta_width)[0]
+        theta_width_max = torch.max(theta_width)
 
         # Compute aCLF Value on whole batch
         V = self.V(x, theta_hat)
@@ -823,7 +823,7 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
         radially_unbounded_loss = radially_unbounded_loss + F.relu(violation).mean()
 
         # Create loss
-        loss.append(("Radially Unbounded Loss", radially_unbounded_loss))
+        loss.append(("Radially Unbounded Loss 2", radially_unbounded_loss))
 
         return loss
 
