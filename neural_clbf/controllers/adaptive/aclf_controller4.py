@@ -1175,12 +1175,12 @@ class aCLFController4(Controller):
     def closed_loop_estimator_dynamics(self, x: torch.Tensor, theta_hat: torch.Tensor, u: torch.Tensor, scenario: Scenario):
         """
         closed_loop_estimator_dynamics
-        Description
+        Description:
             Computes the dynamics of the estimator (how it changes over time) when given
             the current aCLF controller.
-        Inputs
+        Inputs:
 
-        Outputs
+        Outputs:
             thetadot: bs x self.dynamics_model.n_params tensor of time derivatives of x
         """
 

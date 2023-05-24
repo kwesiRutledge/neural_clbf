@@ -15,12 +15,12 @@ from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
 from neural_clbf.controllers.adaptive import (
-    NeuralaCLBFController3, NeuralaCLBFController, NeuralaCLBFController4,
+    NeuralaCLBFController3, NeuralaCLBFController, NeuralaCLBFController4, NeuralaCLBFController4_wIE,
 )
 from neural_clbf.datamodules import (
     EpisodicDataModule, EpisodicDataModuleAdaptive
 )
-from neural_clbf.systems.adaptive import AdaptivePusherSliderStickingForceInput
+from neural_clbf.systems.adaptive import AdaptivePusherSliderStickingForceInput, AdaptivePusherSliderStickingForceInput_CustomGoal
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
@@ -156,7 +156,7 @@ def main(args):
     Theta = pc.box2poly(np.array([lb, ub]).T)
 
     # Define the dynamics model
-    dynamics_model = AdaptivePusherSliderStickingForceInput(
+    dynamics_model = AdaptivePusherSliderStickingForceInput_CustomGoal(
         t_hyper["nominal_scenario"],
         Theta,
         dt=t_hyper["simulation_dt"],
@@ -241,7 +241,7 @@ def main(args):
 
     # Initialize the controller
     if (args.checkpoint_path is None) and (t_hyper["saved_Vnn_subpath"] is None):
-        aclbf_controller = NeuralaCLBFController4(
+        aclbf_controller = NeuralaCLBFController4_wIE(
             dynamics_model,
             scenarios,
             data_module,

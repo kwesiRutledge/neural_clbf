@@ -7,6 +7,7 @@ from .tumbling_target import TumblingTarget
 from .tumbling_target2 import TumblingTarget2
 from .adaptive_pusher_slider_force_input import AdaptivePusherSliderStickingForceInput
 from .adaptive_pusher_slider_force_input_more_obstacles import AdaptivePusherSliderStickingForceInput_MoreObstacles
+from .adaptive_pusher_slider_force_input_custom_goal import AdaptivePusherSliderStickingForceInput_CustomGoal
 
 __all__ = [
     "ControlAffineParameterAffineSystem",
@@ -16,6 +17,7 @@ __all__ = [
     "TumblingTarget2",
     "AdaptivePusherSliderStickingForceInput",
     "AdaptivePusherSliderStickingForceInput_MoreObstacles",
+    "AdaptivePusherSliderStickingForceInput_CustomGoal",
 ]
 
 # try:

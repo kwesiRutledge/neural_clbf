@@ -25,7 +25,7 @@ import polytope as pc
 import numpy as np
 
 
-class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
+class NeuralaCLBFController4_wIE(aCLFController4, pl.LightningModule):
     """
     A neural aCLBF controller. Differs from the CLFController in that it uses a
     neural network to learn the CLF, and it turns it from a CLF to a CLBF by making sure
@@ -106,7 +106,7 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             add_nominal: if True, add the nominal V
             normalize_V_nominal: if True, normalize V_nominal so that its average is 1
         """
-        super(NeuralaCLBFController4, self).__init__(
+        super(NeuralaCLBFController4_wIE, self).__init__(
             dynamics_model,
             scenarios,
             experiment_suite,
@@ -612,6 +612,13 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, params=s)
             x_next = x + self.dynamics_model.dt * xdot
             theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
+
+            # TODO[kwesi]: Create script that makes it easier to know which parameters to estimate and which not to.
+            #               I don't like that this estimation is hardcoded in.
+            theta_hat_next[:, 2] = theta_hat[:, 2] # Add in my own logic for estimating intention.
+            theta_hat_next[:, 3] = theta_hat[:, 3]
+
+
             V_next = self.V(x_next, theta_hat_next)
             violation = F.relu(
                 eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
@@ -662,6 +669,9 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
                 x_next = x + self.dynamics_model.dt * xdot
                 theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
                                                                                                           u_qp, s)
+                # TODO[kwesi]: Create script that makes it easier to know which parameters to estimate with intention
+                #               estimation and which not to.
+
                 V_oracle = self.V_oracle(x, theta_hat, theta)
                 V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
 
@@ -1200,6 +1210,13 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
                     self.dynamics_model.nominal_scenario,
                 )
                 th_h_sim[:, tstep, :] = theta_hat_current + self.dynamics_model.dt * th_h_dot
+
+                # TODO: Intention estimation should be added here.
+                th_h_with_true_intention = theta_hat_current + self.dynamics_model.dt * th_h_dot
+                th_h_with_true_intention[:, 2:] = theta[:, 2:]
+                th_h_sim[:, tstep, 2:] = self.dynamics_model.estimate_goal(
+                    x_current, theta_hat_current, self.dynamics_model.u_nominal(th_h_with_true_intention),
+                )
 
                 # If the guard is activated for any trajectory, reset that trajectory
                 # to a random state
