@@ -130,6 +130,7 @@ logs/
 neural_clbf/systems/aerobench
 *devel*
 neural_clbf/training/adaptive/*.pth
+neural_clbf/training/adaptive/temp_imgs/*
 
 # Matlab files
 *.asv
