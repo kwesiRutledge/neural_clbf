@@ -252,6 +252,8 @@ def main(args):
             controller_period=t_hyper["controller_period"],
             clf_relaxation_penalty=1e2,
             num_init_epochs=t_hyper["num_init_epochs"],
+            learn_shape_epochs=t_hyper["learn_shape_epochs"],
+            learn_boundary_epochs=t_hyper["learn_boundary_epochs"],
             epochs_per_episode=100,
             barrier=t_hyper["barrier"],
             Gamma_factor=t_hyper["Gamma_factor"],

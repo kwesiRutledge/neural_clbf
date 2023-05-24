@@ -69,6 +69,8 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
         Gamma_factor: float = None,
         include_oracle_loss: bool = True,
         include_estimation_error_loss: bool = False,
+        include_radially_unbounded_loss1: bool = False,
+        include_radially_unbounded_loss2: bool = False,
         Q_u: np.array = None,
         max_iters_cvxpylayer: int = 50000000,
         show_debug_messages: bool = False,
@@ -148,6 +150,8 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
         self.V_nominal_mean = 1.0
         self.include_oracle_loss = include_oracle_loss
         self.include_estimation_error_loss = include_estimation_error_loss
+        self.include_radially_unbounded_loss1 = include_radially_unbounded_loss1
+        self.include_radially_unbounded_loss2 = include_radially_unbounded_loss2
 
         # Compute and save the center and range of the state variables
         x_max, x_min = dynamics_model.state_limits
@@ -678,71 +682,150 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
 
         return loss
 
-    # def oracle_descent_loss(
-    #         self,
-    #         x: torch.Tensor,
-    #         theta_hat: torch.Tensor,
-    #         theta: torch.Tensor,
-    #         goal_mask: torch.Tensor,
-    #         safe_mask: torch.Tensor,
-    #         unsafe_mask: torch.Tensor,
-    #         accuracy: bool = False,
-    #         requires_grad: bool = False,
-    #         ):
-    #     """
-    #     oracle_descent_loss
-    #     description:
-    #         Computes the loss of the controller when keeping in mind the true value of the
-    #         parameter. We can do this by computing the value of the "unknowable" clf defined
-    #         over the state-parameterestimate-parameter space (x,theta_hat, theta).
-    #     args:
-    #         x: bs x self.dynamical_model.n_dims tensor containing all current states of the system
-    #         theta_hat: bs x self.dynamical_model.n_params tensor containing all current estimate of the parameter
-    #         theta: bs x self.dynamical_model.n_params tensor containing all true values of the parameter
-    #     """
-    #     # Constants
-    #     bs = x.shape[0]
-    #     if self.barrier:
-    #         condition_active = torch.sigmoid(10 * (self.safe_level + eps - V))
-    #     else:
-    #         condition_active = torch.tensor(1.0)
-    #
-    #     # Initialize loss object
-    #     loss = []
-    #
-    #     # Get the control input and relaxation from solving the QP, and aggregate
-    #     # the relaxation across scenarios
-    #     u_qp, qp_relaxation = self.solve_CLF_QP(x, theta_hat, requires_grad=requires_grad)
-    #     qp_relaxation = torch.mean(qp_relaxation, dim=-1)
-    #
-    #     # Compute the shadow descent loss
-    #     eps = 1.0
-    #     oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
-    #     oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
-    #     for s in self.scenarios:
-    #         xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta, params=s)
-    #         x_next = x + self.dynamics_model.dt * xdot
-    #         theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
-    #                                                                                                   u_qp, s)
-    #         V_oracle = self.V_oracle(x, theta_hat, theta)
-    #         V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
-    #
-    #         violation = F.relu(
-    #             eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
-    #         )
-    #         violation = violation * condition_active
-    #
-    #         oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + violation.mean()
-    #         oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
-    #                 violation.nelement() * self.n_scenarios
-    #         )
-    #
-    #     loss.append(("CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
-    #     if accuracy:
-    #         loss.append(("CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
-    #
-    #     # Return loss
-    #     return loss
+    def radially_unbounded_loss1(
+        self,
+        x: torch.Tensor,
+        theta_hat: torch.Tensor,
+        theta: torch.Tensor,
+        goal_mask: torch.Tensor,
+        safe_mask: torch.Tensor,
+        unsafe_mask: torch.Tensor,
+        N_levels: int = 10,
+    ):
+        """
+        list_of_loss_tuples = aclbf.radially_unbounded_loss(x, theta_hat)
+        Description:
+            This function computes a loss value that encourages the aclbf to be radially unbounded.
+        """
+        # Constants
+        bs = x.shape[0]
+        Theta = self.dynamics_model.Theta
+        V_Theta = pc.extreme(Theta)
+
+        # Compute comparison points
+        goal_tolerance = 0.1
+        level_height = goal_tolerance / 2.0 # TODO: Define a goal_tolerance() method for all systems
+        #level_height = self.dynamics_model.goal_tolerance / 2.0
+
+        x_ub, x_lb = self.dynamics_model.state_limits
+        x_width = x_ub - x_lb
+        x_width_max = torch.max(x_width)
+
+        theta_min = torch.min(torch.tensor(V_Theta), dim=0)[0]
+        theta_max = torch.max(torch.tensor(V_Theta), dim=0)[0]
+        theta_width = theta_max - theta_min
+        theta_width_max = torch.max(theta_width)
+
+        # Compute aCLF Value on whole batch
+        V = self.V(x, theta_hat)
+
+        # Compute the loss
+        loss = []
+
+        radially_unbounded_loss = torch.tensor([0.0]).type_as(x)
+        max_dist = x_width_max + theta_width_max
+        goal_as_batch = self.dynamics_model.goal_point(theta_hat).type_as(x)
+        goal_theta_hat = torch.cat((goal_as_batch, theta_hat), dim=1)
+        x_theta_hat = torch.cat((x, theta_hat), dim=1)
+
+        #violations = torch.zeros((bs,)).type_as(x)
+        last_level_count = -1
+        curr_level_count = 0
+        for curr_level in torch.arange(level_height, max_dist, level_height):
+            # Compute mask of all points that are within curr_level of the goal points
+            dist_to_goal = torch.norm(x_theta_hat - goal_theta_hat, dim=1)
+            level_mask = dist_to_goal <= curr_level
+            level_mask = level_mask.logical_and(safe_mask)
+
+            if torch.all(level_mask == False):
+                continue  # If there are no points in this level, then skip the rest of the computations.
+
+            curr_level_count = torch.sum(level_mask)
+
+            if last_level_count == curr_level_count:
+                continue  # If there are no new points in this level, then skip the rest of the computations.
+
+            V_level = V[level_mask]
+
+            max_V_level = torch.max(V_level)
+
+            # Compute mask of all points outside of this level
+            outside_level_mask = dist_to_goal > curr_level
+            outside_level_mask = outside_level_mask.logical_and(safe_mask)
+
+            if torch.all(outside_level_mask == False):
+                break  # If there are no more points outside of this level, then we can stop computing the loss.
+
+            #outside_level_and_smaller_than_V_top = V[outside_level_mask] < max_V_level
+
+            violations = F.relu(max_V_level - V[outside_level_mask])
+
+
+            # Update level counts
+            last_level_count = curr_level_count
+
+            radially_unbounded_loss = radially_unbounded_loss + violations.mean()
+
+        # Create loss
+        loss.append(("Radially Unbounded Loss", radially_unbounded_loss))
+
+        return loss
+
+    def radially_unbounded_loss2(
+        self,
+        x: torch.Tensor,
+        theta_hat: torch.Tensor,
+        theta: torch.Tensor,
+        goal_mask: torch.Tensor,
+        safe_mask: torch.Tensor,
+        unsafe_mask: torch.Tensor,
+        N_levels: int = 10,
+    ):
+        """
+        list_of_loss_tuples = aclbf.radially_unbounded_loss(x, theta_hat)
+        Description:
+            This function computes a loss value that encourages the aclbf to be radially unbounded.
+        """
+        # Constants
+        bs = x.shape[0]
+        Theta = self.dynamics_model.Theta
+        V_Theta = pc.extreme(Theta)
+
+        # Compute comparison points
+        goal_tolerance = 0.1
+        level_height = goal_tolerance / 2.0 # TODO: Define a goal_tolerance() method for all systems
+        #level_height = self.dynamics_model.goal_tolerance / 2.0
+
+        x_ub, x_lb = self.dynamics_model.state_limits
+        x_width = x_ub - x_lb
+        x_width_max = torch.max(x_width)[0]
+
+        theta_min = torch.min(torch.tensor(V_Theta), dim=0)[0]
+        theta_max = torch.max(torch.tensor(V_Theta), dim=0)[0]
+        theta_width = theta_max - theta_min
+        theta_width_max = torch.max(theta_width)[0]
+
+        # Compute aCLF Value on whole batch
+        V = self.V(x, theta_hat)
+
+        # Compute the loss
+        loss = []
+
+        radially_unbounded_loss = torch.tensor([0.0]).type_as(x)
+        max_dist = x_width_max + theta_width_max
+        goal_as_batch = self.dynamics_model.goal_point(theta_hat).type_as(x)
+        goal_theta_hat = torch.cat((goal_as_batch, theta_hat), dim=1)
+        x_theta_hat = torch.cat((x, theta_hat), dim=1)
+
+        violation = torch.zeros((bs,)).type_as(x)
+        violation = 0.5*torch.norm(x_theta_hat[safe_mask] - goal_theta_hat[safe_mask], dim=1) - V[safe_mask]
+
+        radially_unbounded_loss = radially_unbounded_loss + F.relu(violation).mean()
+
+        # Create loss
+        loss.append(("Radially Unbounded Loss", radially_unbounded_loss))
+
+        return loss
 
     def initial_loss(self, x: torch.Tensor, theta_hat: torch.Tensor) -> List[Tuple[str, torch.Tensor]]:
         """
@@ -813,6 +896,14 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             component_losses.update(
                 self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
             )
+            if self.include_radially_unbounded_loss1:
+                component_losses.update(
+                    self.radially_unbounded_loss1(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                )
+            if self.include_radially_unbounded_loss2:
+                component_losses.update(
+                    self.radially_unbounded_loss2(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0).type_as(x)
@@ -883,6 +974,14 @@ class NeuralaCLBFController4(aCLFController4, pl.LightningModule):
             self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
         )
         component_losses.update(self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask))
+        if self.include_radially_unbounded_loss1:
+            component_losses.update(
+                self.radially_unbounded_loss1(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+            )
+        if self.include_radially_unbounded_loss2:
+            component_losses.update(
+                self.radially_unbounded_loss2(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+            )
 
         # Compute the overall loss by summing up the individual losses
         total_loss = torch.tensor(0.0, device=x.device).type_as(x)

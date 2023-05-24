@@ -1,8 +1,9 @@
 """
-train_pusher_slider_force_input.py
+train_pusher_slider_force_input_ce.py
 Description:
     This script trains an aCLBF for the pusher-slider system defined in
     systems/adaptive/load_sharing_manipulator.py.
+    Uses the certainty-equivalent controller from NeuralaCLBFController4.
 """
 
 from argparse import ArgumentParser
@@ -13,8 +14,8 @@ import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import numpy as np
 
-from neural_clbf.controllers import (
-    NeuralCLBFController, NeuralaCLBFController
+from neural_clbf.controllers.adaptive import (
+    NeuralaCLBFController3, NeuralaCLBFController, NeuralaCLBFController4,
 )
 from neural_clbf.datamodules import (
     EpisodicDataModule, EpisodicDataModuleAdaptive
@@ -28,6 +29,10 @@ from neural_clbf.experiments import (
 )
 from neural_clbf.experiments.adaptive import (
     aCLFCountourExperiment_StateSlices
+)
+from neural_clbf.experiments.adaptive_w_uncertainty import (
+    RolloutStateParameterSpaceExperimentMultipleUncertainty, AdaptiveCLFContourExperimentUncertainty,
+    aCLFCountourExperiment_StateSlices_Uncertainty,
 )
 from neural_clbf.training.utils import (
     current_git_hash, initialize_training_arg_parser
@@ -50,12 +55,11 @@ def create_training_hyperparams(args)-> Dict:
     """
 
     # Get initial conditions for the experiment
-    start_x = torch.tensor(
-        [
-            [-0.5, -0.5, 0.0],
-            [-0.2, -0.8, 0.0],
-        ]
-    )
+    start_x = torch.tensor([
+        [-0.5, -0.5, 0.0],
+        [-0.4, -0.5, 0.0],
+        [-0.5, -0.4, 0.0],
+    ])
 
     #device = "mps" if torch.backends.mps.is_available() else "cpu"
     accelerator_name = "cpu"
@@ -92,11 +96,14 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         # "max_epochs": args.max_epochs,
-        "trajectories_per_episode": 1000,
+        "trajectories_per_episode": 100, #1000,
         "trajectory_length": 30,
-        "n_fixed_samples": 20000,
+        "n_fixed_samples": 2000, # 20000,
         "num_init_epochs": 15,
-        # "max_iters_cvxpylayer": int(5e5),  # default = 50000000 = 50 million
+        "goal_loss_weight": 1e2,
+        "safe_loss_weight": 1e2,
+        "unsafe_loss_weight": 1e2,
+        # "max_iters_cvxpylayer": int(1e7),  # default = 50000000 = 50 million
         # "include_oracle_loss": True,
         # "include_estimation_error_loss": args.use_estimation_error_loss,
         # "barrier": args.barrier,
@@ -106,13 +113,15 @@ def create_training_hyperparams(args)-> Dict:
         "contour_exp_x_index": 0,
         "contour_exp_theta_index": AdaptivePusherSliderStickingForceInput.S_X,
         # Rollout Experiment Parameters
-        "rollout_experiment_horizon": 15.0,
+        "rollout_experiment_horizon": 5.0,
         # Random Seed Info
         "pt_manual_seed": args.pt_random_seed,
         "np_manual_seed": args.np_random_seed,
         # Device
         "accelerator": accelerator_name,
         "sample_quotas": {"safe": 0.2, "unsafe": 0.2, "goal": 0.2},
+        # Observation error
+        "observation_error": 1e-2,
     }
 
     for k in args.__dict__:
@@ -232,7 +241,7 @@ def main(args):
 
     # Initialize the controller
     if (args.checkpoint_path is None) and (t_hyper["saved_Vnn_subpath"] is None):
-        aclbf_controller = NeuralaCLBFController(
+        aclbf_controller = NeuralaCLBFController4(
             dynamics_model,
             scenarios,
             data_module,
@@ -242,17 +251,21 @@ def main(args):
             clf_lambda=t_hyper["clf_lambda"],
             safe_level=t_hyper["safe_level"],
             controller_period=t_hyper["controller_period"],
-            clf_relaxation_penalty=1e2,
+            clf_relaxation_penalty=t_hyper["clf_relaxation_penalty"],
             num_init_epochs=t_hyper["num_init_epochs"],
+            learn_shape_epochs=t_hyper["learn_shape_epochs"],
+            learn_boundary_epochs=t_hyper["learn_boundary_epochs"],
             epochs_per_episode=100,
             barrier=t_hyper["barrier"],
             Gamma_factor=t_hyper["Gamma_factor"],
             include_oracle_loss=t_hyper["include_oracle_loss"],
             include_estimation_error_loss=t_hyper["include_estimation_error_loss"],
+            include_radially_unbounded_loss1=t_hyper["include_radially_unbounded_loss1"],
+            include_radially_unbounded_loss2=t_hyper["include_radially_unbounded_loss2"],
             max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
         )
     elif args.checkpoint_path is not None:
-        aclbf_controller = NeuralaCLBFController.load_from_checkpoint(
+        aclbf_controller = NeuralaCLBFController3.load_from_checkpoint(
             args.checkpoint_path,
         )
         print(aclbf_controller)

@@ -90,6 +90,15 @@ def initialize_training_arg_parser(ap: ArgumentParser):
         '--include_oracle_loss', type=bool, default=False,
         help='Whether to use the oracle loss in training(default: False)',
     )
+    ap.add_argument(
+        '--include_radially_unbounded_loss1', type=bool, default=False,
+        help='Whether to use the loss that encourages radially unbounded barriers with expensive computation (default: False)',
+    )
+    ap.add_argument(
+        '--include_radially_unbounded_loss2', type=bool, default=False,
+        help='Whether to use the loss that encourages radially unbounded barriers with simple norm (default: False)',
+    )
+
 
     # GPU / Multi-GPU Setups
     # This doesn't currently work. I get this error whenever I try to use more than 1 GPU:
