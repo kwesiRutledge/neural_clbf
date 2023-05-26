@@ -380,7 +380,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         """
         pass
 
-    def failure(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    def failure(self, x: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating failure. This usually matches with the
         unsafe region
 
@@ -390,9 +390,9 @@ class ControlAffineParameterAffineSystem2(ABC):
             a tensor of (batch_size,) booleans indicating whether the corresponding
             point is in this region.
         """
-        return self.unsafe_mask(x, theta)
+        return self.unsafe_mask(x, theta, s_vec)
 
-    def boundary_mask(self, x: torch.Tensor, theta: torch.Tensor) -> torch.Tensor:
+    def boundary_mask(self, x: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """Return the mask of x indicating regions that are neither safe nor unsafe
 
         args:
@@ -403,8 +403,8 @@ class ControlAffineParameterAffineSystem2(ABC):
         """
         return torch.logical_not(
             torch.logical_or(
-                self.safe_mask(x, theta),
-                self.unsafe_mask(x, theta),
+                self.safe_mask(x, theta, s_vec),
+                self.unsafe_mask(x, theta, s_vec),
             )
         )
 
@@ -478,12 +478,26 @@ class ControlAffineParameterAffineSystem2(ABC):
 
         return torch.tensor(theta_samples_np, device=self.device)
 
+    def sample_scenario_space(self, num_samples: int) -> torch.Tensor:
+        """
+        Description:
+            Sample uniformly from the Theta space
+        Outputs:
+            theta_samples: N_samples x self.n_params
+        """
+
+        scenario_samples_np = self.get_N_samples_from_polytope(self.scenario_set, num_samples)
+        if torch.get_default_dtype() == torch.float32:
+            scenario_samples_np = np.float32(scenario_samples_np)
+
+        return torch.tensor(scenario_samples_np, device=self.device)
+
     def sample_with_mask(
         self,
         num_samples: int,
-        mask_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+        mask_fn: Callable[[torch.Tensor, torch.Tensor, torch.Tensor], torch.Tensor],
         max_tries: int = 5000,
-    ) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample num_samples so that mask_fn is True for all samples. Makes a
         best-effort attempt, but gives up after max_tries, so may return some points
         for which the mask is False, so watch out!
@@ -491,42 +505,44 @@ class ControlAffineParameterAffineSystem2(ABC):
         # Get a uniform sampling
         x_samples = self.sample_state_space(num_samples)
         theta_samples = self.sample_Theta_space(num_samples)
+        scen_samples = self.sample_scenario_space(num_samples)
 
-        samples = torch.cat((x_samples, theta_samples), dim=1)
+        samples = torch.cat((x_samples, theta_samples, scen_samples), dim=1)
 
         # While the mask is violated, get violators and replace them
         # (give up after so many tries)
         for _ in range(max_tries):
-            violations = torch.logical_not(mask_fn(x_samples, theta_samples))
+            violations = torch.logical_not(mask_fn(x_samples, theta_samples, scen_samples))
             if not violations.any():
                 break
 
             new_samples = int(violations.sum().item())
             x_samples[violations] = self.sample_state_space(new_samples)
             theta_samples[violations] = self.sample_Theta_space(new_samples)
-            samples[violations] = torch.cat((x_samples[violations], theta_samples[violations]), dim=1)
+            scen_samples[violations] = self.sample_scenario_space(new_samples)
+            samples[violations] = torch.cat((x_samples[violations], theta_samples[violations], scen_samples[violations]), dim=1)
 
-        return samples, x_samples, theta_samples
+        return samples, x_samples, theta_samples, scen_samples
 
-    def sample_safe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    def sample_safe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the safe space. May return some points that are not
         safe, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.safe_mask, max_tries)
 
-    def sample_unsafe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    def sample_unsafe(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the unsafe space. May return some points that are not
         unsafe, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.unsafe_mask, max_tries)
 
-    def sample_goal(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    def sample_goal(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the goal. May return some points that are not in the
         goal, so watch out (only a best-effort sampling).
         """
         return self.sample_with_mask(num_samples, self.goal_mask, max_tries)
 
-    def sample_boundary(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor]:
+    def sample_boundary(self, num_samples: int, max_tries: int = 5000) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Sample uniformly from the state space between the safe and unsafe regions.
         May return some points that are not in this region safe, so watch out (only a
         best-effort sampling).
@@ -535,7 +551,7 @@ class ControlAffineParameterAffineSystem2(ABC):
 
     def control_affine_dynamics(
         self, x: torch.Tensor, theta: torch.Tensor,
-        params: Optional[Scenario] = None
+        s_vec: torch.Tensor = None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Return a tuple (f + F \theta, g + \sum_i  G_i \theta) representing the system dynamics in control-affine form:
@@ -560,8 +576,11 @@ class ControlAffineParameterAffineSystem2(ABC):
         batch_size = x.shape[0]
 
         # If no params required, use nominal params
-        if params is None:
-            params = self.nominal_scenario
+        if s_vec is None:
+            s_vec = torch.tensor(
+                self.scenario_to_list(self.nominal_scenario),
+                device=self.device,
+            ).repeat((batch_size, 1))
 
         theta_reshape = theta.reshape((theta.shape[0], theta.shape[1], 1))
 
@@ -569,14 +588,14 @@ class ControlAffineParameterAffineSystem2(ABC):
         # f_like = self._f(x, params) + torch.bmm(self._F(x, params), theta_reshape)
 
         g_like = torch.zeros((batch_size, self.n_dims, self.n_controls), device=self.device)
-        g_like = self.input_gain_matrix(x, theta_reshape, params)
+        g_like = self.input_gain_matrix(x, theta_reshape, s_vec)
 
-        F_x_params = self._F(x, params)
+        F_x_params = self._F(x, s_vec)
 
-        return self._f(x, params) + torch.bmm(F_x_params, theta_reshape), self.input_gain_matrix(x, theta_reshape, params)
+        return self._f(x, s_vec) + torch.bmm(F_x_params, theta_reshape), self.input_gain_matrix(x, theta_reshape, s_vec)
 
     def closed_loop_dynamics(
-        self, x: torch.Tensor, u: torch.Tensor, theta: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, u: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor
     ) -> torch.Tensor:
         """
         Return the state derivatives at state x and control input u
@@ -593,7 +612,7 @@ class ControlAffineParameterAffineSystem2(ABC):
             xdot: bs x self.n_dims tensor of time derivatives of x
         """
         # Get the control-affine dynamics
-        f, g = self.control_affine_dynamics(x, theta, params=params)
+        f, g = self.control_affine_dynamics(x, theta, s_vec)
         # print("f", f.shape)
         # print("g", g.shape)
         # print("u", u.shape)
@@ -638,6 +657,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         self,
         x_init: torch.Tensor,
         theta: torch.Tensor,
+        s_vec: torch.Tensor,
         num_steps: int,
         controller: Callable[[torch.Tensor,torch.Tensor], torch.Tensor],
         controller_period: Optional[float] = None,
@@ -667,7 +687,7 @@ class ControlAffineParameterAffineSystem2(ABC):
             th_h_sim -  bs x num_steps x self.n_params tensor of estimated parameters.
                         Estimate may change.
         usage
-            x_sim, th_sim, th_h_sim = simulate(x, theta, N_sim, silly_control, 0.01)
+            x_sim, th_sim, th_h_sim = simulate(x, theta, s_vec, N_sim, silly_control, 0.01)
         """
         # Create a tensor to hold the simulation results
         batch_size = x_init.shape[0]
@@ -692,6 +712,9 @@ class ControlAffineParameterAffineSystem2(ABC):
         th_h_samples = self.sample_Theta_space(batch_size)
         th_h_sim[:, 0, :] = th_h_samples.squeeze()
 
+        scen_sim = torch.zeros(batch_size, num_steps, self.n_scenario, device=self.device).type_as(s_vec)
+        scen_sim[:, 0, :] = s_vec
+
         u = torch.zeros(x_init.shape[0], self.n_controls, device=self.device).type_as(x_init)
 
         # Compute controller update frequency
@@ -707,15 +730,17 @@ class ControlAffineParameterAffineSystem2(ABC):
                 x_current = x_sim[:, tstep - 1, :]
                 theta_current = th_sim[:, tstep - 1, :]
                 theta_hat_current = th_h_sim[:, tstep - 1, :]
+                scen_current = scen_sim[:, tstep - 1, :]
 
                 # Get the control input at the current state if it's time
                 if tstep == 1 or tstep % controller_update_freq == 0:
-                    u = controller(x_current, theta_hat_current)
+                    u = controller(x_current, theta_hat_current, s_vec)
 
                 # Simulate forward using the dynamics
-                xdot = self.closed_loop_dynamics(x_current, u, theta, params)
+                xdot = self.closed_loop_dynamics(x_current, u, theta, s_vec)
                 x_sim[:, tstep, :] = x_current + self.dt * xdot
                 th_sim[:, tstep, :] = theta_current
+                scen_sim[:, tstep, :] = scen_current
 
                 # Compute theta hat evolution
                 th_h_dot = torch.zeros(theta_hat_current.shape, device=self.device).type_as(theta_hat_current) # TODO: Try to implement Least Squares for this.
@@ -734,9 +759,9 @@ class ControlAffineParameterAffineSystem2(ABC):
             except ValueError:
                 break
 
-        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :]
+        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :], scen_sim[:, : t_sim_final + 1, :]
 
-    def nominal_simulator(self, x_init: torch.Tensor, theta: torch.Tensor, num_steps: int) -> torch.Tensor:
+    def nominal_simulator(self, x_init: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor, num_steps: int) -> torch.Tensor:
         """
         Simulate the system forward using the nominal controller
 
@@ -755,11 +780,12 @@ class ControlAffineParameterAffineSystem2(ABC):
         """
         # Call the simulate method using the nominal controller
         return self.simulate(
-            x_init, theta, num_steps, self.u_nominal, guard=self.out_of_bounds_mask
+            x_init, theta, s_vec,
+            num_steps, self.u_nominal, guard=self.out_of_bounds_mask
         )
 
     @abstractmethod
-    def _f(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
+    def _f(self, x: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
         Return the control-independent part of the control-affine dynamics.
 
@@ -773,7 +799,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         pass
 
     @abstractmethod
-    def _F(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
+    def _F(self, x: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
         Return the control-independent part of the control-affine dynamics.
 
@@ -787,7 +813,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         pass
 
     @abstractmethod
-    def _g(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
+    def _g(self, x: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
         Return the control-dependent part of the control-affine dynamics.
 
@@ -801,7 +827,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         pass
 
     @abstractmethod
-    def _G(self, x: torch.Tensor, params: Scenario) -> torch.Tensor:
+    def _G(self, x: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
         Return the control-dependent and parameter-dependent part of the control-affine dynamics.
 
@@ -814,7 +840,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         """
         pass
 
-    def input_gain_matrix(self, x: torch.Tensor, theta: torch.Tensor, params: Scenario) -> torch.Tensor:
+    def input_gain_matrix(self, x: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
         Return the factor that multiplies the control value in the dynamics.
 
@@ -833,8 +859,8 @@ class ControlAffineParameterAffineSystem2(ABC):
             theta = theta.reshape((theta.shape[0], theta.shape[1], 1))
 
         # Algorithm
-        g_like = self._g(x, params)
-        G = self._G(x, params)
+        g_like = self._g(x, s_vec)
+        G = self._G(x, s_vec)
         for param_index in range(self.n_params):
 
             theta_i = theta[:, param_index, 0].reshape((batch_size, 1, 1))
@@ -846,7 +872,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         return g_like
 
     def u_nominal(
-        self, x: torch.Tensor, theta_hat: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, theta_hat: torch.Tensor, s_vec: torch.Tensor,
     ) -> torch.Tensor:
         """
         Compute the nominal control for the nominal parameters, using LQR unless
@@ -854,13 +880,14 @@ class ControlAffineParameterAffineSystem2(ABC):
 
         args:
             x: bs x self.n_dims tensor of state
-            params: the model parameters used
+            s_vec: a tensor of bs x self.n_scenario points in the scenario space which determine
+                    the scenario values (constant over time)
         returns:
             u_nominal: bs x self.n_controls tensor of controls
         """
         # Compute nominal control from feedback + equilibrium control
         K = self.K.type_as(x)
-        goals = self.goal_point(theta_hat).type_as(x)
+        goals = self.goal_point(theta_hat, s_vec).type_as(x)
         u_nominal = -(K @ (x - goals).T).T
 
         # Adjust for the equilibrium setpoint

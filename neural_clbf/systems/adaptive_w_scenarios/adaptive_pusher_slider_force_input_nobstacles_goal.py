@@ -261,14 +261,19 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Algorithm
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
 
-        for i in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
-            obst_center_x = self.nominal_scenario[f"obstacle_{i}_center_x"]
-            obst_center_y = self.nominal_scenario[f"obstacle_{i}_center_y"]
+        for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
+            # Get indices in s_vec that describe scenario
+            obst_x_pos_index = 3 * obst_idx + 0
+            obst_y_pos_index = 3 * obst_idx + 1
+            obst_radius_index = 3 * obst_idx + 2
 
-            obst_center = torch.tensor(
-                [obst_center_x, obst_center_y]
-            ).to(self.device)
-            obst_radius = self.nominal_scenario[f"obstacle_{i}_radius"]
+            # Create center and radius of obstacle i
+            obst_center = torch.zeros((batch_size, 2)).to(self.device)
+            obst_center[:, 0] = s_vec[:, obst_x_pos_index]
+            obst_center[:, 1] = s_vec[:, obst_y_pos_index]
+
+            obst_radius = torch.zeros((batch_size,)).to(self.device)
+            obst_radius[:] = s_vec[:, obst_radius_index]
 
             # distance to obstacle center is greater than radius + half of the length of the square
             dist_to_obst_center_big_enough = (x[:, :2] - obst_center).norm(dim=-1) >= (obst_radius + self.s_length/2)
@@ -294,15 +299,21 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool).to(self.device)
 
         for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
-            obst_center_x = self.nominal_scenario[f"obstacle_{obst_idx}_center_x"]
-            obst_center_y = self.nominal_scenario[f"obstacle_{obst_idx}_center_y"]
+            # Get indices in s_vec that describe scenario
+            obst_x_pos_index = 3 * obst_idx + 0
+            obst_y_pos_index = 3 * obst_idx + 1
+            obst_radius_index = 3 * obst_idx + 2
 
-            obst_center = torch.tensor(
-                [obst_center_x, obst_center_y]
-            ).to(self.device)
-            obst_radius = self.nominal_scenario[f"obstacle_{obst_idx}_radius"]
+            # Create center and radius of obstacle i
+            obst_center = torch.zeros((batch_size, 2)).to(self.device)
+            obst_center[:, 0] = s_vec[:, obst_x_pos_index]
+            obst_center[:, 1] = s_vec[:, obst_y_pos_index]
 
-            dist_to_obst_center_too_small = (x[:, :2] - obst_center).norm(dim=-1) <= obst_radius
+            obst_radius = torch.zeros((batch_size,)).to(self.device)
+            obst_radius[:] = s_vec[:, obst_radius_index]
+
+            # Check distance to ps
+            dist_to_obst_center_too_small = (x[:, :2] - obst_center).norm(dim=-1) <= (obst_radius + self.s_length/2)
 
             unsafe_mask.logical_or_(dist_to_obst_center_too_small)
 
@@ -390,10 +401,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         upper_limit, lower_limit = self.state_limits
 
         # Randomly create num_samples scenarios
-        s_np = self.get_N_samples_from_polytope(self.scenario_set, num_samples)
-        if torch.get_default_dtype() == torch.float32:
-            s_np = np.float32(s_np)
-        s_unsafe = torch.tensor(s_np, device=self.device)
+        s_unsafe = self.sample_scenario_space(num_samples)
 
         # Create sampling indices to determine which obstacle to sample
         obst_sample_indices = torch.randint(
@@ -404,8 +412,11 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         P_unsafe = pc.box2poly([
             (0.0, 2.0*np.pi),
             (0.0, 1.0),
-            (0.0, 2.0*np.pi),
+            (0.0, 2.0 * np.pi),
         ])
+        ABSTRACT_THETA = 0
+        ABSTRACT_RADIUS = 1
+        ABSTRACT_ORIENTATION = 2
 
         x_abst_unsafe_np = self.get_N_samples_from_polytope(P_unsafe, num_samples)
         if torch.get_default_dtype() == torch.float32:
@@ -423,23 +434,17 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
             obst_i_indices = obst_sample_indices == obst_index
 
             # Create points in each circular obstacle
-            r_i = x_abst_unsafe[obst_i_indices, 2] * s_unsafe[obst_i_indices, obst_radius_index]
+            r_i = x_abst_unsafe[obst_i_indices, ABSTRACT_RADIUS] * s_unsafe[obst_i_indices, obst_radius_index]
             x_unsafe[obst_i_indices, AdaptivePusherSliderStickingForceInput_NObstacles.S_X] = \
-                torch.cos(x_abst_unsafe[
-                              obst_i_indices,
-                              AdaptivePusherSliderStickingForceInput_NObstacles.S_X,
-                          ]) * r_i + \
+                torch.cos(x_abst_unsafe[obst_i_indices, ABSTRACT_THETA]) * r_i + \
                 s_unsafe[obst_i_indices, obst_center_x_index]
 
             x_unsafe[obst_i_indices, AdaptivePusherSliderStickingForceInput_NObstacles.S_Y] = \
-                torch.sin(x_abst_unsafe[
-                                obst_i_indices,
-                                AdaptivePusherSliderStickingForceInput_NObstacles.S_Y
-                            ]) * r_i + \
+                torch.sin(x_abst_unsafe[obst_i_indices, ABSTRACT_THETA]) * r_i + \
                 s_unsafe[obst_i_indices, obst_center_y_index]
 
             x_unsafe[obst_i_indices, AdaptivePusherSliderStickingForceInput_NObstacles.S_THETA] = \
-                x_abst_unsafe[obst_i_indices, AdaptivePusherSliderStickingForceInput_NObstacles.S_THETA]
+                x_abst_unsafe[obst_i_indices, ABSTRACT_ORIENTATION]
 
         # Sample unsafe thetas
         theta_unsafe = self.sample_Theta_space(num_samples)
@@ -447,6 +452,71 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         xtheta_unsafe = torch.cat([x_unsafe, theta_unsafe], dim=1)
 
         return xtheta_unsafe, x_unsafe, theta_unsafe, s_unsafe
+
+    def sample_goal(
+        self,
+        num_samples: int,
+        max_tries: int = 5000,
+    ) -> [torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Description:
+            Sample a batch of unsafe states from the system
+
+        args:
+            num_samples: the number of samples to return
+            max_tries: the maximum number of tries to sample a point before giving up
+        returns:
+            a tuple (x-theta, x, theta, s) of tensors of size (num_samples, n_dims), (num_samples, n_controls),
+            (num_samples, n_params) and (num_samples, n_scenario) respectively.
+        """
+        # Constants
+        batch_size = num_samples
+        upper_limit, lower_limit = self.state_limits
+
+        # Randomly create num_samples scenarios
+        s_goal = self.sample_scenario_space(num_samples)
+
+        # Sample Abstract parameters of goal circle
+        P_abst_goal = pc.box2poly([
+            (0.0, 2.0*np.pi),
+            (0.0, 1.0),
+            (0.0, 2.0 * np.pi),
+        ])
+        ABSTRACT_THETA = 0
+        ABSTRACT_RADIUS = 1
+        ABSTRACT_ORIENTATION = 2
+
+        x_abst_goal_np = self.get_N_samples_from_polytope(P_abst_goal, num_samples)
+        if torch.get_default_dtype() == torch.float32:
+            x_abst_goal_np = np.float32(x_abst_goal_np)
+        x_abst_goal = torch.tensor(x_abst_goal_np, device=self.device)
+
+        # Sample concrete states from each obstacle
+        x_goal = torch.zeros((batch_size, self.n_dims), device=self.device).type_as(s_goal)
+
+        # Save indices for vectorized operations
+        goal_x_index = -2
+        goal_y_index = -1
+
+        # Create points in each circular obstacle
+        r_i = x_abst_goal[:, ABSTRACT_RADIUS] * self.goal_radius
+        x_goal[:, AdaptivePusherSliderStickingForceInput_NObstacles.S_X] = \
+            torch.cos(x_abst_goal[:, ABSTRACT_THETA]) * r_i + \
+            s_goal[:, goal_x_index]
+
+        x_goal[:, AdaptivePusherSliderStickingForceInput_NObstacles.S_Y] = \
+            torch.sin(x_abst_goal[:, ABSTRACT_THETA]) * r_i + \
+            s_goal[:, goal_y_index]
+
+        x_goal[:, AdaptivePusherSliderStickingForceInput_NObstacles.S_THETA] = \
+            x_abst_goal[:, ABSTRACT_ORIENTATION]
+
+        # Sample unsafe thetas
+        theta_goal = self.sample_Theta_space(num_samples)
+
+        xtheta_unsafe = torch.cat([x_goal, theta_goal], dim=1)
+
+        return xtheta_unsafe, x_goal, theta_goal, s_goal
 
     def _f(self, x: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
@@ -582,7 +652,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         return a, b
 
     def u_nominal(
-        self, x: torch.Tensor, theta_hat: torch.Tensor, params: Optional[Scenario] = None
+        self, x: torch.Tensor, theta_hat: torch.Tensor, s_vec: torch.tensor
     ) -> torch.Tensor:
         """
             Compute the nominal control for the nominal parameters, using LQR unless
@@ -590,7 +660,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         args:
             x: bs x self.n_dims tensor of state
             theta_hat: bs x self.n_params tensor of state
-            params: the model parameters used
+            s_vec: a tensor of (batch_size, self.n_scenario) points in the scenario space which determine the scenario values (constant over time)
         returns:
             u_nominal: bs x self.n_controls tensor of controls
         """
@@ -615,7 +685,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         assert angle_upper > angle_lower, f"Expected angle_upper ({angle_upper}) to be larger than ({angle_lower}), but it wasn't!"
 
-        goal = self.goal_point(theta_hat)
+        goal = self.goal_point(theta_hat, s_vec)
 
         des_direction = goal - x
         des_angle = torch.atan2(des_direction[:, 1], des_direction[:, 0]) - s_th
