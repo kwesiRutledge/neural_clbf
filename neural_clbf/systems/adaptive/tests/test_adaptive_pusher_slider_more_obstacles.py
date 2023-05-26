@@ -38,7 +38,7 @@ class TestStringMethods(unittest.TestCase):
     #         ])
     #     )
     #
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -74,7 +74,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.03+(s_length/2), 0.03+(s_length/2)]  # CoM_y
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -119,7 +119,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01+(s_length/2.0), 0.01+(s_length/2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -164,7 +164,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -232,7 +232,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -433,7 +433,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -501,7 +501,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -559,7 +559,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -644,7 +644,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -696,7 +696,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -762,7 +762,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -818,7 +818,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -829,7 +829,7 @@ class TestStringMethods(unittest.TestCase):
     #     th = torch.Tensor(th)
     #
     #     u_nom = ps.u_nominal(
-    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
+    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput_CustomGoal.N_DIMS),
     #         th,
     #     )
     #
@@ -881,7 +881,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -892,7 +892,7 @@ class TestStringMethods(unittest.TestCase):
     #     th = torch.Tensor(th)
     #
     #     u_nom = ps.u_nominal(
-    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
+    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput_CustomGoal.N_DIMS),
     #         th,
     #     )
     #
@@ -939,7 +939,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -950,7 +950,7 @@ class TestStringMethods(unittest.TestCase):
     #     th = torch.Tensor(th)
     #
     #     u_nom = ps.u_nominal(
-    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput.N_DIMS),
+    #         x0.reshape(1, AdaptivePusherSliderStickingForceInput_CustomGoal.N_DIMS),
     #         th,
     #     )
     #
@@ -1002,7 +1002,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )
@@ -1068,7 +1068,7 @@ class TestStringMethods(unittest.TestCase):
     #             [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
     #         ])
     #     )
-    #     ps = AdaptivePusherSliderStickingForceInput(
+    #     ps = AdaptivePusherSliderStickingForceInput_CustomGoal(
     #         nominal_scenario,
     #         Theta1,
     #     )

@@ -240,6 +240,37 @@ class TestEpisodicDataModuleAWS(unittest.TestCase):
             (n_training_samples, sys0.n_dims)
         )
 
+    def test_add_data1(self):
+        """
+        test_add_data1
+        Description:
+            Tests the ability of the data module to add data to the current dataset.
+        """
+        # Constants
+        sys0 = self.get_ps1()
+
+        X0 = torch.tensor([
+            [-0.6, -0.4],
+            [-0.6, -0.4],
+            [torch.pi / 2.0, torch.pi],
+        ])
+
+        # Create Episodic Data Module
+        edm = EpisodicDataModuleAdaptiveWScenarios(
+            sys0, X0, trajectory_length=4, fixed_samples=100,
+            quotas={'unsafe': 0.1, 'goal': 0.1},
+        )
+
+        # Sample!
+        edm.prepare_data()
+        n_samples0 = edm.trajectories_per_episode*edm.trajectory_length+edm.fixed_samples
+        edm.add_data(
+            sys0.nominal_simulator,
+        )
+
+        self.assertNotEqual(n_samples0, edm.x_training.shape[0])
+        self.assertEqual(n_samples0*(1.0-edm.val_split)*2, edm.x_training.shape[0])
+
 
 if __name__ == '__main__':
     unittest.main()

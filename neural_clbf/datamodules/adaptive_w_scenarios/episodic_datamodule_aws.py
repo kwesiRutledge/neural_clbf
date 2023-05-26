@@ -216,7 +216,7 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
 
         # Augment those points with samples from the fixed range
         x_sample, theta_sample, theta_hat_sample, scen_sample = self.sample_fixed()
-        print("x_sim.device = ", x_sim.device, ", x_sample.device = ", x_sample.device)
+        #print("x_sim.device = ", x_sim.device, ", x_sample.device = ", x_sample.device)
         x = torch.cat((x_sim, x_sample), dim=0)
         theta = torch.cat((theta_sim, theta_sample), dim=0)
         theta_hat = torch.cat((theta_hat_sim, theta_hat_sample), dim=0)
@@ -288,18 +288,20 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
         """
         print("\nAdding data!\n")
         # Get some data points from simulations
-        x_sim, theta_sim, theta_hat_sim = self.sample_trajectories(simulator)
+        x_sim, theta_sim, theta_hat_sim, scen_sim = self.sample_trajectories(simulator)
 
         # # Augment those points with samples from the fixed range
-        x_sample, theta_sample, theta_hat_sample = self.sample_fixed()
+        x_sample, theta_sample, theta_hat_sample, scen_sample = self.sample_fixed()
         x = torch.cat((x_sim.type_as(x_sample), x_sample), dim=0)
         x = x.type_as(self.x_training)
         theta = torch.cat((theta_sim, theta_sample), dim=0)
         theta = theta.type_as(self.theta_training)
         theta_hat = torch.cat((theta_hat_sim, theta_hat_sample), dim=0)
         theta_hat = theta_hat.type_as(self.theta_h_training)
+        scen = torch.cat((scen_sim, scen_sample), dim=0)
+        scen = scen.type_as(self.scen_training)
 
-        print(f"Sampled {x.shape[0]} new states, {theta.shape[0]} true parameters and {theta_hat.shape[0]} new parameter estimates")
+        print(f"Sampled {x.shape[0]} new states, {theta.shape[0]} true parameters, {theta_hat.shape[0]} new parameter estimates and {scen.shape[0]} scenarios.")
 
         # Randomly split data into training and test sets
         random_indices = torch.randperm(x.shape[0], device=self.device)
@@ -319,6 +321,9 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
         self.theta_h_training = torch.cat((self.theta_h_training, theta_hat[training_indices]))
         self.theta_h_validation = torch.cat((self.theta_h_validation, theta_hat[validation_indices]))
 
+        self.scen_training = torch.cat((self.scen_training, scen[training_indices]))
+        self.scen_validation = torch.cat((self.scen_validation, scen[validation_indices]))
+
         # If we've exceeded the maximum number of points, forget the oldest
         if self.x_training.shape[0] + self.x_validation.shape[0] > self.max_points:
             print("Sample budget exceeded! Forgetting...")
@@ -332,6 +337,8 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
             self.theta_validation = self.theta_validation[-n_val:]
             self.theta_h_training = self.theta_h_training[-n_train:]
             self.theta_h_validation = self.theta_h_validation[-n_val:]
+            self.scen_training = self.scen_training[-n_train:]
+            self.scen_validation = self.scen_validation[-n_val:]
 
         print("Full dataset:")
         print(f"\t{self.x_training.shape[0]} training states")
@@ -340,30 +347,36 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
         print(f"\t{self.theta_validation.shape[0]} validation thetas")
         print(f"\t{self.theta_h_training.shape[0]} training theta estimates")
         print(f"\t{self.theta_h_validation.shape[0]} validation theta estimates")
+        print(f"\t{self.scen_training.shape[0]} training scenarios")
+        print(f"\t{self.scen_validation.shape[0]} validation scenarios")
         print("\t----------------------")
-        print(f"\t{self.model.goal_mask(self.x_training, self.theta_training).sum()} goal points")
-        print(f"\t({self.model.goal_mask(self.x_validation, self.theta_validation).sum()} val)")
-        print(f"\t{self.model.safe_mask(self.x_training, self.theta_training).sum()} safe points")
-        print(f"\t({self.model.safe_mask(self.x_validation, self.theta_validation).sum()} val)")
-        print(f"\t{self.model.unsafe_mask(self.x_training, self.theta_training).sum()} unsafe points")
-        print(f"\t({self.model.unsafe_mask(self.x_validation, self.theta_validation).sum()} val)")
+        print(f"\t{self.model.goal_mask(self.x_training, self.theta_training, self.scen_training).sum()} goal points")
+        print(f"\t({self.model.goal_mask(self.x_validation, self.theta_validation, self.scen_validation).sum()} val)")
+        print(f"\t{self.model.safe_mask(self.x_training, self.theta_training, self.scen_training).sum()} safe points")
+        print(f"\t({self.model.safe_mask(self.x_validation, self.theta_validation, self.scen_validation).sum()} val)")
+        print(f"\t{self.model.unsafe_mask(self.x_training, self.theta_training, self.scen_training).sum()} unsafe points")
+        print(f"\t({self.model.unsafe_mask(self.x_validation, self.theta_validation, self.scen_validation).sum()} val)")
+        print(f"\t{self.model.boundary_mask(self.x_training, self.theta_training, self.scen_training).sum()} boundary points")
+        print(f"\t({self.model.boundary_mask(self.x_validation, self.theta_validation, self.scen_validation).sum()} val)")
 
         # Save the new datasets
         self.training_data = TensorDataset(
             self.x_training.cpu(),
             self.theta_training.cpu(),
             self.theta_h_training.cpu(),
-            self.model.goal_mask(self.x_training, self.theta_training).cpu(),
-            self.model.safe_mask(self.x_training, self.theta_training).cpu(),
-            self.model.unsafe_mask(self.x_training, self.theta_training).cpu(),
+            self.scen_training.cpu(),
+            self.model.goal_mask(self.x_training, self.theta_training, self.scen_training).cpu(),
+            self.model.safe_mask(self.x_training, self.theta_training, self.scen_training).cpu(),
+            self.model.unsafe_mask(self.x_training, self.theta_training, self.scen_training).cpu(),
         )
         self.validation_data = TensorDataset(
             self.x_validation.cpu(),
             self.theta_validation.cpu(),
             self.theta_h_validation.cpu(),
-            self.model.goal_mask(self.x_validation, self.theta_validation).cpu(),
-            self.model.safe_mask(self.x_validation, self.theta_validation).cpu(),
-            self.model.unsafe_mask(self.x_validation, self.theta_validation).cpu(),
+            self.scen_validation.cpu(),
+            self.model.goal_mask(self.x_validation, self.theta_validation, self.scen_validation).cpu(),
+            self.model.safe_mask(self.x_validation, self.theta_validation, self.scen_validation).cpu(),
+            self.model.unsafe_mask(self.x_validation, self.theta_validation, self.scen_validation).cpu(),
         )
 
     def setup(self, stage=None):
