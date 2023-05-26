@@ -10,8 +10,8 @@ import pytorch_lightning as pl
 
 from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
 from neural_clbf.systems.utils import ScenarioList, Scenario
-from neural_clbf.controllers.adaptive import (
-    aCLFController4,
+from neural_clbf.controllers.adaptive_with_observed_parameters import (
+    aCLFController5,
 )
 from neural_clbf.controllers.controller_utils import normalize_with_angles, normalize_theta_with_angles
 from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
@@ -25,7 +25,7 @@ import polytope as pc
 import numpy as np
 
 
-class NeuralaCLBFController4_wIE(aCLFController4, pl.LightningModule):
+class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
     """
     A neural aCLBF controller. Differs from the CLFController in that it uses a
     neural network to learn the CLF, and it turns it from a CLF to a CLBF by making sure
@@ -47,7 +47,6 @@ class NeuralaCLBFController4_wIE(aCLFController4, pl.LightningModule):
     def __init__(
         self,
         dynamics_model: ControlAffineParameterAffineSystem,
-        scenarios: ScenarioList,
         datamodule: EpisodicDataModule,
         experiment_suite: ExperimentSuite,
         clbf_hidden_layers: int = 2,
@@ -106,9 +105,8 @@ class NeuralaCLBFController4_wIE(aCLFController4, pl.LightningModule):
             add_nominal: if True, add the nominal V
             normalize_V_nominal: if True, normalize V_nominal so that its average is 1
         """
-        super(NeuralaCLBFController4_wIE, self).__init__(
+        super(NeuralaCLBFControllerV5, self).__init__(
             dynamics_model,
-            scenarios,
             experiment_suite,
             clf_lambda=clf_lambda,
             clf_relaxation_penalty=clf_relaxation_penalty,
@@ -244,55 +242,32 @@ class NeuralaCLBFController4_wIE(aCLFController4, pl.LightningModule):
         bs = x_norm.shape[0]
         n_dims = self.dynamics_model.n_dims
 
-        # JVx = torch.zeros(
-        #     (bs, self.n_dims_extended, self.dynamics_model.n_dims)
-        # ).type_as(x)
-        # # and for each non-angle dimension, we need to scale by the normalization
-        # for dim in range(self.dynamics_model.n_dims):
-        #     JVx[:, dim, dim] = 1.0 / self.x_range[dim].type_as(x)
-        #
-        # # And adjust the Jacobian for the angle dimensions
-        # for offset, sin_idx in enumerate(self.dynamics_model.angle_dims):
-        #     cos_idx = self.dynamics_model.n_dims + offset
-        #     JVx[:, sin_idx, sin_idx] = x_norm[:, cos_idx]
-        #     JVx[:, cos_idx, sin_idx] = -x_norm[:, sin_idx]
-        #
-        # # Create jacobian with respect to theta
-        # JVth = torch.zeros(
-        #     (bs, self.n_params_extended, self.dynamics_model.n_params)
-        # ).type_as(theta_hat)
-        # # and for each non-angle dimension, we need to scale by the normalization
-        # for dim in range(self.dynamics_model.n_params):
-        #     JVth[:, dim, dim] = 1.0 / self.x_range[dim].type_as(theta_hat)
-        #
-        # # And adjust the Jacobian for the angle dimensions
-        # for offset, sin_idx in enumerate(self.dynamics_model.parameter_angle_dims):
-        #     cos_idx = self.dynamics_model.n_dims + offset
-        #     JVth[:, sin_idx, sin_idx] = theta_hat_norm[:, cos_idx]
-        #     JVth[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx]
+        n_dims_extended = self.n_dims_extended
+        n_params_extended = self.n_params_extended
+        n_scenarios = 5
 
-        JVxth = torch.zeros(
-            (bs, self.n_dims_extended+self.n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params),
+        JV_x_th_s = torch.zeros(
+            (bs, n_dims_extended+n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params),
             device=x.device,
         )
         # and for each non-angle dimension, we need to scale by the normalization
         for dim in range(self.dynamics_model.n_dims):
-            JVxth[:, dim, dim] = 1.0 / self.x_range[dim].type_as(x)
+            JV_x_th_s[:, dim, dim] = 1.0 / self.x_range[dim].type_as(x)
 
         for dim in range(self.dynamics_model.n_params):
-            JVxth[:, dim+self.n_dims_extended, dim+n_dims] = 1.0 / self.theta_range[dim].type_as(theta_hat)
+            JV_x_th_s[:, dim+self.n_dims_extended, dim+n_dims] = 1.0 / self.theta_range[dim].type_as(theta_hat)
 
         # And adjust the Jacobian for the angle dimensions
         for offset, sin_idx in enumerate(self.dynamics_model.angle_dims):
             cos_idx = self.dynamics_model.n_dims + offset
-            JVxth[:, sin_idx, sin_idx] = x_norm[:, cos_idx]
-            JVxth[:, cos_idx, sin_idx] = -x_norm[:, sin_idx]
+            JV_x_th_s[:, sin_idx, sin_idx] = x_norm[:, cos_idx]
+            JV_x_th_s[:, cos_idx, sin_idx] = -x_norm[:, sin_idx]
 
         for offset, sin_idx in enumerate(self.dynamics_model.parameter_angle_dims):
             sin_idx = sin_idx + self.n_dims_extended
             cos_idx = self.n_dims_extended + self.dynamics_model.n_params + offset
-            JVxth[:, sin_idx, sin_idx] = theta_hat_norm[:, cos_idx - (self.n_dims_extended )]
-            JVxth[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx - (self.n_dims_extended)]
+            JV_x_th_s[:, sin_idx, sin_idx] = theta_hat_norm[:, cos_idx - (self.n_dims_extended )]
+            JV_x_th_s[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx - (self.n_dims_extended)]
 
         # Now step through each layer in V
         x_theta_norm = torch.zeros(
