@@ -358,7 +358,9 @@ def main(args):
     )
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="This script trains the AdaptivePusherSliderStickingForceInput_CustomGoal controller based on adaptive control Lyapunov function principles.")
+    parser = ArgumentParser(
+        description="This script trains the AdaptivePusherSliderStickingForceInput_CustomGoal controller based on adaptive control Lyapunov function principles.",
+    )
     initialize_training_arg_parser(parser)
     args = parser.parse_args()
     main(args)

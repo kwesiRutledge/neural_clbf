@@ -78,6 +78,7 @@ def create_training_hyperparams(args)-> Dict:
     }
 
     s_width = 0.09
+    eps1 = 0.01
 
     # Create default number of maximum epochs
     hyperparams_for_evaluation = {
@@ -86,8 +87,8 @@ def create_training_hyperparams(args)-> Dict:
         "start_x": start_x,
         "simulation_dt": 0.025,
         "nominal_scenario": nominal_scenario,
-        "Theta_lb": [-0.03 + s_width/2.0, -0.03],
-        "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
+        "Theta_lb": [-0.03 + s_width/2.0, -0.03, 1.0-eps1, -1.0],
+        "Theta_ub": [ 0.03 + s_width/2.0,  0.03, 1.0+eps1, +1.0],
         # "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         # "safe_level": args.safe_level,
@@ -234,7 +235,7 @@ def main(args):
         y_axis_index=AdaptivePusherSliderStickingForceInput.S_Y,
         x_axis_label="$p_1$",
         y_axis_label="$p_2$",
-        default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((AdaptivePusherSliderStickingForceInput.N_PARAMETERS, 1)),
+        default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0, 1.0, -0.5]).reshape((dynamics_model.n_params, 1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
