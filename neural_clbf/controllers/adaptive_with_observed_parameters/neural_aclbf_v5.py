@@ -122,8 +122,8 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         # Save the provided model
         # self.dynamics_model = dynamics_model
-        self.scenarios = scenarios
-        self.n_scenarios = len(scenarios)
+        # self.scenarios = scenarios
+        # self.n_scenarios = len(scenarios)
 
         # Save the datamodule
         self.datamodule = datamodule
@@ -221,12 +221,13 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
     def test_dataloader(self):
         return self.datamodule.test_dataloader()
 
-    def V_with_jacobian(self, x: torch.Tensor, theta_hat: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def V_with_jacobian(self, x: torch.Tensor, theta_hat: torch.Tensor, scen: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Computes the CLBF value and its Jacobian
 
         args:
             x: bs x self.dynamics_model.n_dims the points at which to evaluate the CLBF
             theta_hat: bs x self.dynamics_model.n_params the points at which to evaluate the CLBF
+            s_vec: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         returns:
             V: bs tensor of CLBF values
             JVx: bs x 1 x self.dynamics_model.n_dims Jacobian of each row of V wrt x

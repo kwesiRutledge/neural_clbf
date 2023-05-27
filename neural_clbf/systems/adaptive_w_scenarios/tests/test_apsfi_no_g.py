@@ -38,7 +38,7 @@ class TestAPSFI_NO_G(unittest.TestCase):
             nominal_scenario, Theta,
         )
 
-        self.assertEqual(aps.N_SCENARIO, 8)
+        self.assertEqual(aps.N_SCENARIO, 2*aps.N_OBSTACLES+2)
 
     def test_scenario_set1(self):
         """
@@ -178,11 +178,9 @@ class TestAPSFI_NO_G(unittest.TestCase):
         nominal_scenario = {}
         nominal_scenario[f"obstacle_0_center_x"] = 0.0
         nominal_scenario[f"obstacle_0_center_y"] = 0.0
-        nominal_scenario[f"obstacle_0_radius"] = 0.1
 
         nominal_scenario[f"obstacle_1_center_x"] = 1.0
         nominal_scenario[f"obstacle_1_center_y"] = 0.0
-        nominal_scenario[f"obstacle_1_radius"] = 0.1
 
         nominal_scenario["goal_x"] = 0.5
         nominal_scenario["goal_y"] = 0.5
@@ -305,7 +303,7 @@ class TestAPSFI_NO_G(unittest.TestCase):
         ])
         test_s_vec = torch.tensor([
             aps.scenario_to_list(nominal_scenario),
-            [0.0, 0.0, 0.1, 0.0, 0.0, 0.1, 0.5, 0.6],
+            [0.0, 0.0, 0.0, 0.0, 0.5, 0.6],
         ])
 
         self.assertTrue(torch.equal(

@@ -645,6 +645,7 @@ class aCLFController4(Controller):
                     model.addConstr(clf_constraint <= 0.0, name=f"Scenario {i}, Corner {v_idx} Decrease")
 
             # Optimize!
+            model.setParam('OutputFlag', 0)
             model.setParam("DualReductions", 0)
             model.setObjective(objective, GRB.MINIMIZE)
             model.optimize()

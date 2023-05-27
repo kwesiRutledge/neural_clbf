@@ -627,7 +627,7 @@ class NeuralaCLBFController3(aCLFController3, pl.LightningModule):
                 D=D,
             )
 
-            V_next = self.V(x_next, theta_hat_next, theta_err_hat_next)
+            V_next = self.V(x_next, theta_hat_next, theta_err_hat_next).detach()
             violation = F.relu(
                 eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
             )
