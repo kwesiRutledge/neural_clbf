@@ -9,16 +9,19 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 
 from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
+from neural_clbf.systems.adaptive_w_scenarios import ControlAffineParameterAffineSystem2
 from neural_clbf.systems.utils import ScenarioList, Scenario
 from neural_clbf.controllers.adaptive_with_observed_parameters import (
     aCLFController5,
 )
-from neural_clbf.controllers.controller_utils import normalize_with_angles, normalize_theta_with_angles
+from neural_clbf.controllers.controller_utils import (
+    normalize_with_angles, normalize_theta_with_angles, normalize_scenario_with_angles,
+)
 from neural_clbf.datamodules.episodic_datamodule import EpisodicDataModule
 from neural_clbf.experiments import ExperimentSuite
 
 from neural_clbf.controllers.adaptive.adaptive_control_utils import (
-    center_and_radius_to_vertices, violation_weighting_function1,
+    center_and_radius_to_vertices, violation_weighting_function2,
 )
 
 import polytope as pc
@@ -46,7 +49,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
     def __init__(
         self,
-        dynamics_model: ControlAffineParameterAffineSystem,
+        dynamics_model: ControlAffineParameterAffineSystem2,
         datamodule: EpisodicDataModule,
         experiment_suite: ExperimentSuite,
         clbf_hidden_layers: int = 2,
@@ -178,13 +181,16 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         # Compute and save the center and range of the unknown parameter set
         self.theta_center, self.theta_range = self.calculate_center_and_range(self.dynamics_model.Theta)
 
+        # Compute and save the center and range of the scenario (known paramters) set
+        self.scen_center, self.scen_range = self.calculate_center_and_range(self.dynamics_model.scenario_set)
+
         # Define the CLBF network, which we denote V
         self.clbf_hidden_layers = clbf_hidden_layers
         self.clbf_hidden_size = clbf_hidden_size
         # We're going to build the network up layer by layer, starting with the input
         self.V_layers: OrderedDict[str, nn.Module] = OrderedDict()
         self.V_layers["input_linear"] = nn.Linear(
-            self.n_dims_extended+self.n_params_extended, self.clbf_hidden_size
+            self.n_dims_extended+self.n_params_extended+self.dynamics_model.n_scenario, self.clbf_hidden_size
         )
         self.V_layers["input_activation"] = nn.Tanh()
         for i in range(self.clbf_hidden_layers):
@@ -227,7 +233,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         args:
             x: bs x self.dynamics_model.n_dims the points at which to evaluate the CLBF
             theta_hat: bs x self.dynamics_model.n_params the points at which to evaluate the CLBF
-            s_vec: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         returns:
             V: bs tensor of CLBF values
             JVx: bs x 1 x self.dynamics_model.n_dims Jacobian of each row of V wrt x
@@ -235,6 +241,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         # Apply the offset and range to normalize about zero
         x_norm = normalize_with_angles(self.dynamics_model, x)
         theta_hat_norm = normalize_theta_with_angles(self.dynamics_model, theta_hat)
+        scen_norm = normalize_scenario_with_angles(self.dynamics_model, scen, angle_dims=[])
 
         # Compute the CLBF layer-by-layer, computing the Jacobian alongside
 
@@ -242,13 +249,14 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         # been done to x
         bs = x_norm.shape[0]
         n_dims = self.dynamics_model.n_dims
+        n_params = self.dynamics_model.n_params
+        n_scenario = self.dynamics_model.n_scenario
 
         n_dims_extended = self.n_dims_extended
         n_params_extended = self.n_params_extended
-        n_scenarios = 5
 
         JV_x_th_s = torch.zeros(
-            (bs, n_dims_extended+n_params_extended, self.dynamics_model.n_dims+self.dynamics_model.n_params),
+            (bs, n_dims_extended+n_params_extended+n_scenario, self.dynamics_model.n_dims+self.dynamics_model.n_params+n_scenario),
             device=x.device,
         )
         # and for each non-angle dimension, we need to scale by the normalization
@@ -257,6 +265,9 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         for dim in range(self.dynamics_model.n_params):
             JV_x_th_s[:, dim+self.n_dims_extended, dim+n_dims] = 1.0 / self.theta_range[dim].type_as(theta_hat)
+
+        for dim in range(self.dynamics_model.n_scenario):
+            JV_x_th_s[:, dim+n_dims_extended+n_params_extended, dim + n_dims + n_params] = 1.0 / self.scen_range[dim].type_as(scen)
 
         # And adjust the Jacobian for the angle dimensions
         for offset, sin_idx in enumerate(self.dynamics_model.angle_dims):
@@ -270,34 +281,38 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
             JV_x_th_s[:, sin_idx, sin_idx] = theta_hat_norm[:, cos_idx - (self.n_dims_extended )]
             JV_x_th_s[:, cos_idx, sin_idx] = -theta_hat_norm[:, sin_idx - (self.n_dims_extended)]
 
+        # TODO: Maybe add support for scenario having angle dims?
+
+
         # Now step through each layer in V
-        x_theta_norm = torch.zeros(
-            (bs, self.n_dims_extended+self.n_params_extended),
+        x_theta_scen_norm = torch.zeros(
+            (bs, self.n_dims_extended+self.n_params_extended+n_scenario),
             device=x.device,
         ).type_as(x)
         # x_theta_norm = torch.cat([x_norm, theta_hat_norm], dim=1)
 
-        x_theta_norm[:, :self.n_dims_extended] = x_norm
-        x_theta_norm[:, self.n_dims_extended:] = theta_hat_norm
-        V = x_theta_norm
+        x_theta_scen_norm[:, :self.n_dims_extended] = x_norm
+        x_theta_scen_norm[:, self.n_dims_extended:self.n_dims_extended+self.n_params_extended] = theta_hat_norm
+        x_theta_scen_norm[:, self.n_dims_extended+self.n_params_extended:] = scen_norm
+        V = x_theta_scen_norm
         #print("JVxth shape before loops", JVxth.shape)
         for layer in self.V_nn:
             V = layer(V)
 
             if isinstance(layer, nn.Linear):
-                JVxth = torch.matmul(layer.weight, JVxth)
+                JV_x_th_s = torch.matmul(layer.weight, JV_x_th_s)
             elif isinstance(layer, nn.Tanh):
-                JVxth = torch.matmul(torch.diag_embed(1 - V ** 2), JVxth)
+                JV_x_th_s = torch.matmul(torch.diag_embed(1 - V ** 2), JV_x_th_s)
             elif isinstance(layer, nn.ReLU):
-                JVxth = torch.matmul(torch.diag_embed(torch.sign(V)), JVxth)
+                JV_x_th_s = torch.matmul(torch.diag_embed(torch.sign(V)), JV_x_th_s)
 
             if self.show_debug_messages:
-                smallJV_idcs = torch.norm(JVxth, dim=(1, 2)) <= 1e-6
+                smallJV_idcs = torch.norm(JV_x_th_s, dim=(1, 2)) <= 1e-6
                 if (torch.sum(smallJV_idcs) > 0) & (isinstance(layer, nn.Tanh)):
                     print("smallJV_idcs: ", smallJV_idcs)
                     print("x_norm = ", x_norm)
-                    print("x_theta_norm[smallJV_idcs, :]: ", x_theta_norm[smallJV_idcs, :])
-                    print("x_theta_norm: ", x_theta_norm)
+                    print("x_theta_norm[smallJV_idcs, :]: ", x_theta_scen_norm[smallJV_idcs, :])
+                    print("x_theta_norm: ", x_theta_scen_norm)
                     print("# of Small JV_idcs: ", torch.sum(smallJV_idcs))
                     print("Last Tanh weight: ", torch.diag_embed(1 - V**2))
 
@@ -308,7 +323,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
 
         # Compute the final activation
-        JVxth = torch.bmm(V.unsqueeze(1), JVxth)
+        JV_x_th_s = torch.bmm(V.unsqueeze(1), JV_x_th_s)
         V = 0.5 * (V * V).sum(dim=1)
 
         # largeV_idcs = V.flatten() >= 1e10
@@ -355,41 +370,44 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
             # Reshape again to calculate the gradient
             P = P.reshape(self.dynamics_model.n_dims, self.dynamics_model.n_dims)
-            JVxth_nominal = F.linear(x - x0, P)
-            JVxth_nominal = JVxth_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
+            JV_x_th_s_nominal = F.linear(x - x0, P)
+            JV_x_th_s_nominal = JV_x_th_s_nominal.reshape(x.shape[0], 1, self.dynamics_model.n_dims)
 
             if self.normalize_V_nominal:
                 V_nominal /= self.V_nominal_mean
-                JVxth_nominal /= self.V_nominal_mean
+                JV_x_th_s_nominal /= self.V_nominal_mean
 
             V = V + V_nominal
-            JVxth = JVxth + JVxth_nominal
+            JV_x_th_s = JV_x_th_s + JVxth_nominal
 
         # At the very last second split the gradient.
         JVx = torch.zeros((bs, 1, self.dynamics_model.n_dims), device=x.device)
-        JVx[:, 0, :] = JVxth[:, 0, :self.dynamics_model.n_dims]
+        JVx[:, 0, :] = JV_x_th_s[:, 0, :self.dynamics_model.n_dims]
 
         JVth = torch.zeros((bs, 1, self.dynamics_model.n_params), device=x.device)
-        JVth[:, 0, :] = JVxth[:, 0, self.dynamics_model.n_dims:]
+        JVth[:, 0, :] = JV_x_th_s[:, 0, n_dims:n_dims+n_params]
 
         return V, JVx, JVth
 
-    def forward(self, x_theta_pair):
+    def forward(self, x_theta_scen_triple):
         """Determine the control input for a given state using a QP
 
         args:
-            x_theta_pair: bs x (self.dynamics_model.n_dims + self.dynamics_model.n_params) tensor of state
+            x_theta_scen_triple: tuple (x, theta, scen) of bs x self.dynamics_model.n_dims tensor of state,
+                bs x self.dynamics_model.n_params tensor of unknown parameters and bs x self.dynamics_model.n_scenario
+                tensor of scenario parameters
         returns:
             u: bs x self.dynamics_model.n_controls tensor of control inputs
         """
         # Create the state-theta_hat pair
-        return self.u(x_theta_pair)
+        return self.u(x_theta_scen_triple)
 
     def boundary_loss(
         self,
         x: torch.Tensor,
         theta_hat: torch.Tensor,
         theta: torch.Tensor,
+        scen: torch.Tensor,
         goal_mask: torch.Tensor,
         safe_mask: torch.Tensor,
         unsafe_mask: torch.Tensor,
@@ -415,11 +433,11 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         # print("x", x.shape)
         # print("theta_hat", theta_hat.shape)
 
-        V = self.V(x, theta_hat)
+        V = self.V(x, theta_hat, scen)
 
         #   1.) CLBF should be minimized on the goal point
-        goal_as_batch = self.dynamics_model.goal_point(theta).type_as(x)
-        V_goal_pt = self.V(goal_as_batch, theta)
+        goal_as_batch = self.dynamics_model.goal_point(theta, scen).type_as(x)
+        V_goal_pt = self.V(goal_as_batch, theta, scen)
         goal_term = 1e2 * V_goal_pt.mean()
         loss.append(("CLBF goal term", goal_term))
 
@@ -466,6 +484,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         x: torch.Tensor,
         theta_hat: torch.Tensor,
         theta: torch.Tensor,
+        scen: torch.Tensor,
         goal_mask: torch.Tensor,
         safe_mask: torch.Tensor,
         unsafe_mask: torch.Tensor,
@@ -477,7 +496,9 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         args:
             x: the points at which to evaluate the loss,
-            theta: the parameter estimate points at which to evaluate the loss,
+            theta: the parameter points at which to evaluate the loss,
+            theta_hat: the parameter estimate points at which to evaluate the loss,
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
             goal_mask: the points in x marked as part of the goal
             safe_mask: the points in x marked safe
             unsafe_mask: the points in x marked unsafe
@@ -509,7 +530,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         # First figure out where this condition needs to hold
         eps = 0.1
-        Va = self.V(x, theta_hat)
+        Va = self.V(x, theta_hat, scen)
         if self.barrier:
             condition_active = torch.sigmoid(10 * (self.safe_level + eps - Va))
         else:
@@ -523,13 +544,13 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
             theta_corner = V_Theta[v_Theta_index]
 
             V_Theta_list.append(
-                self.V(x, theta_corner)
+                self.V(x, theta_corner, scen)
             )
 
         # Get the control input and relaxation from solving the QP, and aggregate
         # the relaxation across scenarios
         u_qp, qp_relaxation = self.solve_CLF_QP(
-            x, theta_hat, requires_grad=requires_grad,
+            x, theta_hat, scen, requires_grad=requires_grad,
         )
         qp_relaxation = torch.mean(qp_relaxation, dim=-1)
 
@@ -548,29 +569,28 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
             # theta_corner = theta0.repeat((bs, 1))
             theta_corner = V_Theta[v_Theta_index]
 
-            for i, s in enumerate(self.scenarios):
-                # Use the dynamics to compute the derivative of V at each corner of V_Theta
-                Vdot = self.Vdot_for_scenario(i, x, theta_corner, u_qp)
-                # print("Vdot = ", Vdot)
+            # Use the dynamics to compute the derivative of V at each corner of V_Theta
+            Vdot = self.Vdot_for_scenario(x, theta_corner, scen, u_qp)
+            # print("Vdot = ", Vdot)
 
-                # sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
-                # for theta_dim in range(n_params):
-                #     sum_LG_V = sum_LG_V + torch.bmm(theta[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
-                # Vdot = Lf_Va[:, i, :].unsqueeze(1) + \
-                #        torch.bmm(LF_Va[:, i, :].unsqueeze(1), theta.reshape((theta.shape[0], theta.shape[1], 1))) + \
-                #        LFGammadVa_Va[:, i, :].unsqueeze(1) + \
-                #        torch.bmm(
-                #             Lg_V[:, i, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
-                #             u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
-                #         )
+            # sum_LG_V = torch.zeros((bs, self.n_scenarios, n_controls))
+            # for theta_dim in range(n_params):
+            #     sum_LG_V = sum_LG_V + torch.bmm(theta[:, theta_dim].reshape((bs, 1, 1)), list_LGi_V[theta_dim])
+            # Vdot = Lf_Va[:, i, :].unsqueeze(1) + \
+            #        torch.bmm(LF_Va[:, i, :].unsqueeze(1), theta.reshape((theta.shape[0], theta.shape[1], 1))) + \
+            #        LFGammadVa_Va[:, i, :].unsqueeze(1) + \
+            #        torch.bmm(
+            #             Lg_V[:, i, :].unsqueeze(1) + sum_LG_V + LGammadVG_V,
+            #             u_qp.reshape(-1, self.dynamics_model.n_controls, 1),
+            #         )
 
-                Vdot = Vdot.reshape(Va.shape)
-                violation = F.relu(eps + Vdot + self.clf_lambda * Va)
-                violation = violation * condition_active
-                clbf_descent_term_lin = clbf_descent_term_lin + (1./n_V_Theta) * violation.mean()
-                clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
-                    violation.nelement() * self.n_scenarios
-                )
+            Vdot = Vdot.reshape(Va.shape)
+            violation = F.relu(eps + Vdot + self.clf_lambda * Va)
+            violation = violation * condition_active
+            clbf_descent_term_lin = clbf_descent_term_lin + (1./n_V_Theta) * violation.mean()
+            clbf_descent_acc_lin = clbf_descent_acc_lin + (violation <= eps).sum() / (
+                violation.nelement()
+            )
 
         loss.append(("CLBF descent term (linearized)", clbf_descent_term_lin))
         if accuracy:
@@ -584,44 +604,38 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         aclbf_estimation_error_term_sim = torch.tensor(0.0).type_as(x)
         aclbf_estimation_error_acc_sim = torch.tensor(0.0).type_as(x)
 
-        for s in self.scenarios:
-            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, params=s)
-            x_next = x + self.dynamics_model.dt * xdot
-            theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, s)
+        xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, scen)
+        x_next = x + self.dynamics_model.dt * xdot
+        theta_hat_next = theta_hat + \
+                         self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, scen)
 
-            # TODO[kwesi]: Create script that makes it easier to know which parameters to estimate and which not to.
-            #               I don't like that this estimation is hardcoded in.
-            theta_hat_next[:, 2] = theta_hat[:, 2] # Add in my own logic for estimating intention.
-            theta_hat_next[:, 3] = theta_hat[:, 3]
+        V_next = self.V(x_next, theta_hat_next, scen)
+        violation = F.relu(
+            eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
+        )
+        violation = violation * condition_active
 
+        clbf_descent_term_sim = clbf_descent_term_sim + \
+                                (violation_weighting_function2(
+                                    self.dynamics_model, x, theta_hat, scen,
+                                ) * violation).mean()
+        clbf_descent_acc_sim = clbf_descent_acc_sim + (violation <= eps).sum() / (
+            violation.nelement()
+        )
 
-            V_next = self.V(x_next, theta_hat_next)
-            violation = F.relu(
-                eps + (V_next - Va) / self.controller_period + self.clf_lambda * Va
+        # Compute the estimation error
+        if self.include_estimation_error_loss:
+            theta_err = theta - theta_hat
+            theta_err_norm = torch.norm(theta_err, dim=1)
+            theta_err_next = theta - theta_hat_next
+            theta_err_next_norm = torch.norm(theta_err_next, dim=1)
+            violation_estim = F.relu(eps + (theta_err_next_norm - theta_err_norm))
+            violation_estim = violation_estim * condition_active
+
+            aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation_estim.mean()
+            aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation_estim <= eps).sum() / (
+                violation_estim.nelement()
             )
-            violation = violation * condition_active
-
-            clbf_descent_term_sim = clbf_descent_term_sim + \
-                                    (violation_weighting_function1(
-                                        self.dynamics_model, x, theta_hat,
-                                    ) * violation).mean()
-            clbf_descent_acc_sim = clbf_descent_acc_sim + (violation <= eps).sum() / (
-                violation.nelement() * self.n_scenarios
-            )
-
-            # Compute the estimation error
-            if self.include_estimation_error_loss:
-                theta_err = theta - theta_hat
-                theta_err_norm = torch.norm(theta_err, dim=1)
-                theta_err_next = theta - theta_hat_next
-                theta_err_next_norm = torch.norm(theta_err_next, dim=1)
-                violation_estim = F.relu(eps + (theta_err_next_norm - theta_err_norm))
-                violation_estim = violation_estim * condition_active
-
-                aclbf_estimation_error_term_sim = aclbf_estimation_error_term_sim + violation_estim.mean()
-                aclbf_estimation_error_acc_sim = aclbf_estimation_error_acc_sim + (violation_estim <= eps).sum() / (
-                    violation_estim.nelement() * self.n_scenarios
-                )
 
         # Add all of these losses to the loss struct
         loss.append(("CLBF descent term (simulated)", clbf_descent_term_sim))
@@ -640,31 +654,28 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         oracle_aclf_descent_term_sim = torch.tensor(0.0).type_as(x)
         oracle_aclf_descent_acc_sim = torch.tensor(0.0).type_as(x)
         if self.include_oracle_loss:
-            for s in self.scenarios:
-                xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, params=s)
-                x_next = x + self.dynamics_model.dt * xdot
-                theta_hat_next = theta_hat + self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat,
-                                                                                                          u_qp, s)
-                # TODO[kwesi]: Create script that makes it easier to know which parameters to estimate with intention
-                #               estimation and which not to.
 
-                V_oracle = self.V_oracle(x, theta_hat, theta)
-                V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta)
+            xdot = self.dynamics_model.closed_loop_dynamics(x, u_qp, theta_hat, scen)
+            x_next = x + self.dynamics_model.dt * xdot
+            theta_hat_next = theta_hat + \
+                             self.dynamics_model.dt * self.closed_loop_estimator_dynamics(x, theta_hat, u_qp, scen)
 
-                violation = F.relu(
-                    eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
-                )
-                violation = violation * condition_active
+            V_oracle = self.V_oracle(x, theta_hat, theta, scen)
+            V_oracle_next = self.V_oracle(x_next, theta_hat_next, theta, scen)
 
-                oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + oracle_weight * violation.mean()
-                oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
-                        violation.nelement() * self.n_scenarios
-                )
+            violation = F.relu(
+                eps + (V_oracle_next - V_oracle) / self.controller_period + self.clf_lambda * V_oracle
+            )
+            violation = violation * condition_active
+
+            oracle_aclf_descent_term_sim = oracle_aclf_descent_term_sim + oracle_weight * violation.mean()
+            oracle_aclf_descent_acc_sim = oracle_aclf_descent_acc_sim + (violation <= eps).sum() / (
+                    violation.nelement()
+            )
 
         loss.append(("Oracle CLBF descent term (simulated)", oracle_aclf_descent_term_sim))
         if accuracy:
             loss.append(("Oracle CLBF descent accuracy (simulated)", oracle_aclf_descent_acc_sim))
-
 
         return loss
 

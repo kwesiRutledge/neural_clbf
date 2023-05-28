@@ -945,3 +945,9 @@ class ControlAffineParameterAffineSystem(ABC):
             closer to the trajectory defined by X.
         """
         pass
+
+    def scenario_to_list(
+        self,
+        scenario: Scenario,
+    ):
+        return [elt for elt in scenario]

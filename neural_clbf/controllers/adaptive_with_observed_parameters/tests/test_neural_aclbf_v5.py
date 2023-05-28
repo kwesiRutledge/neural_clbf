@@ -238,6 +238,91 @@ class TestNeuralACLBFv5(unittest.TestCase):
         # Call function
         V, dVdx, dVdtheta = controller.V_with_jacobian(x, theta, scen)
 
+        self.assertGreaterEqual(
+            V[0], 0.0,
+        )
+        # print(dVdtheta)
+        # It doesn't make sense to check the output of the randomly generated neural network
+        # self.assertLessEqual(
+        #     dVdx[0, 0, apssfi.S_X], 0.0,
+        # )
+
+    def test_boundary_loss1(self):
+        """
+        test_boundary_loss1
+        Description:
+            This function tests the operation of the boundary_loss() function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_tuples = controller.boundary_loss(
+            x, theta_hat, theta, scen,
+            goal_mask, safe_mask, unsafe_mask,
+        )
+        for loss_tuple in loss_tuples:
+            self.assertGreaterEqual(
+                loss_tuple[1], 0.0,
+            )
+
+    def test_descent_loss1(self):
+        """
+        test_descent_loss1
+        Description:
+            This function tests the operation of the descent_loss() function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_tuples = controller.descent_loss(
+            x, theta_hat, theta, scen,
+            goal_mask, safe_mask, unsafe_mask,
+        )
+        for loss_tuple in loss_tuples:
+            self.assertGreaterEqual(
+                loss_tuple[1], 0.0,
+            )
+
 
 
 if __name__ == '__main__':

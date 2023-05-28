@@ -14,6 +14,7 @@ from cvxpylayers.torch import CvxpyLayer
 from typing import List
 
 from neural_clbf.systems.adaptive import ControlAffineParameterAffineSystem
+from neural_clbf.systems.adaptive_w_scenarios import ControlAffineParameterAffineSystem2
 
 def center_and_radius_to_vertices(
     center: torch.tensor,
@@ -202,10 +203,13 @@ def violation_weighting_function1(
     theta_hat: torch.Tensor,
     scale_factor: float = 1e2,
 ) -> (torch.Tensor):
+    """
+    violation_weighting_function1
+    """
     # Constants
 
     # Algorithm 1: Weight according to distance to goal
-    x0 = dynamics.goal_point(theta_hat).type_as(x)
+    x0 = dynamics.goal_point(theta_hat, scen).type_as(x)
     delta0 = torch.norm(x - x0, dim=1)
 
     # Higher weight to points closer to the goal
@@ -213,3 +217,25 @@ def violation_weighting_function1(
 
     return w
 
+def violation_weighting_function2(
+    dynamics: ControlAffineParameterAffineSystem2,
+    x: torch.Tensor,
+    theta_hat: torch.Tensor,
+    scen: torch.Tensor,
+    scale_factor: float = 1e2,
+) -> (torch.Tensor):
+    """
+    violation_weighting_function2
+    Args:
+        scen: bs x self.dynamics_model.n_scenario the observed scenario of the current environment
+    """
+    # Constants
+
+    # Algorithm 1: Weight according to distance to goal
+    x0 = dynamics.goal_point(theta_hat, scen).type_as(x)
+    delta0 = torch.norm(x - x0, dim=1)
+
+    # Higher weight to points closer to the goal
+    w = scale_factor * torch.exp(-delta0)
+
+    return w

@@ -1013,4 +1013,16 @@ class ControlAffineParameterAffineSystem2(ABC):
         self,
         scenario: Scenario,
     ):
-        return [elt for elt in scenario.values()]
+        assert self.validate_scenario(scenario)
+
+        # Create list out
+        out = []
+        for obst_idx in range(self.N_OBSTACLES):
+            out.append(scenario[f"obstacle_{obst_idx}_center_x"])
+            out.append(scenario[f"obstacle_{obst_idx}_center_y"])
+
+        # Create goal points
+        out.append(scenario["goal_x"])
+        out.append(scenario["goal_y"])
+
+        return out

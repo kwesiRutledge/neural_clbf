@@ -223,11 +223,117 @@ class TestACLFController5(unittest.TestCase):
             x, theta_hat, scen, u,
         )
 
-        print(Vdot)
         self.assertGreaterEqual(Vdot[0], 0)
         self.assertLessEqual(Vdot[1], 0)
 
 
+    def test__solve_CLF_QP_gurobi1(self):
+        """
+        test__solve_CLF_QP_gurobi1
+        Description
+            Tests that the gurobi solver works for the CLF QP.
+            Batch size is 2.
+        """
+
+        # Constants
+        aps = self.get_ps1()
+
+        # Create experiments
+        exp1 = AdaptiveCLFContourExperiment3(
+            "test-aclf_experiment",
+        )
+        suite = ExperimentSuite([exp1])
+
+        # Create controller
+        controller0 = aCLFController5(
+            aps, suite,
+        )
+
+        # Create test data
+        x = torch.tensor([
+            [0.1, -0.4, 0.0],
+            [0.1, -0.4, 0.0],
+        ])
+        theta_hat = aps.sample_Theta_space(2)
+        scen = aps.sample_scenario_space(2)
+        scen[:, -1] = -0.4
+        scen[0, -2] = 0.0
+        scen[1, -2] = 0.2
+
+        # Solve aCLF QP
+        u, relaxation = controller0._solve_CLF_QP_gurobi(
+            x, theta_hat, scen,
+            controller0.u_reference(x, theta_hat, scen),
+            controller0.V(x, theta_hat, scen),
+            1e-3,
+        )
+
+        # Check that the solution is valid
+        for batch_idx in range(2):
+            self.assertTrue(
+                aps.U.__contains__(u[batch_idx, :].numpy()),
+            )
+
+    def test__solve_CLF_QP_cvxpylayers1(self):
+        """
+        test__solve_CLF_QP_cvxpylayers1
+        Description
+            Tests that the CvxPyLayers solver works for the CLF QP.
+            Batch size is 2.
+        """
+
+        # Constants
+        aps = self.get_ps1()
+
+        # Create experiments
+        exp1 = AdaptiveCLFContourExperiment3(
+            "test-aclf_experiment",
+        )
+        suite = ExperimentSuite([exp1])
+
+        # Create controller
+        controller0 = aCLFController5(
+            aps, suite,
+        )
+
+        # Create test data
+        x = torch.tensor([
+            [0.1, -0.4, 0.0],
+            [0.1, -0.4, 0.0],
+        ])
+        theta_hat = aps.sample_Theta_space(2)
+        scen = aps.sample_scenario_space(2)
+        scen[:, -1] = -0.4
+        scen[0, -2] = 0.0
+        scen[1, -2] = 0.2
+
+        # Solve aCLF QP
+        u_cvxpylayers, relaxation_cvxpylayers = controller0._solve_CLF_QP_cvxpylayers(
+            x, theta_hat, scen,
+            controller0.u_reference(x, theta_hat, scen),
+            controller0.V(x, theta_hat, scen),
+            1e-3,
+        )
+
+        u_gurobi, relaxation_gurobi = controller0._solve_CLF_QP_gurobi(
+            x, theta_hat, scen,
+            controller0.u_reference(x, theta_hat, scen),
+            controller0.V(x, theta_hat, scen),
+            1e-3,
+        )
+
+        # Check that the solution is valid
+        for batch_idx in range(2):
+            self.assertTrue(
+                aps.U.__contains__(u_cvxpylayers[batch_idx, :].numpy()),
+            )
+
+        print(u_gurobi)
+        print(u_cvxpylayers)
+
+        self.assertTrue(
+            torch.allclose(u_cvxpylayers, u_gurobi, atol=1e-3),
+        )
 
 if __name__ == '__main__':
     unittest.main()
