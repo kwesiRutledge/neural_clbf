@@ -323,7 +323,255 @@ class TestNeuralACLBFv5(unittest.TestCase):
                 loss_tuple[1], 0.0,
             )
 
+    def test_radially_unbounded_loss1_1(self):
+        """
+        test_radially_unbounded_loss1_1
+        Description:
+            This function tests the operation of the radially_unbounded_loss1() function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
 
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_tuples = controller.radially_unbounded_loss1(
+            x, theta_hat, theta, scen,
+            goal_mask, safe_mask, unsafe_mask,
+        )
+        for loss_tuple in loss_tuples:
+            self.assertGreaterEqual(
+                loss_tuple[1], 0.0,
+            )
+
+        self.assertEqual(
+            len(loss_tuples), 1,
+        )
+        self.assertEqual(
+            loss_tuples[0][0], "Radially Unbounded Loss 1",
+        )
+
+    def test_radially_unbounded_loss2_1(self):
+        """
+        test_radially_unbounded_loss2_1
+        Description:
+            This function tests the operation of the radially_unbounded_loss2() function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_tuples = controller.radially_unbounded_loss2(
+            x, theta_hat, theta, scen,
+            goal_mask, safe_mask, unsafe_mask,
+        )
+        for loss_tuple in loss_tuples:
+            self.assertGreaterEqual(
+                loss_tuple[1], 0.0,
+            )
+
+        self.assertEqual(
+            len(loss_tuples), 1,
+        )
+        self.assertEqual(
+            loss_tuples[0][0], "Radially Unbounded Loss 2",
+        )
+
+    def test_initial_loss1(self):
+        """
+        test_initial_loss1
+        Description:
+            This function tests the operation of the initial_loss() function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_tuples = controller.initial_loss(
+            x, theta_hat, scen,
+        )
+        for loss_tuple in loss_tuples:
+            self.assertGreaterEqual(
+                loss_tuple[1], 0.0,
+            )
+
+        self.assertEqual(
+            len(loss_tuples), 1,
+        )
+        self.assertEqual(loss_tuples[0][0], "CLBF MSE")
+
+    def test_training_step1(self):
+        """
+        test_training_step1
+        Description:
+            This function tests the operation of the training step function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_dict = controller.training_step(
+            (x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask),
+            10,
+        )
+        for temp_key in loss_dict:
+            self.assertGreaterEqual(
+                loss_dict[temp_key], 0.0,
+            )
+
+        self.assertIn("loss", loss_dict)
+
+    def test_validation_step1(self):
+        """
+        test_validation_step1
+        Description:
+            This function tests the operation of the validation step function for the new controller.
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        loss_dict = controller.validation_step(
+            (x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask),
+            10,
+        )
+        for temp_key in loss_dict:
+            self.assertGreaterEqual(
+                loss_dict[temp_key], 0.0,
+            )
+
+        self.assertIn("val_loss", loss_dict)
+
+    def test_simulate1(self):
+        """
+        test_simulate1
+        Description:
+            This function tests the simulate() method of the Neural aCLBF
+        """
+        # Constants
+        system0, controller = self.get_ps_with_neuralaclbfcontroller1()
+
+        # Get the test input
+        x = torch.tensor([
+            [0.1, 0.4, 0.0],
+        ])
+        theta_hat = torch.tensor([
+            [0.055, 0.0],
+        ])
+        theta = torch.tensor([
+            [0.065, 0.0],
+        ])
+        scen = torch.tensor([
+            [0.0, 0.5, 0.0, -0.3, 0.6, 0.0],
+        ])
+
+        # Create mask outputs
+        unsafe_mask = system0.unsafe_mask(x, theta, scen)
+        safe_mask = system0.safe_mask(x, theta, scen)
+        goal_mask = system0.goal_mask(x, theta, scen)
+
+        # Algorithm
+        x_sim, theta_sim, theta_hat_sim = controller.simulate(
+            x, theta, scen, 10,
+            controller.u,
+        )
+
+        self.assertEqual(
+            x_sim.shape, (1, 10, 3),
+        )
 
 if __name__ == '__main__':
     unittest.main()

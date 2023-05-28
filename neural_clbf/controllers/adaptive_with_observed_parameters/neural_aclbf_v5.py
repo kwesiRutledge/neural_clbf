@@ -684,6 +684,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         x: torch.Tensor,
         theta_hat: torch.Tensor,
         theta: torch.Tensor,
+        scen: torch.Tensor,
         goal_mask: torch.Tensor,
         safe_mask: torch.Tensor,
         unsafe_mask: torch.Tensor,
@@ -693,6 +694,8 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         list_of_loss_tuples = aclbf.radially_unbounded_loss(x, theta_hat)
         Description:
             This function computes a loss value that encourages the aclbf to be radially unbounded.
+        Args:
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         """
         # Constants
         bs = x.shape[0]
@@ -714,14 +717,14 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         theta_width_max = torch.max(theta_width)
 
         # Compute aCLF Value on whole batch
-        V = self.V(x, theta_hat)
+        V = self.V(x, theta_hat, scen)
 
         # Compute the loss
         loss = []
 
         radially_unbounded_loss = torch.tensor([0.0]).type_as(x)
         max_dist = x_width_max + theta_width_max
-        goal_as_batch = self.dynamics_model.goal_point(theta_hat).type_as(x)
+        goal_as_batch = self.dynamics_model.goal_point(theta_hat, scen).type_as(x)
         goal_theta_hat = torch.cat((goal_as_batch, theta_hat), dim=1)
         x_theta_hat = torch.cat((x, theta_hat), dim=1)
 
@@ -773,6 +776,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         x: torch.Tensor,
         theta_hat: torch.Tensor,
         theta: torch.Tensor,
+        scen: torch.Tensor,
         goal_mask: torch.Tensor,
         safe_mask: torch.Tensor,
         unsafe_mask: torch.Tensor,
@@ -782,6 +786,8 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         list_of_loss_tuples = aclbf.radially_unbounded_loss(x, theta_hat)
         Description:
             This function computes a loss value that encourages the aclbf to be radially unbounded.
+        Args:
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         """
         # Constants
         bs = x.shape[0]
@@ -803,19 +809,19 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         theta_width_max = torch.max(theta_width)
 
         # Compute aCLF Value on whole batch
-        V = self.V(x, theta_hat)
+        V = self.V(x, theta_hat, scen)
 
         # Compute the loss
         loss = []
 
         radially_unbounded_loss = torch.tensor([0.0]).type_as(x)
         max_dist = x_width_max + theta_width_max
-        goal_as_batch = self.dynamics_model.goal_point(theta_hat).type_as(x)
+        goal_as_batch = self.dynamics_model.goal_point(theta_hat, scen).type_as(x)
         goal_theta_hat = torch.cat((goal_as_batch, theta_hat), dim=1)
         x_theta_hat = torch.cat((x, theta_hat), dim=1)
 
         violation = torch.zeros((bs,)).type_as(x)
-        violation = 0.5*torch.norm(x_theta_hat[safe_mask] - goal_theta_hat[safe_mask], dim=1) - V[safe_mask]
+        violation[safe_mask] = 0.5*torch.norm(x_theta_hat[safe_mask] - goal_theta_hat[safe_mask], dim=1) - V[safe_mask]
 
         radially_unbounded_loss = radially_unbounded_loss + F.relu(violation).mean()
 
@@ -824,13 +830,14 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         return loss
 
-    def initial_loss(self, x: torch.Tensor, theta_hat: torch.Tensor) -> List[Tuple[str, torch.Tensor]]:
+    def initial_loss(self, x: torch.Tensor, theta_hat: torch.Tensor, scen: torch.Tensor) -> List[Tuple[str, torch.Tensor]]:
         """
         Compute the loss during the initialization epochs, which trains the net to
         match the local linear lyapunov function
         inputs
             x: the states at which to evaluate the loss
             theta_hat: the parameter estimate points at which to evaluate the loss
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         """
         # Constants
         bs = x.shape[0]
@@ -845,17 +852,17 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         #   1.) Compare the CLBF to the nominal solution
         # Get the learned CLBF
-        V = self.V(x, theta_hat)
+        V = self.V(x, theta_hat, scen)
         V_corners = []
         for v_Theta_np in V_Theta:
             v_Theta = torch.tensor(v_Theta_np.T, device=x.device, dtype=torch.get_default_dtype())
             v_Theta = v_Theta.reshape((1, n_params))
             v_Theta = v_Theta.repeat((bs, 1))
-            V_corners.append(self.V(x, v_Theta))
+            V_corners.append(self.V(x, v_Theta, scen))
 
         # Get the nominal Lyapunov function
         P = self.dynamics_model.P.type_as(x)
-        x0 = self.dynamics_model.goal_point(theta_hat).type_as(x)
+        x0 = self.dynamics_model.goal_point(theta_hat, scen).type_as(x)
         # Reshape to use pytorch's bilinear function
         P = P.reshape(1, self.dynamics_model.n_dims, self.dynamics_model.n_dims)
         P_theta = torch.eye(self.dynamics_model.n_dims).type_as(x).unsqueeze(0)
@@ -880,26 +887,26 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
     def training_step(self, batch, batch_idx):
         """Conduct the training step for the given batch"""
         # Extract the input and masks from the batch
-        x, theta, theta_hat, goal_mask, safe_mask, unsafe_mask = batch
+        x, theta, theta_hat, scen, goal_mask, safe_mask, unsafe_mask = batch
 
         # Compute the losses
         component_losses = {}
-        component_losses.update(self.initial_loss(x, theta_hat))
+        component_losses.update(self.initial_loss(x, theta_hat, scen))
         if self.current_epoch >= self.learn_shape_epochs:
             component_losses.update(
-                self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                self.boundary_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
             )
         if self.current_epoch >= self.learn_shape_epochs + self.learn_boundary_epochs:
             component_losses.update(
-                self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
+                self.descent_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask, requires_grad=True)
             )
             if self.include_radially_unbounded_loss1:
                 component_losses.update(
-                    self.radially_unbounded_loss1(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                    self.radially_unbounded_loss1(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
                 )
             if self.include_radially_unbounded_loss2:
                 component_losses.update(
-                    self.radially_unbounded_loss2(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                    self.radially_unbounded_loss2(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
                 )
 
         # Compute the overall loss by summing up the individual losses
@@ -962,22 +969,22 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         """Conduct the validation step for the given batch"""
         # Extract the input and masks from the batch
-        x, theta, theta_hat, goal_mask, safe_mask, unsafe_mask = batch
+        x, theta, theta_hat, scen, goal_mask, safe_mask, unsafe_mask = batch
 
         # Get the various losses
         component_losses = {}
-        component_losses.update(self.initial_loss(x, theta_hat))
+        component_losses.update(self.initial_loss(x, theta_hat, scen))
         component_losses.update(
-            self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+            self.boundary_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
         )
-        component_losses.update(self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask))
+        component_losses.update(self.descent_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask))
         if self.include_radially_unbounded_loss1:
             component_losses.update(
-                self.radially_unbounded_loss1(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                self.radially_unbounded_loss1(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
             )
         if self.include_radially_unbounded_loss2:
             component_losses.update(
-                self.radially_unbounded_loss2(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask)
+                self.radially_unbounded_loss2(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask)
             )
 
         # Compute the overall loss by summing up the individual losses
@@ -989,17 +996,15 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
         # Also compute the accuracy associated with each loss
         component_losses.update(
-            self.boundary_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, accuracy=True)
+            self.boundary_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask, accuracy=True)
         )
         component_losses.update(
-            self.descent_loss(x, theta_hat, theta, goal_mask, safe_mask, unsafe_mask, accuracy=True)
+            self.descent_loss(x, theta_hat, theta, scen, goal_mask, safe_mask, unsafe_mask, accuracy=True)
         )
 
         batch_dict = {"val_loss": total_loss, **component_losses}
 
         self.validation_step_outputs.append(batch_dict)
-
-        # TODO: Add method for detecting "last batch" here
 
         return batch_dict
 
@@ -1087,9 +1092,17 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         self,
         x_init: torch.Tensor,
         theta_init: torch.Tensor,
+        scen: torch.Tensor,
         num_steps: int,
         relaxation_penalty: Optional[float] = None,
     ):
+        """
+        simulator_fn
+        Description:
+            This function is used to simulate the system using the learned controller.
+        args:
+            scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
+        """
         # Choose parameters randomly
         random_scenario = {}
         for param_name in self.scenarios[0].keys():
@@ -1100,6 +1113,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         return self.simulate(
             x_init,
             theta_init,
+            scen,
             num_steps,
             self.u,
             guard=self.dynamics_model.out_of_bounds_mask,
@@ -1111,6 +1125,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         self,
         x_init: torch.Tensor,
         theta: torch.Tensor,
+        scen: torch.Tensor,
         num_steps: int,
         controller: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         controller_period: Optional[float] = None,
@@ -1123,6 +1138,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         args:
             x_init - bs x n_dims tensor of initial conditions
             theta - bs x n_params tensor of parameters
+            scen - a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
             num_steps - a positive integer
             controller - a mapping from state to control action
             controller_period - the period determining how often the controller is run
@@ -1184,26 +1200,19 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
 
                 # Get the control input at the current state if it's time
                 if tstep == 1 or tstep % controller_update_freq == 0:
-                    u = controller(x_current, theta_hat_current)
+                    u = controller(x_current, theta_hat_current, scen)
 
                 # Simulate forward using the dynamics
-                xdot = dynamical_model.closed_loop_dynamics(x_current, u, theta, params)
+                xdot = dynamical_model.closed_loop_dynamics(x_current, u, theta, scen)
                 x_sim[:, tstep, :] = x_current + self.dynamics_model.dt * xdot
                 th_sim[:, tstep, :] = theta_current
 
                 # Compute theta hat evolution
                 th_h_dot = self.closed_loop_estimator_dynamics(
                     x_current, theta_hat_current, u,
-                    self.dynamics_model.nominal_scenario,
+                    scen,
                 )
                 th_h_sim[:, tstep, :] = theta_hat_current + self.dynamics_model.dt * th_h_dot
-
-                # TODO: Intention estimation should be added here.
-                th_h_with_true_intention = theta_hat_current + self.dynamics_model.dt * th_h_dot
-                th_h_with_true_intention[:, 2:] = theta[:, 2:]
-                th_h_sim[:, tstep, 2:] = self.dynamics_model.estimate_goal(
-                    x_current, theta_hat_current, self.dynamics_model.u_nominal(th_h_with_true_intention),
-                )
 
                 # If the guard is activated for any trajectory, reset that trajectory
                 # to a random state

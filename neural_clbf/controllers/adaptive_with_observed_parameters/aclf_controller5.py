@@ -470,7 +470,7 @@ class aCLFController5(Controller):
             V_np = V[batch_idx].detach().cpu().numpy()
 
             for v_idx in range(n_Theta_vertices):
-                v_Theta = Theta_vertices[v_idx][batch_idx, :].cpu().numpy()
+                v_Theta = Theta_vertices[v_idx][batch_idx, :].detach().cpu().numpy()
 
                 # Retrieve lie derivatives
                 Lf_V_torch = Thetas_Lf_V[v_idx]
@@ -959,7 +959,7 @@ class aCLFController5(Controller):
         if requires_grad:
             if (self.diff_qp_layer_to_use == "cvxpylayer") or (self.diff_qp_layer_to_use == "cvxpylayers"):
                 return self._solve_CLF_QP_cvxpylayers(
-                    x, theta_hat, u_ref, V, relaxation_penalty
+                    x, theta_hat, scen, u_ref, V, relaxation_penalty
                 )
             elif self.diff_qp_layer_to_use == "qpth":
                 return self._solve_CLF_QP_qpth(
@@ -976,7 +976,7 @@ class aCLFController5(Controller):
                 Q=Q,
             )
 
-    def u(self, x, theta_hat: torch.Tensor, Q_u: np.array=None) -> torch.Tensor:
+    def u(self, x, theta_hat: torch.Tensor, scen: torch.Tensor, Q_u: np.array=None) -> torch.Tensor:
         """
         u_t = aclf_controller.u(x, theta_hat)
         u_t = aclf_controller.u(x, theta_hat, Q_u)
@@ -987,9 +987,10 @@ class aCLFController5(Controller):
             theta_hat: bs x self.dynamics_model.n_params tensor of state
             Q_u: the self.dynamics_model.n_controls x self.dynamics_model.n_controls
                 Q matrix used to weight the inputs given to the CLF QP
+            scen - a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
 
         """
-        u, _ = self.solve_CLF_QP(x, theta_hat)
+        u, _ = self.solve_CLF_QP(x, theta_hat, scen)
         return u
 
     def tau(self, x: torch.Tensor, theta_hat: torch.Tensor, u: torch.Tensor, scen: torch.Tensor) -> torch.Tensor:
