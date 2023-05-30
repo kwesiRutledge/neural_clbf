@@ -273,6 +273,7 @@ class ControlAffineParameterAffineSystem2(ABC):
         """
         pass
 
+    @abstractproperty
     def scenario_set(self) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Description:

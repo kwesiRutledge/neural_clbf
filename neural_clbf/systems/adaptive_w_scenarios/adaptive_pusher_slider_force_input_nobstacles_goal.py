@@ -63,7 +63,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
     N_DIMS = 3
     N_CONTROLS = 2
     N_PARAMETERS = 2
-    N_SCENARIO = 3 * N_OBSTACLES + 2  # Number of elements in scenario vector
+    N_SCENARIO = 2 * N_OBSTACLES + 2  # Number of elements in scenario vector
 
     # State Indices
     S_X = 0
@@ -90,7 +90,6 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         controller_dt: Optional[float] = None,
         use_linearized_controller: bool = True,
         scenarios: Optional[ScenarioList] = None,
-        theta: torch.Tensor = None,
         device: str = "cpu",
         max_force: float = 10.0,
     ):
@@ -132,6 +131,46 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Then initialize
         super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
 
+        # Define scenario set
+        # Define the set of scenarios as a polytope
+        x_ub, x_lb = self.state_limits
+
+        box_limits = []
+        for i in range(self.N_OBSTACLES):
+            box_limits += [
+                (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
+                 x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
+                (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
+                 x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
+                # (0.0, 0.1),
+            ]
+
+        # Add limits for the goal
+        box_limits += [
+            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
+             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
+            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
+             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
+        ]
+
+        self.P_scenario = pc.box2poly(box_limits)
+
+        # Define input polytope once
+        # Define the matrices which define the polytope
+        H = np.array([
+            [-self.ps_cof, 1.0],
+            [-self.ps_cof, -1.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [-1.0, 0.0]
+        ])
+
+        h = np.zeros((5, 1))
+        h[2, 0] = self.max_force
+        h[3, 0] = self.max_force
+
+        self.P_U = pc.Polytope(H, h)
+
     def validate_scenario(self, s: Scenario) -> bool:
         """Check if a given set of parameters is valid
 
@@ -145,7 +184,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         for i in range(self.N_OBSTACLES):
             valid = valid and (f"obstacle_{i}_center_x" in s)
             valid = valid and (f"obstacle_{i}_center_y" in s)
-            valid = valid and (f"obstacle_{i}_radius" in s)
+            #valid = valid and (f"obstacle_{i}_radius" in s)
 
         valid = valid and ("goal_x" in s)
         valid = valid and ("goal_y" in s)
@@ -200,20 +239,10 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         Description:
             Return the polytope representing the control constraints for the given system.
         """
-        # Define the matrices which define the polytope
-        H = np.array([
-            [-self.ps_cof, 1.0],
-            [-self.ps_cof, -1.0],
-            [1.0, 0.0],
-            [0.0, 1.0],
-            [-1.0, 0.0]
-        ])
+        # Constants
 
-        h = np.zeros((5, 1))
-        h[2, 0] = self.max_force
-        h[3, 0] = self.max_force
-
-        return pc.Polytope(H, h)
+        # Algorithm
+        return self.P_U
 
     @property
     def scenario_set(self) -> pc.Polytope:
@@ -222,28 +251,10 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         Description:
             Returns a polytope defining the set of
         """
-        # Define the set of scenarios as a polytope
-        x_ub, x_lb = self.state_limits
+        # Constants
 
-        box_limits = []
-        for i in range(self.N_OBSTACLES):
-            box_limits += [
-                (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
-                 x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
-                (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
-                 x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
-                (0.0, 0.1),
-            ]
-
-        # Add limits for the goal
-        box_limits += [
-            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
-             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
-            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
-             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
-        ]
-
-        return pc.box2poly(box_limits)
+        # Algorithm
+        return self.P_scenario
 
     def safe_mask(self, x: torch.Tensor, theta: torch.Tensor, s_vec: torch.Tensor) -> torch.Tensor:
         """
@@ -263,17 +274,15 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
             # Get indices in s_vec that describe scenario
-            obst_x_pos_index = 3 * obst_idx + 0
-            obst_y_pos_index = 3 * obst_idx + 1
-            obst_radius_index = 3 * obst_idx + 2
+            obst_x_pos_index = 2 * obst_idx + 0
+            obst_y_pos_index = 2 * obst_idx + 1
 
             # Create center and radius of obstacle i
             obst_center = torch.zeros((batch_size, 2)).to(self.device)
             obst_center[:, 0] = s_vec[:, obst_x_pos_index]
             obst_center[:, 1] = s_vec[:, obst_y_pos_index]
 
-            obst_radius = torch.zeros((batch_size,)).to(self.device)
-            obst_radius[:] = s_vec[:, obst_radius_index]
+            obst_radius = torch.ones((batch_size,)).to(self.device) * self.obstacle_radius
 
             # distance to obstacle center is greater than radius + half of the length of the square
             dist_to_obst_center_big_enough = (x[:, :2] - obst_center).norm(dim=-1) >= (obst_radius + self.s_length/2)
@@ -300,17 +309,15 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
             # Get indices in s_vec that describe scenario
-            obst_x_pos_index = 3 * obst_idx + 0
-            obst_y_pos_index = 3 * obst_idx + 1
-            obst_radius_index = 3 * obst_idx + 2
+            obst_x_pos_index = 2 * obst_idx + 0
+            obst_y_pos_index = 2 * obst_idx + 1
 
             # Create center and radius of obstacle i
             obst_center = torch.zeros((batch_size, 2)).to(self.device)
             obst_center[:, 0] = s_vec[:, obst_x_pos_index]
             obst_center[:, 1] = s_vec[:, obst_y_pos_index]
 
-            obst_radius = torch.zeros((batch_size,)).to(self.device)
-            obst_radius[:] = s_vec[:, obst_radius_index]
+            obst_radius = torch.ones((batch_size,)).to(self.device) * self.obstacle_radius
 
             # Check distance to ps
             dist_to_obst_center_too_small = (x[:, :2] - obst_center).norm(dim=-1) <= (obst_radius + self.s_length/2)
@@ -427,14 +434,13 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         x_unsafe = torch.zeros((batch_size, self.n_dims), device=self.device).type_as(s_unsafe)
         for obst_index in range(self.N_OBSTACLES):
             # Save indices for vectorized operations
-            obst_center_x_index = 3 * obst_index + 0
-            obst_center_y_index = 3 * obst_index + 1
-            obst_radius_index = 3 * obst_index + 2
+            obst_center_x_index = 2 * obst_index + 0
+            obst_center_y_index = 2 * obst_index + 1
 
             obst_i_indices = obst_sample_indices == obst_index
 
             # Create points in each circular obstacle
-            r_i = x_abst_unsafe[obst_i_indices, ABSTRACT_RADIUS] * s_unsafe[obst_i_indices, obst_radius_index]
+            r_i = x_abst_unsafe[obst_i_indices, ABSTRACT_RADIUS] * self.obstacle_radius
             x_unsafe[obst_i_indices, AdaptivePusherSliderStickingForceInput_NObstacles.S_X] = \
                 torch.cos(x_abst_unsafe[obst_i_indices, ABSTRACT_THETA]) * r_i + \
                 s_unsafe[obst_i_indices, obst_center_x_index]
@@ -849,6 +855,10 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         return contact_point.T
 
+    @property
+    def obstacle_radius(self):
+        return 0.1
+
 
     def plot_single(self,
         x: torch.Tensor, theta: torch.Tensor,
@@ -910,7 +920,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Plot Obstacle first (just in case we collide with it, we want to make it clear that collision happens)
         if show_obstacle:
             s = self.nominal_scenario
-            obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+            obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], self.obstacle_radius
             obstacle = plt.Circle(
                 (obstacle_x, obstacle_y),
                 obstacle_radius,
@@ -1152,7 +1162,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         max_t = num_frames * dt
         min_t = 0.0
         s = self.nominal_scenario
-        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], self.obstacle_radius
         goal_pose = self.goal_point(th)
         goal_xy = goal_pose[:, :2].to(goal_pose.device)
 
@@ -1180,7 +1190,6 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
             if show_goal:
                 # incorporate goal in limits
-                goal_radius = 0.1
                 limits[0][0] = min(limits[0][0], goal_xy[0, 0] - 2*self.goal_radius)
                 limits[0][1] = max(limits[0][1], goal_xy[0, 0] + 2*self.goal_radius)
                 limits[1][0] = min(limits[1][0], goal_xy[0, 1] - 2*self.goal_radius)
@@ -1247,7 +1256,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Constants
         batch_size = x.shape[0]
         s = self.nominal_scenario
-        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], s["obstacle_radius"]
+        obstacle_x, obstacle_y, obstacle_radius = s["obstacle_center_x"], s["obstacle_center_y"], self.obstacle_radius
         goal_pose = self.goal_point(theta)
         goal_xy = goal_pose[:, :2].to(goal_pose.device)
 
@@ -1287,7 +1296,6 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
             if show_goal:
                 # incorporate goal in limits
-                goal_radius = 0.1
                 limits[0][0] = min(limits[0][0], goal_xy[0, 0] - 2*self.goal_radius)
                 limits[0][1] = max(limits[0][1], goal_xy[0, 0] + 2*self.goal_radius)
                 limits[1][0] = min(limits[1][0], goal_xy[0, 1] - 2*self.goal_radius)
