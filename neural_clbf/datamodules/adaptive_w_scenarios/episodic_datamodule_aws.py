@@ -133,7 +133,7 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
             theta_init[:, :] = self.model.sample_Theta_space(self.trajectories_per_episode).type_as(x_init)
             s_init[:, :] = self.model.sample_scenario_space(self.trajectories_per_episode).type_as(x_init)
 
-        x_sim, theta_sim, theta_hat_sim, scen_sim = simulator(
+        x_sim, theta_sim, theta_hat_sim, s_sim = simulator(
             x_init, theta_init, s_init,
             self.trajectory_length,
         )
@@ -142,7 +142,7 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
         x_sim = x_sim.view(-1, self.n_dims)
         theta_sim = theta_sim.view(-1, self.n_params)
         theta_hat_sim = theta_hat_sim.view(-1, self.n_params)
-        scen_sim = scen_sim.view(-1, self.model.n_scenario)
+        scen_sim = s_sim.view(-1, self.model.n_scenario)
 
         # Return the sampled data
         return x_sim, theta_sim, theta_hat_sim, scen_sim

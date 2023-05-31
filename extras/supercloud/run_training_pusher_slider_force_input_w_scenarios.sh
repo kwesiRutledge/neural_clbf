@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -J pusher_slider_training
+#SBATCH -J PS-train-CE-Scenarios
 #SBATCH -o outputs/pusher-slider-%j.stdout
 #SBATCH -e outputs/pusher-slider-%j.stderr
 #SBATCH -c 40
@@ -26,5 +26,4 @@ python train_pusher_slider_force_input.py \
   --include_radially_unbounded_loss1 True \
   --include_radially_unbounded_loss2 False \
   --learn_shape_epochs 50 --learn_boundary_epochs 50 \
-  --gradient_clip_val 10000.0 \
-  --max_iters_cvxpylayer 5000000
+  --gradient_clip_val 10000.0 --max_iters_cvxpylayer 5000000

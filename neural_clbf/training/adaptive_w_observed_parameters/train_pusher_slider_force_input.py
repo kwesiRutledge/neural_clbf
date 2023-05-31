@@ -70,8 +70,8 @@ def create_training_hyperparams(args)-> Dict:
         accelerator_name = "cuda"
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        accelerator_name = "mps"
-        # accelerator_name = "cpu"
+        # accelerator_name = "mps"
+        accelerator_name = "cpu"
 
     # Create the nominal scenario
     nominal_scenario = {
