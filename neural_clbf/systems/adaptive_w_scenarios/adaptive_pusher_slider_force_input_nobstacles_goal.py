@@ -57,13 +57,13 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
     relative to the geometric center of the sliding square.
     """
 
-    N_OBSTACLES = 2
+    #N_OBSTACLES = 2
 
     # Number of states, controls and parameters
     N_DIMS = 3
     N_CONTROLS = 2
     N_PARAMETERS = 2
-    N_SCENARIO = 2 * N_OBSTACLES + 2  # Number of elements in scenario vector
+    #N_SCENARIO = 2 * N_OBSTACLES + 2  # Number of elements in scenario vector
 
     # State Indices
     S_X = 0
@@ -79,19 +79,20 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
     C_Y = 1
 
     # Scenario indices
-    GOAL_X = (N_SCENARIO - 1) - 1
-    GOAL_Y = (N_SCENARIO - 1)
+    GOAL_X = -2
+    GOAL_Y = -1
 
     def __init__(
         self,
         nominal_scenario: Scenario,
         Theta: pc.Polytope,
+        P_scenario: pc.Polytope = None,
         dt: float = 0.01,
         controller_dt: Optional[float] = None,
         use_linearized_controller: bool = True,
-        scenarios: Optional[ScenarioList] = None,
         device: str = "cpu",
         max_force: float = 10.0,
+        n_obstacles: int = 1,
     ):
         """
         Initialize a system.
@@ -128,6 +129,8 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         self.device = device
 
+        self.n_obstacles = n_obstacles
+
         # Then initialize
         super().__init__(nominal_scenario, Theta, dt, controller_dt, device=device)
 
@@ -135,25 +138,30 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Define the set of scenarios as a polytope
         x_ub, x_lb = self.state_limits
 
-        box_limits = []
-        for i in range(self.N_OBSTACLES):
+        if P_scenario is None:
+            box_limits = []
+            for i in range(self.n_obstacles):
+                box_limits += [
+                    (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
+                     x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
+                    (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
+                     x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
+                    # (0.0, 0.1),
+                ]
+
+            # Add limits for the goal
             box_limits += [
                 (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
                  x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
                 (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
                  x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
-                # (0.0, 0.1),
             ]
 
-        # Add limits for the goal
-        box_limits += [
-            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_X],
-             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_X]),
-            (x_lb[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y],
-             x_ub[AdaptivePusherSliderStickingForceInput_NObstacles.S_Y]),
-        ]
+            self.P_scenario = pc.box2poly(box_limits)
+        else:
+            self.P_scenario = P_scenario
 
-        self.P_scenario = pc.box2poly(box_limits)
+        assert self.P_scenario.dim == self.n_scenario, f"P_scenario has dimension {P_scenario.dim}; expected dimension {self.n_scenario}"
 
         # Define input polytope once
         # Define the matrices which define the polytope
@@ -181,7 +189,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         """
         valid = True
 
-        for i in range(self.N_OBSTACLES):
+        for i in range(self.n_obstacles):
             valid = valid and (f"obstacle_{i}_center_x" in s)
             valid = valid and (f"obstacle_{i}_center_y" in s)
             #valid = valid and (f"obstacle_{i}_radius" in s)
@@ -213,7 +221,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
     @property
     def n_scenario(self) -> int:
-        return AdaptivePusherSliderStickingForceInput_NObstacles.N_SCENARIO
+        return self.n_obstacles * 2 + 2
 
     @property
     def state_limits(self) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -272,7 +280,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Algorithm
         safe_mask = torch.ones_like(x[:, 0], dtype=torch.bool).to(self.device)
 
-        for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
+        for obst_idx in range(self.n_obstacles):  # Check if the state is too close to each obstacle
             # Get indices in s_vec that describe scenario
             obst_x_pos_index = 2 * obst_idx + 0
             obst_y_pos_index = 2 * obst_idx + 1
@@ -307,7 +315,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
         # Algorithm
         unsafe_mask = torch.zeros_like(x[:, 0], dtype=torch.bool).to(self.device)
 
-        for obst_idx in range(self.N_OBSTACLES):  # Check if the state is too close to each obstacle
+        for obst_idx in range(self.n_obstacles):  # Check if the state is too close to each obstacle
             # Get indices in s_vec that describe scenario
             obst_x_pos_index = 2 * obst_idx + 0
             obst_y_pos_index = 2 * obst_idx + 1
@@ -412,7 +420,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         # Create sampling indices to determine which obstacle to sample
         obst_sample_indices = torch.randint(
-            low=0, high=self.N_OBSTACLES, size=(batch_size,),
+            low=0, high=self.n_obstacles, size=(batch_size,),
         ).type_as(s_unsafe)
 
         # Sample Abstract parameters of each obstacle
@@ -432,7 +440,7 @@ class AdaptivePusherSliderStickingForceInput_NObstacles(ControlAffineParameterAf
 
         # Sample concrete states from each obstacle
         x_unsafe = torch.zeros((batch_size, self.n_dims), device=self.device).type_as(s_unsafe)
-        for obst_index in range(self.N_OBSTACLES):
+        for obst_index in range(self.n_obstacles):
             # Save indices for vectorized operations
             obst_center_x_index = 2 * obst_index + 0
             obst_center_y_index = 2 * obst_index + 1

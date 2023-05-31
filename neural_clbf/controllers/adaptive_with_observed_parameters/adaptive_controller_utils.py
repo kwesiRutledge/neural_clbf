@@ -257,12 +257,10 @@ def nominal_lyapunov_function(
     n_params = dynamics.n_params
 
     # Create batches of x-theta pairs
-    x_theta = torch.cat([x, theta_hat], dim=1)
-    x_theta0 = torch.zeros(x_theta.shape).type_as(x_theta)
-    x0 = dynamics.goal_point(theta_hat, scen).type_as(x_theta)
-    theta_hat0 = torch.tensor(
-        dynamics.sample_polytope_center(dynamics.Theta)
-    ).to(x.device).type_as(x_theta).repeat(batch_size, 1)
+    x_theta = torch.cat([x, theta_hat], dim=1).to(x.device)
+    x_theta0 = torch.zeros(x_theta.shape).type_as(x_theta).to(x.device)
+    x0 = dynamics.goal_point(theta_hat, scen).type_as(x_theta).to(x.device)
+    theta_hat0 = dynamics.sample_Theta_space(1).type_as(x_theta).repeat(batch_size, 1)
 
     x_theta0[:, :n_dims] = x0
     x_theta0[:, n_dims:] = theta_hat0
@@ -270,7 +268,7 @@ def nominal_lyapunov_function(
     # First, get the Lyapunov function value and gradient at this state
     Px = dynamics.P.type_as(x_theta)
     # Reshape to use pytorch's bilinear function
-    P = torch.zeros(1, n_dims + n_params, n_dims + n_params)
+    P = torch.zeros(1, n_dims + n_params, n_dims + n_params).to(x.device)
     P[0, :n_dims, :n_dims] = Px
     P[0, n_dims:, n_dims:] = torch.zeros((n_params, n_params))
 
