@@ -94,8 +94,8 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.03 + s_width/2.0, -0.03],
         "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
-        "scenario_lb": [-0.1, -0.1, 0.2, 0.2],
-        "scenario_ub": [ 0.1,  0.1, 0.3, 0.3],
+        "scenario_lb": [-0.1, -0.3, 0.3, 0.3],
+        "scenario_ub": [ 0.1,  0.3, 0.4, 0.4],
         # "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         # "safe_level": args.safe_level,
@@ -107,7 +107,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 200, #1000,
         "trajectory_length": 30,
         "n_fixed_samples": 4000,  # 20000,
-        "num_init_epochs": 15,
+        "num_init_epochs": 25,
         "goal_loss_weight": 1e2,
         "safe_loss_weight": 1e2,
         "unsafe_loss_weight": 1e2,
@@ -246,6 +246,7 @@ def main(args):
         x_axis_label="$p_1$",
         y_axis_label="$p_2$",
         default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
+        default_scenario=torch.tensor([-0.1, -0.1, 0.3, 0.3]).reshape((1, -1))
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])
@@ -361,11 +362,11 @@ def main(args):
         "/" + str(tb_logger.version) + "/state_dict.pt"
     )
 
-    torch.save(
-        aclbf_controller,
-        tb_logger.save_dir + "/" + tb_logger.name +
-        "/" + str(tb_logger.version) + "/controller.pt"
-    )
+    # torch.save(
+    #     aclbf_controller,
+    #     tb_logger.save_dir + "/" + tb_logger.name +
+    #     "/" + str(tb_logger.version) + "/controller.pt"
+    # )
 
 if __name__ == "__main__":
     parser = ArgumentParser(
