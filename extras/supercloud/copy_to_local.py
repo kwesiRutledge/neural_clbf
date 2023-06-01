@@ -31,7 +31,7 @@ def copy_directory_using_scp(args):
     # Get arguments
 
     # Create source directory name
-    source_directory = "krutledge@txe1-login.mit.edu:~/neural_clbf/neural_clbf/training/adaptive/logs/"
+    source_directory = "krutledge@txe1-login.mit.edu:~/neural_clbf/neural_clbf/training/adaptive_w_observed_parameters/logs/"
     if args.system == "ps":
         source_directory += "pusher_slider_sticking_force_input/"
     elif args.system == "scalar":
