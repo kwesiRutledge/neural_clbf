@@ -246,7 +246,7 @@ def main(args):
         x_axis_label="$p_1$",
         y_axis_label="$p_2$",
         default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
-        default_scenario=torch.tensor([-0.1, -0.1, 0.3, 0.3]).reshape((1, -1))
+        default_scenario=torch.tensor([-0.1, -0.1, 0.3, 0.3]).reshape((1, -1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
     #experiment_suite = ExperimentSuite([V_contour_experiment])

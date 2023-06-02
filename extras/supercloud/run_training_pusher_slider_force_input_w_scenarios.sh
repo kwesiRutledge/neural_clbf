@@ -18,12 +18,12 @@ source activate neural_clbf
 # Enter Training Directory for scalar_demo_capa2_system
 cd /home/gridsan/krutledge/neural_clbf/neural_clbf/training/adaptive_w_observed_parameters/
 python train_pusher_slider_force_input.py \
-  --max_epochs 201 --clf_lambda 0.1 \
+  --max_epochs 251 --clf_lambda 0.1 \
   --safe_level 1.0 \
   --num_cpu_cores 20 --number_of_gpus 2 \
   --include_oracle_loss True --barrier True \
   --include_estimation_error_loss False \
   --include_radially_unbounded_loss1 True \
   --include_radially_unbounded_loss2 False \
-  --learn_shape_epochs 50 --learn_boundary_epochs 50 \
+  --learn_shape_epochs 50 --learn_boundary_epochs 100 \
   --gradient_clip_val 10000.0 --max_iters_cvxpylayer 5000000
