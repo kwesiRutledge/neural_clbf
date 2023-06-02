@@ -107,7 +107,7 @@ def create_training_hyperparams(args)-> Dict:
         "trajectories_per_episode": 200, #1000,
         "trajectory_length": 30,
         "n_fixed_samples": 4000,  # 20000,
-        "num_init_epochs": 25,
+        "num_init_epochs": 50,
         "goal_loss_weight": 1e2,
         "safe_loss_weight": 1e2,
         "unsafe_loss_weight": 1e2,
