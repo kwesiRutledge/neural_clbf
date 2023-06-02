@@ -1182,6 +1182,12 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         th_h_sim = torch.zeros(batch_size, num_steps, n_params).type_as(theta)
         th_h_sim[:, 0, :] = self.dynamics_model.sample_Theta_space(batch_size)
 
+        scen_sim = torch.zeros(
+            batch_size, num_steps, self.model.n_scenario,
+            device=self.device,
+        ).type_as(scen)
+        scen_sim[:, 0, :] = scen
+
         u = torch.zeros(x_init.shape[0], n_controls).type_as(x_init)
 
         # Compute controller update frequency
@@ -1197,6 +1203,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
                 x_current = x_sim[:, tstep - 1, :]
                 theta_current = th_sim[:, tstep - 1, :]
                 theta_hat_current = th_h_sim[:, tstep - 1, :]
+                scen_current = scen_sim[:, tstep - 1, :]
 
                 # Get the control input at the current state if it's time
                 if tstep == 1 or tstep % controller_update_freq == 0:
@@ -1206,6 +1213,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
                 xdot = dynamical_model.closed_loop_dynamics(x_current, u, theta, scen)
                 x_sim[:, tstep, :] = x_current + self.dynamics_model.dt * xdot
                 th_sim[:, tstep, :] = theta_current
+                scen_sim[:, tstep, :] = scen_current
 
                 # Compute theta hat evolution
                 th_h_dot = self.closed_loop_estimator_dynamics(
@@ -1226,8 +1234,10 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
                 t_sim_final = tstep
             except ValueError:
                 break
+        # TODO: Check this function for unused/misused variable names.
 
-        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], th_h_sim[:, : t_sim_final + 1, :]
+        return x_sim[:, : t_sim_final + 1, :], th_sim[:, : t_sim_final + 1, :], \
+            th_h_sim[:, : t_sim_final + 1, :], scen_sim[:, : t_sim_final + 1, :]
 
     def configure_optimizers(self):
         clbf_params = list(self.V_nn.parameters())
