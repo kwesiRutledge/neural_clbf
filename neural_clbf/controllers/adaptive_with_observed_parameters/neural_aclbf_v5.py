@@ -1075,10 +1075,11 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
                 relaxation_penalty = self.clf_relaxation_penalty
 
             # Use the models simulation function with this controller
-            def simulator_fn_wrapper(x_init: torch.tensor, theta_init: torch.tensor, num_steps: int):
+            def simulator_fn_wrapper(x_init: torch.Tensor, theta_init: torch.Tensor, scen_init: torch.Tensor, num_steps: int):
                 return self.simulator_fn(
                     x_init,
                     theta_init,
+                    scen_init,
                     num_steps,
                     relaxation_penalty=relaxation_penalty,
                 )
@@ -1104,12 +1105,6 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
             scen: a tensor of batch_size x self.dynamics_model.n_scenario points in the scenario space which determine the scenario values (constant over time)
         """
         # Choose parameters randomly
-        random_scenario = {}
-        for param_name in self.scenarios[0].keys():
-            param_max = max([s[param_name] for s in self.scenarios])
-            param_min = min([s[param_name] for s in self.scenarios])
-            random_scenario[param_name] = random.uniform(param_min, param_max)
-
         return self.simulate(
             x_init,
             theta_init,
@@ -1118,7 +1113,6 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
             self.u,
             guard=self.dynamics_model.out_of_bounds_mask,
             controller_period=self.controller_period,
-            params=random_scenario,
         )
 
     def simulate(
@@ -1130,7 +1124,6 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         controller: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         controller_period: Optional[float] = None,
         guard: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
-        params: Optional[Scenario] = None,
     ) -> (torch.Tensor, torch.Tensor, torch.Tensor):
         """
         Simulate the targeted dynamical system for the specified number of steps using the given controller
@@ -1183,7 +1176,7 @@ class NeuralaCLBFControllerV5(aCLFController5, pl.LightningModule):
         th_h_sim[:, 0, :] = self.dynamics_model.sample_Theta_space(batch_size)
 
         scen_sim = torch.zeros(
-            batch_size, num_steps, self.model.n_scenario,
+            batch_size, num_steps, self.dynamics_model.n_scenario,
             device=self.device,
         ).type_as(scen)
         scen_sim[:, 0, :] = scen
