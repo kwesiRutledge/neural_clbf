@@ -84,7 +84,7 @@ class EpisodicDataModuleAdaptiveWScenarios(pl.LightningDataModule):
         self.x_range = self.x_max - self.x_min
 
         # Save the min, max, central point, and range tensors for the parameters
-        V_Theta = pc.extreme(self.model.Theta)
+        V_Theta = model.V_Theta.numpy()
         self.theta_max = [np.max(V_Theta[:, i]) for i in range(V_Theta.shape[1])]
         self.theta_min = [np.min(V_Theta[:, i]) for i in range(V_Theta.shape[1])]
 

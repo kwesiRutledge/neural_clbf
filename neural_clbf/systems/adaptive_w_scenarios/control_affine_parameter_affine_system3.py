@@ -292,7 +292,7 @@ class ControlAffineParameterAffineSystem3(ABC):
             Return a tuple (upper, lower) describing the range of allowable scenarios
         """
         # Get bounds on the scenario polytope
-        V_scenario = self.scenario_set_vertices
+        V_scenario = self.scenario_set_vertices.numpy()
 
         upper_limit = torch.tensor(
             np.max(V_scenario, axis=0),
