@@ -1,7 +1,9 @@
 from .control_affine_parameter_affine_system2 import ControlAffineParameterAffineSystem2
 from .adaptive_pusher_slider_force_input_nobstacles_goal import AdaptivePusherSliderStickingForceInput_NObstacles
+from .control_affine_parameter_affine_system3 import ControlAffineParameterAffineSystem3
+from .adaptive_pusher_slider_force_input3 import AdaptivePusherSliderStickingForceInput3
 
 __all__ = [
-    'ControlAffineParameterAffineSystem2',
-    'AdaptivePusherSliderStickingForceInput_NObstacles',
+    'ControlAffineParameterAffineSystem2', 'ControlAffineParameterAffineSystem3',
+    'AdaptivePusherSliderStickingForceInput_NObstacles', 'AdaptivePusherSliderStickingForceInput3',
 ]
