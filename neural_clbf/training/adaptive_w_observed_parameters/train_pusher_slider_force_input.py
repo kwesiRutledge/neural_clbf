@@ -75,8 +75,8 @@ def create_training_hyperparams(args)-> Dict:
         )
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        # accelerator_name = "mps"
-        accelerator_name = "cpu"
+        accelerator_name = "mps"
+        # accelerator_name = "cpu"
 
     # Create the nominal scenario
     nominal_scenario = {
@@ -238,16 +238,23 @@ def main(args):
     lb = t_hyper["Theta_lb"]
     ub = t_hyper["Theta_ub"]
     Theta = pc.box2poly(np.array([lb, ub]).T)
+    V_Theta = torch.tensor(
+        pc.extreme(Theta),
+        dtype=torch.get_default_dtype(),
+    ).to(t_hyper["accelerator"])
 
     P_scenario = pc.box2poly(
         np.array([t_hyper["scenario_lb"], t_hyper["scenario_ub"]]).T,
     )
+    V_scenario = torch.tensor(
+        pc.extreme(P_scenario),
+        dtype=torch.get_default_dtype(),
+    ).to(t_hyper["accelerator"])
 
     # Define the dynamics model
     dynamics_model = PusherSlider(
-        t_hyper["nominal_scenario"],
-        torch.tensor(pc.extreme(Theta)).to(t_hyper["accelerator"]),
-        V_scenario=torch.tensor(pc.extreme(P_scenario)).to(t_hyper["accelerator"]),
+        t_hyper["nominal_scenario"], V_Theta,
+        V_scenario=V_scenario,
         dt=t_hyper["simulation_dt"],
         controller_dt=t_hyper["controller_period"],
         device=t_hyper["accelerator"],

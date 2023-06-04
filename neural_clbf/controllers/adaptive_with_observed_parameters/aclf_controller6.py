@@ -450,7 +450,7 @@ class aCLFController6(Controller):
             lower_lim = lower_lim.cpu().numpy()
             u = model.addMVar(n_controls, lb=lower_lim, ub=upper_lim)
             # Add Constraint on u
-            U = pc.qhull(self.dynamics_model.U_vertices.numpy())
+            U = pc.qhull(self.dynamics_model.U_vertices.cpu().numpy())
             model.addConstr(
                 U.A @ u <= U.b, name="u_constraint"
             )
@@ -1131,7 +1131,7 @@ class aCLFController6(Controller):
         Va_param = cp.Parameter(1, nonneg=True)
         n_params = self.dynamics_model.n_params
 
-        Theta_vertices = self.dynamics_model.V_Theta.numpy()
+        Theta_vertices = self.dynamics_model.V_Theta.cpu().numpy()
         n_Theta_v = Theta_vertices.shape[0]
 
         Lf_Va_param_cluster, Lg_Va_param_cluster, LF_Va_param_cluster = [], [], []
@@ -1190,7 +1190,7 @@ class aCLFController6(Controller):
 
         # Control limit constraints
         U = pc.qhull(
-            self.dynamics_model.U_vertices.numpy(),
+            self.dynamics_model.U_vertices.cpu().numpy(),
         )
         constraints.append(
             U.A @ u <= U.b,

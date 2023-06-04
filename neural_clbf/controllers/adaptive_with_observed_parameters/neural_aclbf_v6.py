@@ -181,12 +181,12 @@ class NeuralaCLBFControllerV6(aCLFController6, pl.LightningModule):
 
         # Compute and save the center and range of the unknown parameter set
         self.theta_center, self.theta_range = self.calculate_center_and_range(
-            pc.qhull(self.dynamics_model.V_Theta.numpy()),
+            pc.qhull(self.dynamics_model.V_Theta.cpu().numpy()),
         )
 
         # Compute and save the center and range of the scenario (known paramters) set
         self.scen_center, self.scen_range = self.calculate_center_and_range(
-            pc.qhull(self.dynamics_model.scenario_set_vertices.numpy()),
+            pc.qhull(self.dynamics_model.scenario_set_vertices.cpu().numpy()),
         )
 
         # Define the CLBF network, which we denote V
@@ -844,7 +844,7 @@ class NeuralaCLBFControllerV6(aCLFController6, pl.LightningModule):
         """
         # Constants
         bs = x.shape[0]
-        V_Theta = self.dynamics_model.V_Theta.numpy()
+        V_Theta = self.dynamics_model.V_Theta.cpu().numpy()
         n_params = self.dynamics_model.n_params
 
         loss = []

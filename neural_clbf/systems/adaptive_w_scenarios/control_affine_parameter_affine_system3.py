@@ -292,7 +292,7 @@ class ControlAffineParameterAffineSystem3(ABC):
             Return a tuple (upper, lower) describing the range of allowable scenarios
         """
         # Get bounds on the scenario polytope
-        V_scenario = self.scenario_set_vertices.numpy()
+        V_scenario = self.scenario_set_vertices.cpu().numpy()
 
         upper_limit = torch.tensor(
             np.max(V_scenario, axis=0),
@@ -313,7 +313,7 @@ class ControlAffineParameterAffineSystem3(ABC):
         limits for this system
         """
         # Get bounds on the U polytope
-        V_U = self.U_vertices.numpy()
+        V_U = self.U_vertices.cpu().numpy()
 
         upper_limit = torch.tensor(
             np.max(V_U, axis=0),
@@ -933,7 +933,7 @@ class ControlAffineParameterAffineSystem3(ABC):
         """
 
         # Compute V Representation
-        V = V_P.numpy()
+        V = V_P.cpu().numpy()
 
         assert V is not None, "V is None"
 

@@ -255,7 +255,7 @@ def normalize_theta(
     # Constants
 
     # Get minimum and maximum possible values for theta
-    V_Theta = dynamics_model.V_Theta.numpy()
+    V_Theta = dynamics_model.V_Theta.cpu().numpy()
     theta_max = torch.tensor(
         np.max(V_Theta, axis=0),
         dtype=torch.get_default_dtype(),
@@ -318,7 +318,7 @@ def normalize_scenario(
     # Constants
 
     # Get minimum and maximum possible values for theta
-    V_Theta = dynamics_model.scenario_set_vertices.numpy()
+    V_Theta = dynamics_model.scenario_set_vertices.cpu().numpy()
     scen_max = torch.tensor(
         np.max(V_Theta, axis=0),
         dtype=torch.get_default_dtype(),

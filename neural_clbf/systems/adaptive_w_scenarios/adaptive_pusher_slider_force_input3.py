@@ -416,7 +416,11 @@ class AdaptivePusherSliderStickingForceInput3(ControlAffineParameterAffineSystem
             (0.0, 1.0),
             (0.0, 2.0 * np.pi),
         ])
-        V_unsafe = torch.tensor(pc.extreme(P_unsafe), device=self.device)
+        V_unsafe = torch.tensor(
+            pc.extreme(P_unsafe),
+            dtype=torch.get_default_dtype(),
+            device=self.device,
+        )
         ABSTRACT_THETA = 0
         ABSTRACT_RADIUS = 1
         ABSTRACT_ORIENTATION = 2
@@ -485,7 +489,7 @@ class AdaptivePusherSliderStickingForceInput3(ControlAffineParameterAffineSystem
             (0.0, 2.0 * np.pi),
         ])
         V_abst_goal = torch.tensor(
-            pc.extreme(P_abst_goal), device=self.device,
+            pc.extreme(P_abst_goal), dtype=torch.get_default_dtype(), device=self.device,
         )
         ABSTRACT_THETA = 0
         ABSTRACT_RADIUS = 1
