@@ -75,8 +75,8 @@ def create_training_hyperparams(args)-> Dict:
         )
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
-        accelerator_name = "mps"
-        # accelerator_name = "cpu"
+        # accelerator_name = "mps"
+        accelerator_name = "cpu"
 
     # Create the nominal scenario
     nominal_scenario = {
@@ -218,6 +218,9 @@ def define_experiment_suite(t_hyper: Dict, dynamics_model)->ExperimentSuite:
 
 def main(args):
     # Constants
+    wandb.init(
+        mode="offline",
+    )
 
     # Get hyperparameters for training
     t_hyper = create_training_hyperparams(args)
@@ -341,6 +344,11 @@ def main(args):
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=t_hyper["max_epochs"],
     # )
+    os.makedirs(wandb_log_location+"/state_dicts/")
+
+    print("[Neural aCLBF] commit ", current_git_hash())
+    print("[Neural aCLBF] version ", t.strftime('%m%d%Y_%H_%M_%S'))
+
 
     if t_hyper["number_of_gpus"] <= 1:
         print("Using CPU or Single GPU")
@@ -396,6 +404,7 @@ def main(args):
         aclbf_controller,
         wandb_logger.save_dir + "/controller.pt"
     )
+    print("wandb_logger.save_dir ", wandb_logger.save_dir)
 
 if __name__ == "__main__":
     parser = ArgumentParser(

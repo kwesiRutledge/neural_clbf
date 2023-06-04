@@ -1062,6 +1062,12 @@ class NeuralaCLBFControllerV6(aCLFController6, pl.LightningModule):
             self, self.logger, self.current_epoch
         )
 
+        # Save the model
+        torch.save(
+            self.state_dict(),
+            self.logger.save_dir + "/state_dicts/state_dict_" + str(self.current_epoch) + ".pt"
+        )
+
         # Free memory
         self.validation_step_outputs.clear()
 
