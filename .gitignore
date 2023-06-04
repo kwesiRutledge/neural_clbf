@@ -131,6 +131,8 @@ neural_clbf/systems/aerobench
 *devel*
 neural_clbf/training/adaptive/*.pth
 neural_clbf/training/adaptive/temp_imgs/*
+neural_clbf/training/adaptive_w_observed_parameters/logs/*
+neural_clbf/training/adaptive_w_observed_parameters/wandb/*
 
 # Matlab files
 *.asv

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 import pandas as pd
 from pytorch_lightning.loggers import Logger
-
+import wandb
 from .experiment import Experiment
 
 if TYPE_CHECKING:
@@ -124,11 +124,14 @@ class ExperimentSuite(object):
 
         # Log each plot
         for plot_name, figure_handle in fig_handles:
-            logger.experiment.add_figure(
-                plot_name + plot_tag, figure_handle, global_step=log_epoch
+            # logger.experiment.add_figure(
+            #     plot_name + plot_tag, figure_handle, global_step=log_epoch
+            # )
+            logger.experiment.log(
+                {plot_name+plot_tag: wandb.Image(figure_handle)},
             )
-        logger.experiment.close()
-        logger.experiment.flush()
+        # logger.experiment.close()
+        # logger.experiment.flush()
 
         # Clean up by closing each plot
         for _, figure_handle in fig_handles:

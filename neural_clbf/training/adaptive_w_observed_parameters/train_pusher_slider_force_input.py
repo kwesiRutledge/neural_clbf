@@ -12,6 +12,7 @@ import torch
 import torch.multiprocessing
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
+import wandb
 import numpy as np
 
 from neural_clbf.controllers.adaptive_with_observed_parameters import (
@@ -41,6 +42,7 @@ from neural_clbf.training.utils import (
     current_git_hash, initialize_training_arg_parser
 )
 import polytope as pc
+import os
 
 from typing import Dict
 
@@ -68,6 +70,9 @@ def create_training_hyperparams(args)-> Dict:
     accelerator_name = "cpu"
     if torch.cuda.is_available():
         accelerator_name = "cuda"
+        wandb.init(
+            mode="offline",
+        )
     elif torch.backends.mps.is_available():
         torch.set_default_dtype(torch.float32)
         # accelerator_name = "mps"
@@ -297,14 +302,22 @@ def main(args):
 
     # Initialize the logger and trainer
     t = datetime.datetime.now()
-    tb_logger = pl_loggers.TensorBoardLogger(
-        "logs/pusher_slider_sticking_force_input",
-        name=f"commit_{current_git_hash()}",
+    # tb_logger = pl_loggers.TensorBoardLogger(
+    #     "logs/pusher_slider_sticking_force_input",
+    #     name=f"commit_{current_git_hash()}",
+    #     version=f"version_{t.strftime('%m%d%Y_%H_%M_%S')}",
+    # )
+    wandb_log_location = f"logs/pusher_slider_sticking_force_input_WandB/commit_{current_git_hash()}/version_{t.strftime('%m%d%Y_%H_%M_%S')}"
+    os.makedirs(wandb_log_location)
+    wandb_logger = pl_loggers.WandbLogger(
+        project="Neural aCLBF",
+        name=f"commit_{current_git_hash()}_version_{t.strftime('%m%d%Y_%H_%M_%S')}",
         version=f"version_{t.strftime('%m%d%Y_%H_%M_%S')}",
+        save_dir=wandb_log_location,
     )
     # trainer = pl.Trainer.from_argparse_args(
     #     args,
-    #     logger=tb_logger,
+    #     logger=wandb_logger,
     #     reload_dataloaders_every_epoch=True,
     #     max_epochs=t_hyper["max_epochs"],
     # )
@@ -312,7 +325,7 @@ def main(args):
     if t_hyper["number_of_gpus"] <= 1:
         print("Using CPU or Single GPU")
         trainer = pl.Trainer(
-            logger=tb_logger,
+            logger=wandb_logger,
             # reload_dataloaders_every_epoch=True,
             max_epochs=t_hyper["max_epochs"],
             accelerator=t_hyper["accelerator"],
@@ -321,7 +334,7 @@ def main(args):
     else:
         print("Using DDP")
         trainer = pl.Trainer(
-            logger=tb_logger,
+            logger=wandb_logger,
             max_epochs=t_hyper["max_epochs"],
             accelerator=t_hyper["accelerator"],
             gradient_clip_val=t_hyper["gradient_clip_val"],
@@ -336,36 +349,36 @@ def main(args):
     training_time_end = time.time()
 
     # Logging
-    tb_logger.log_metrics({"pytorch random seed": t_hyper["pt_manual_seed"]})
-    tb_logger.log_metrics({"numpy random seed": t_hyper["np_manual_seed"]})
-    tb_logger.log_metrics({"training time": training_time_end - training_time_start})
-    tb_logger.log_metrics({"gamma factor": t_hyper["Gamma_factor"]})
+    wandb_logger.log_metrics({"pytorch random seed": t_hyper["pt_manual_seed"]})
+    wandb_logger.log_metrics({"numpy random seed": t_hyper["np_manual_seed"]})
+    wandb_logger.log_metrics({"training time": training_time_end - training_time_start})
+    wandb_logger.log_metrics({"gamma factor": t_hyper["Gamma_factor"]})
 
     # Saving Data
     torch.save(
         aclbf_controller.V_nn,
-        tb_logger.save_dir + "/" + tb_logger.name +
-        "/" + str(tb_logger.version) + "/Vnn.pt"
+        wandb_logger.save_dir + "/" + wandb_logger.name +
+        "/" + str(wandb_logger.version) + "/Vnn.pt"
     )
 
     # Record Hyperparameters in small pytorch format
     torch.save(
         t_hyper,
-        tb_logger.save_dir + "/" + tb_logger.name +
-        "/" + str(tb_logger.version) + "/hyperparams.pt"
+        wandb_logger.save_dir + "/" + wandb_logger.name +
+        "/" + str(wandb_logger.version) + "/hyperparams.pt"
     )
 
     # Save model
     torch.save(
         aclbf_controller.state_dict(),
-        tb_logger.save_dir + "/" + tb_logger.name +
-        "/" + str(tb_logger.version) + "/state_dict.pt"
+        wandb_logger.save_dir + "/" + wandb_logger.name +
+        "/" + str(wandb_logger.version) + "/state_dict.pt"
     )
 
     # torch.save(
     #     aclbf_controller,
-    #     tb_logger.save_dir + "/" + tb_logger.name +
-    #     "/" + str(tb_logger.version) + "/controller.pt"
+    #     wandb_logger.save_dir + "/" + wandb_logger.name +
+    #     "/" + str(wandb_logger.version) + "/controller.pt"
     # )
 
 if __name__ == "__main__":
