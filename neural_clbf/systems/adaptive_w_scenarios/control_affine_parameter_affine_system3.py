@@ -313,7 +313,7 @@ class ControlAffineParameterAffineSystem3(ABC):
         limits for this system
         """
         # Get bounds on the U polytope
-        V_U = pc.extreme(self.U)
+        V_U = self.U_vertices.numpy()
 
         upper_limit = torch.tensor(
             np.max(V_U, axis=0),

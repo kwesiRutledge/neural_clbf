@@ -222,12 +222,12 @@ class AdaptivePusherSliderStickingForceInput3(ControlAffineParameterAffineSystem
         return (upper_limit, lower_limit)
 
     @property
-    def U_vertices(self) -> pc.Polytope:
+    def U_vertices(self) -> torch.Tensor:
         """
-        P_U = self.U
+        V_U = self.U_vertices
 
         Description:
-            Return the polytope representing the control constraints for the given system.
+            Return a set of vertices whose convex hull represents the control constraints for the given system.
         """
         # Constants
         V_U = torch.tensor([
