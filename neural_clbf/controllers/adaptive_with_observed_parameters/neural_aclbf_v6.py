@@ -704,7 +704,7 @@ class NeuralaCLBFControllerV6(aCLFController6, pl.LightningModule):
         """
         # Constants
         bs = x.shape[0]
-        V_Theta = self.dynamics_model.V_Theta.numpy()
+        V_Theta = self.dynamics_model.V_Theta.cpu().numpy()
 
         # Compute comparison points
         goal_tolerance = 0.1
@@ -795,7 +795,7 @@ class NeuralaCLBFControllerV6(aCLFController6, pl.LightningModule):
         """
         # Constants
         bs = x.shape[0]
-        V_Theta = self.dynamics_model.V_Theta.numpy()
+        V_Theta = self.dynamics_model.V_Theta.cpu().numpy()
 
         # Compute comparison points
         goal_tolerance = 0.1
