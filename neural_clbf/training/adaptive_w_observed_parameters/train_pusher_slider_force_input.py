@@ -16,12 +16,12 @@ import wandb
 import numpy as np
 
 from neural_clbf.controllers.adaptive_with_observed_parameters import (
-    NeuralaCLBFControllerV5,
+    NeuralaCLBFControllerV6,
 )
 from neural_clbf.datamodules.adaptive_w_scenarios import (
     EpisodicDataModuleAdaptiveWScenarios,
 )
-from neural_clbf.systems.adaptive_w_scenarios import AdaptivePusherSliderStickingForceInput_NObstacles as PusherSlider
+from neural_clbf.systems.adaptive_w_scenarios import AdaptivePusherSliderStickingForceInput3 as PusherSlider
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
@@ -145,6 +145,77 @@ def create_training_hyperparams(args)-> Dict:
 
     return hyperparams_for_evaluation
 
+def define_experiment_suite(t_hyper: Dict, dynamics_model)->ExperimentSuite:
+    """
+    define_experiment_suite
+    Description:
+
+    """
+    # Constants
+    lb = t_hyper["Theta_lb"]
+    ub = t_hyper["Theta_ub"]
+
+    lb_Vcontour = lb[t_hyper["contour_exp_theta_index"]]
+    ub_Vcontour = ub[t_hyper["contour_exp_theta_index"]]
+    theta_range_Vcontour = ub_Vcontour - lb_Vcontour
+    x_ub, x_lb = dynamics_model.state_limits
+
+    # Define the experiments
+    V_contour_experiment = AdaptiveCLFContourExperiment3(
+        "V_Contour",
+        x_domain=[(x_lb[PusherSlider.S_X], x_ub[PusherSlider.S_X])],
+        theta_domain=[(lb_Vcontour - 0.2 * theta_range_Vcontour, ub_Vcontour + 0.2 * theta_range_Vcontour)],
+        n_grid=30,
+        x_axis_index=PusherSlider.S_X,
+        theta_axis_index=t_hyper["contour_exp_theta_index"],
+        x_axis_label="$p_1$",
+        theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$",  # "$\\dot{\\theta}$",
+        plot_unsafe_region=False,
+    )
+    rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
+        "Rollout (Multiple Slices)",
+        t_hyper["start_x"],
+        [PusherSlider.S_X, PusherSlider.S_Y, PusherSlider.S_X],
+        ["$r_1$", "$v_1$", "$r_2$"],
+        [PusherSlider.C_X, PusherSlider.C_X, PusherSlider.C_Y],
+        ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
+        n_sims_per_start=1,
+        t_sim=t_hyper["rollout_experiment_horizon"],
+    )
+    V_contour_experiment3 = aCLFCountourExperiment_StateSlices3(
+        "V_Contour (state slices only) LB",
+        x_domain=[
+            (x_lb[0], x_ub[0]),
+            (x_lb[1], x_ub[1]),
+        ],  # plotting domain
+        n_grid=50,
+        x_axis_index=PusherSlider.S_X,
+        y_axis_index=PusherSlider.S_Y,
+        x_axis_label="$p_1$",
+        y_axis_label="$p_2$",
+        default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
+        default_scenario=torch.tensor([t_hyper["scenario_lb"][0], t_hyper["scenario_lb"][1], 0.3, 0.3]).reshape((1, -1)),
+    )
+
+    V_contour_experiment4 = aCLFCountourExperiment_StateSlices3(
+        "V_Contour (state slices only) UB",
+        x_domain=[
+            (x_lb[0], x_ub[0]),
+            (x_lb[1], x_ub[1]),
+        ],  # plotting domain
+        n_grid=50,
+        x_axis_index=PusherSlider.S_X,
+        y_axis_index=PusherSlider.S_Y,
+        x_axis_label="$p_1$",
+        y_axis_label="$p_2$",
+        default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
+        default_scenario=torch.tensor([t_hyper["scenario_ub"][0], t_hyper["scenario_ub"][1], 0.3, 0.3]).reshape((1, -1)),
+    )
+    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3, V_contour_experiment4])
+    # experiment_suite = ExperimentSuite([V_contour_experiment])
+
+    return experiment_suite
+
 def main(args):
     # Constants
 
@@ -175,8 +246,8 @@ def main(args):
     # Define the dynamics model
     dynamics_model = PusherSlider(
         t_hyper["nominal_scenario"],
-        Theta,
-        P_scenario=P_scenario,
+        torch.tensor(pc.extreme(Theta)).to(t_hyper["accelerator"]),
+        V_scenario=torch.tensor(pc.extreme(P_scenario)).to(t_hyper["accelerator"]),
         dt=t_hyper["simulation_dt"],
         controller_dt=t_hyper["controller_period"],
         device=t_hyper["accelerator"],
@@ -201,64 +272,11 @@ def main(args):
         device=t_hyper["accelerator"],
     )
 
-    # Define the experiment suite
-    lb_Vcontour = lb[t_hyper["contour_exp_theta_index"]]
-    ub_Vcontour = ub[t_hyper["contour_exp_theta_index"]]
-    theta_range_Vcontour = ub_Vcontour - lb_Vcontour
-    x_ub, x_lb = dynamics_model.state_limits
-
-    V_contour_experiment = AdaptiveCLFContourExperiment3(
-        "V_Contour",
-        x_domain=[(x_lb[PusherSlider.S_X], x_ub[PusherSlider.S_X])],
-        theta_domain=[(lb_Vcontour-0.2*theta_range_Vcontour, ub_Vcontour+0.2*theta_range_Vcontour)],
-        n_grid=30,
-        x_axis_index=PusherSlider.S_X,
-        theta_axis_index=t_hyper["contour_exp_theta_index"],
-        x_axis_label="$p_1$",
-        theta_axis_label="$\\theta_" + str(t_hyper["contour_exp_theta_index"]) + "$", #"$\\dot{\\theta}$",
-        plot_unsafe_region=False,
-    )
-    rollout_experiment = RolloutStateParameterSpaceExperiment(
-        "Rollout",
-        t_hyper["start_x"],
-        PusherSlider.S_X,
-        "$r_1$",
-        PusherSlider.C_X,
-        "$\\theta_1 (r_1^{(d)})$",
-        scenarios=scenarios,
-        n_sims_per_start=1,
-        t_sim=t_hyper["rollout_experiment_horizon"],
-    )
-    rollout_experiment2 = RolloutStateParameterSpaceExperimentMultiple(
-        "Rollout (Multiple Slices)",
-        t_hyper["start_x"],
-        [PusherSlider.S_X, PusherSlider.S_Y, PusherSlider.S_X],
-        ["$r_1$", "$v_1$", "$r_2$"],
-        [PusherSlider.C_X, PusherSlider.C_X, PusherSlider.C_Y],
-        ["$\\theta_1 (c_x)$", "$\\theta_1 (c_x)$", "$\\theta_1 (c_y)$"],
-        n_sims_per_start=1,
-        t_sim=t_hyper["rollout_experiment_horizon"],
-    )
-    V_contour_experiment3 = aCLFCountourExperiment_StateSlices3(
-        "V_Contour (state slices only)",
-        x_domain=[
-            (x_lb[0], x_ub[0]),
-            (x_lb[1], x_ub[1]),
-        ],  # plotting domain
-        n_grid=50,
-        x_axis_index=PusherSlider.S_X,
-        y_axis_index=PusherSlider.S_Y,
-        x_axis_label="$p_1$",
-        y_axis_label="$p_2$",
-        default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
-        default_scenario=torch.tensor([-0.1, -0.1, 0.3, 0.3]).reshape((1, -1)),
-    )
-    experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3])
-    #experiment_suite = ExperimentSuite([V_contour_experiment])
+    experiment_suite = define_experiment_suite(t_hyper, dynamics_model)
 
     # Initialize the controller
     if (args.checkpoint_path is None) and (t_hyper["saved_Vnn_subpath"] is None):
-        aclbf_controller = NeuralaCLBFControllerV5(
+        aclbf_controller = NeuralaCLBFControllerV6(
             dynamics_model,
             data_module,
             experiment_suite=experiment_suite,
@@ -281,7 +299,7 @@ def main(args):
             max_iters_cvxpylayer=t_hyper["max_iters_cvxpylayer"],
         )
     elif args.checkpoint_path is not None:
-        aclbf_controller = NeuralaCLBFControllerV5.load_from_checkpoint(
+        aclbf_controller = NeuralaCLBFControllerV6.load_from_checkpoint(
             args.checkpoint_path,
         )
         print(aclbf_controller)
@@ -302,11 +320,6 @@ def main(args):
 
     # Initialize the logger and trainer
     t = datetime.datetime.now()
-    # tb_logger = pl_loggers.TensorBoardLogger(
-    #     "logs/pusher_slider_sticking_force_input",
-    #     name=f"commit_{current_git_hash()}",
-    #     version=f"version_{t.strftime('%m%d%Y_%H_%M_%S')}",
-    # )
     wandb_log_location = f"logs/pusher_slider_sticking_force_input_WandB/commit_{current_git_hash()}/version_{t.strftime('%m%d%Y_%H_%M_%S')}"
     os.makedirs(wandb_log_location)
     wandb_logger = pl_loggers.WandbLogger(
@@ -357,29 +370,25 @@ def main(args):
     # Saving Data
     torch.save(
         aclbf_controller.V_nn,
-        wandb_logger.save_dir + "/" + wandb_logger.name +
-        "/" + str(wandb_logger.version) + "/Vnn.pt"
+        wandb_logger.save_dir + "/Vnn.pt"
     )
 
     # Record Hyperparameters in small pytorch format
     torch.save(
         t_hyper,
-        wandb_logger.save_dir + "/" + wandb_logger.name +
-        "/" + str(wandb_logger.version) + "/hyperparams.pt"
+        wandb_logger.save_dir + "/hyperparams.pt"
     )
 
     # Save model
     torch.save(
         aclbf_controller.state_dict(),
-        wandb_logger.save_dir + "/" + wandb_logger.name +
-        "/" + str(wandb_logger.version) + "/state_dict.pt"
+        wandb_logger.save_dir + "/state_dict.pt"
     )
 
-    # torch.save(
-    #     aclbf_controller,
-    #     wandb_logger.save_dir + "/" + wandb_logger.name +
-    #     "/" + str(wandb_logger.version) + "/controller.pt"
-    # )
+    torch.save(
+        aclbf_controller,
+        wandb_logger.save_dir + "/controller.pt"
+    )
 
 if __name__ == "__main__":
     parser = ArgumentParser(

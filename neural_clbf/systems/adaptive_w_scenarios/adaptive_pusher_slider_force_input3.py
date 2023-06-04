@@ -484,11 +484,14 @@ class AdaptivePusherSliderStickingForceInput3(ControlAffineParameterAffineSystem
             (0.0, 1.0),
             (0.0, 2.0 * np.pi),
         ])
+        V_abst_goal = torch.tensor(
+            pc.extreme(P_abst_goal), device=self.device,
+        )
         ABSTRACT_THETA = 0
         ABSTRACT_RADIUS = 1
         ABSTRACT_ORIENTATION = 2
 
-        x_abst_goal_np = self.get_N_samples_from_polytope(P_abst_goal, num_samples)
+        x_abst_goal_np = self.get_N_samples_from_polytope(V_abst_goal, num_samples)
         if torch.get_default_dtype() == torch.float32:
             x_abst_goal_np = np.float32(x_abst_goal_np)
         x_abst_goal = torch.tensor(x_abst_goal_np, device=self.device)
