@@ -120,7 +120,7 @@ class RolloutStateParameterSpaceExperimentMultiple(Experiment):
         n_dims = controller_under_test.dynamics_model.n_dims
         n_controls = controller_under_test.dynamics_model.n_controls
         n_theta = controller_under_test.dynamics_model.n_params
-        Theta = controller_under_test.dynamics_model.Theta
+        # Theta = controller_under_test.dynamics_model.Theta
 
         x_sim_start = torch.zeros(n_sims, n_dims).type_as(self.start_x)
         for i in range(0, self.start_x.shape[0]):
