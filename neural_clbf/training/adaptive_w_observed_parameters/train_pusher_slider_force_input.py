@@ -21,7 +21,7 @@ from neural_clbf.controllers.adaptive_with_observed_parameters import (
 from neural_clbf.datamodules.adaptive_w_scenarios import (
     EpisodicDataModuleAdaptiveWScenarios,
 )
-from neural_clbf.systems.adaptive_w_scenarios import AdaptivePusherSliderStickingForceInput3 as PusherSlider
+from neural_clbf.systems.adaptive_w_scenarios import AdaptivePusherSliderStickingForceInput4 as PusherSlider
 from neural_clbf.experiments import (
     ExperimentSuite,
     CLFContourExperiment, AdaptiveCLFContourExperiment,
@@ -82,10 +82,6 @@ def create_training_hyperparams(args)-> Dict:
     nominal_scenario = {
         "obstacle_0_center_x": 0.0,
         "obstacle_0_center_y": 0.0,
-        "obstacle_1_center_x": 0.0,
-        "obstacle_1_center_y": -0.5,
-        "goal_x": 0.5,
-        "goal_y": 0.2,
     }
 
     s_width = 0.09
@@ -99,8 +95,8 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.03 + s_width/2.0, -0.03],
         "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
-        "scenario_lb": [-0.1, -0.3, 0.9, -0.4],
-        "scenario_ub": [ 0.1,  0.3, 1.1,  0.4],
+        "scenario_lb": [-0.1, -0.3],
+        "scenario_ub": [ 0.1,  0.3],
         # "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         # "safe_level": args.safe_level,
@@ -109,9 +105,9 @@ def create_training_hyperparams(args)-> Dict:
         "clbf_hidden_layers": 2,
         # Training parameters
         # "max_epochs": args.max_epochs,
-        "trajectories_per_episode": 200, #1000,
+        "trajectories_per_episode": 1000, #1000,
         "trajectory_length": 30,
-        "n_fixed_samples": 4000,  # 20000,
+        "n_fixed_samples": 20000,  # 20000,
         "num_init_epochs": 20,
         "goal_loss_weight": 1e2,
         "safe_loss_weight": 1e2,
@@ -194,7 +190,7 @@ def define_experiment_suite(t_hyper: Dict, dynamics_model)->ExperimentSuite:
         x_axis_label="$p_1$",
         y_axis_label="$p_2$",
         default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
-        default_scenario=torch.tensor([t_hyper["scenario_lb"][0], t_hyper["scenario_lb"][1], 0.3, 0.3]).reshape((1, -1)),
+        default_scenario=torch.tensor([t_hyper["scenario_lb"][0], t_hyper["scenario_lb"][1]]).reshape((1, -1)),
     )
 
     V_contour_experiment4 = aCLFCountourExperiment_StateSlices3(
@@ -209,7 +205,7 @@ def define_experiment_suite(t_hyper: Dict, dynamics_model)->ExperimentSuite:
         x_axis_label="$p_1$",
         y_axis_label="$p_2$",
         default_param_estimate=torch.tensor([dynamics_model.s_width, 0.0]).reshape((PusherSlider.N_PARAMETERS, 1)),
-        default_scenario=torch.tensor([t_hyper["scenario_ub"][0], t_hyper["scenario_ub"][1], 0.3, 0.3]).reshape((1, -1)),
+        default_scenario=torch.tensor([t_hyper["scenario_ub"][0], t_hyper["scenario_ub"][1]]).reshape((1, -1)),
     )
     experiment_suite = ExperimentSuite([V_contour_experiment, rollout_experiment2, V_contour_experiment3, V_contour_experiment4])
     # experiment_suite = ExperimentSuite([V_contour_experiment])
@@ -218,9 +214,6 @@ def define_experiment_suite(t_hyper: Dict, dynamics_model)->ExperimentSuite:
 
 def main(args):
     # Constants
-    wandb.init(
-        mode="offline",
-    )
 
     # Get hyperparameters for training
     t_hyper = create_training_hyperparams(args)
