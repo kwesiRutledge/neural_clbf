@@ -137,7 +137,7 @@ def find_logfile_location_on_supercloud(local_stderr_filename):
 
 def find_labels_for_supercloud_data(local_stdout_filename):
     """
-    commit, version = find_labels_for_supercloud_data(local_stdout_filename)
+    commit, version, system_name = find_labels_for_supercloud_data(local_stdout_filename)
     Description:
         Extracts the location of the logfile on supercloud from the local stdout file.
     """
@@ -147,6 +147,7 @@ def find_labels_for_supercloud_data(local_stdout_filename):
     # Create vars
     commit = ""
     version = ""
+    system_name = "pusher-slider"
 
     # Open local file
     f = open(local_stdout_filename, "r")
@@ -157,7 +158,10 @@ def find_labels_for_supercloud_data(local_stdout_filename):
         if line.startswith("[Neural aCLBF] version "):
             version = line.split("[Neural aCLBF] version ")[1].strip()
 
-    return commit, version
+        if line.startswith("[Neural aCLBF] system "):
+            system_name = line.split("[Neural aCLBF] system ")[1].strip()
+
+    return commit, version, system_name
 
 def copy_logfile_from_supercloud(supercloud_logfilename):
     """
@@ -172,8 +176,8 @@ def copy_logfile_from_supercloud(supercloud_logfilename):
     # Extract offline_run name from supercloud_logfilename
     offline_run = logfile_declared_name_to_offline_run_name(supercloud_logfilename)
     source_directory += "{}/".format(offline_run)
-    print(supercloud_logfilename)
-    print(source_directory)
+    # print(supercloud_logfilename)
+    # print(source_directory)
 
     # Copy directory to wandb directory
     destination_directory = "./data/wandb/" + offline_run + "/"
@@ -189,24 +193,25 @@ def logfile_declared_name_to_offline_run_name(logfile_declared_name):
     """
     return logfile_declared_name.split("/")[-2]
 
-def upload_logfile_to_wandb(supercloud_logfilename, commit: str, version: str):
+def upload_logfile_to_wandb(supercloud_logfilename, commit: str, version: str, system_name: str):
     """
     upload_logfile_to_wandb(supercloud_logfilename)
     Description:
         Uploads the logfile to wandb.
     """
 
+    # Identify system
+
     # Create source directory name
     local_logfile = "{}/data/wandb/{}".format(
         os.getcwd(),
         logfile_declared_name_to_offline_run_name(supercloud_logfilename),
     )
-    print("commit_{}_version_{}".format(
-            commit, version,
-        ))
     return_code = os.system(
-        "wandb sync --project \"Neural aCLBF\" --id commit_{}_version_{} {}".format(
-            commit, version, local_logfile,
+        "wandb sync --project \"Neural aCLBF, {}\" --id commit_{}_version_{} {}".format(
+            system_name,
+            commit, version,
+            local_logfile,
         ))
     if return_code != 0:
         raise RuntimeError("wandb command failed.")
@@ -273,21 +278,23 @@ if __name__ == "__main__":
 
     # Extract logfile data
 
-    commit, version = find_labels_for_supercloud_data(local_stdout_filename)
+    commit, version, system_name = find_labels_for_supercloud_data(local_stdout_filename)
     print("Parsed the following commit and version info:")
     print("Commit: {}".format(commit))
-    print("Version: {}\n".format(version))
+    print("Version: {}".format(version))
+    print("System: {}\n".format(system_name))
 
     logfile_location_on_supercloud = find_logfile_location_on_supercloud(local_stderr_filename)
     print("Parsed the following logfile location on supercloud:")
     print(logfile_location_on_supercloud)
+    print(" ")
 
     # Copy logfile
     copy_logfile_from_supercloud(logfile_location_on_supercloud)
     print("Copied logfile from supercloud to local machine.\n")
 
     # Upload logfile
-    upload_logfile_to_wandb(logfile_location_on_supercloud, commit, version)
+    upload_logfile_to_wandb(logfile_location_on_supercloud, commit, version, system_name)
     print("Uploaded logfile to wandb.\n")
 
     # Copy controller data to the training data directory
