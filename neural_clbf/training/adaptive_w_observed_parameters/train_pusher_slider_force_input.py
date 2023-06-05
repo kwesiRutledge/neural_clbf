@@ -99,8 +99,8 @@ def create_training_hyperparams(args)-> Dict:
         "nominal_scenario": nominal_scenario,
         "Theta_lb": [-0.03 + s_width/2.0, -0.03],
         "Theta_ub": [ 0.03 + s_width/2.0, 0.03],
-        "scenario_lb": [-0.1, -0.3, 0.3, 0.3],
-        "scenario_ub": [ 0.1,  0.3, 0.4, 0.4],
+        "scenario_lb": [-0.1, -0.3, 0.9, -0.4],
+        "scenario_ub": [ 0.1,  0.3, 1.1,  0.4],
         # "clf_lambda": args.clf_lambda,
         "Gamma_factor": 0.01,
         # "safe_level": args.safe_level,
@@ -346,8 +346,8 @@ def main(args):
     # )
     os.makedirs(wandb_log_location+"/state_dicts/")
 
-    print("[Neural aCLBF] commit ", current_git_hash())
-    print("[Neural aCLBF] version ", t.strftime('%m%d%Y_%H_%M_%S'))
+    print("\n[Neural aCLBF] commit ", current_git_hash())
+    print("\n[Neural aCLBF] version ", t.strftime('%m%d%Y_%H_%M_%S'))
 
 
     if t_hyper["number_of_gpus"] <= 1:
