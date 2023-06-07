@@ -10,7 +10,7 @@
 # Write your commands here
 
 # Load Anaconda
-module load anaconda/2023a
+module load anaconda/2023a-pytorch
 
 # Activate Environment
 source activate neural_clbf
@@ -25,5 +25,5 @@ python train_pusher_slider_force_input.py \
   --include_estimation_error_loss False \
   --include_radially_unbounded_loss1 False \
   --include_radially_unbounded_loss2 True \
-  --learn_shape_epochs 50 --learn_boundary_epochs 150 \
+  --learn_shape_epochs 50 --learn_boundary_epochs 250 \
   --gradient_clip_val 1000000.0 --max_iters_cvxpylayer 5000000

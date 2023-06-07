@@ -10,7 +10,7 @@
 # Write your commands here
 
 # Load Anaconda
-module load anaconda/2023a
+module load anaconda/2023a-pytorch
 
 # Activate Environment
 source activate neural_clbf
