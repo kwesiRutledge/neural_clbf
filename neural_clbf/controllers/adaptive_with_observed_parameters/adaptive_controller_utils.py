@@ -277,3 +277,68 @@ def nominal_lyapunov_function(
 
     return Va
 
+def create_grid_of_feasible_convex_combinations_of_V(n_V: int, n_steps: int = 10)->torch.Tensor:
+    """
+    create_grid_of_feasible_convex_combinations_of_V
+    Description:
+        Creates a matrix where each vector represents a convex combination vector (i.e. each row sums to 1, or is on the simplex).
+        The convex combination of n_V vertices can be used to quickly sample over the entire space of the polytope defined by
+        the vertices in V (not used).
+    Returns:
+        grid_as_matrix: (n_V - 1, n_steps ** 2) matrix where each row is a convex combination vector
+    """
+    # Constants
+
+    # Grid input space
+    ranges = []
+    for vertex_index in range(n_V - 1):
+        ranges.append(
+            torch.linspace(0, 1.0, n_steps),
+        )
+
+    grid_tuple = torch.meshgrid(
+        *ranges,
+        indexing='xy',
+    )
+
+    # Create grid as a single matrix
+    grid_as_matrix = torch.zeros(
+        (n_V - 1, n_steps ** 2),
+    )
+    for vertex_index in range(n_V - 1):
+        grid_as_matrix[vertex_index, :] = grid_tuple[vertex_index].flatten().squeeze()
+
+    sum = torch.sum(grid_as_matrix, dim=0, keepdim=True)
+    grid_as_matrix = torch.vstack(
+        (grid_as_matrix, float(n_V) - sum),
+    )
+
+    grid_as_matrix = grid_as_matrix / float(n_V)
+
+    return grid_as_matrix
+
+def create_uniform_samples_across_polytope(
+    V: torch.Tensor,
+    n_grid: int,
+)->torch.Tensor:
+    """
+    samples = controller.create_uniform_samples_across_polytope(V, n_samples)
+    Args:
+        V: torch.Tensor
+            A n_vertices x n tensor of vertices of a polytope.
+        n_grid: int
+            The number of samples to create along each direction of the n_vertices grid.
+            (in other words, the samples will be created by gridding up a hypercube in
+             n_vertices-dimensional space. Then each of those points will become a convex
+             combination vector that combines the vertices in V.)
+
+    """
+    # Constants
+    n_vertices = V.shape[0]
+
+    grid_as_matrix = create_grid_of_feasible_convex_combinations_of_V(
+        n_vertices,
+        n_grid,
+    )
+
+    return V.T @ grid_as_matrix

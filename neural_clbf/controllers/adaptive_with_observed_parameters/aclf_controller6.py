@@ -17,6 +17,9 @@ from neural_clbf.experiments import ExperimentSuite
 from neural_clbf.controllers.adaptive.adaptive_control_utils import (
     center_and_radius_to_vertices,
 )
+from neural_clbf.controllers.adaptive_with_observed_parameters.adaptive_controller_utils import (
+    create_grid_of_feasible_convex_combinations_of_V,
+)
 
 from qpth.qp import QPFunction
 
@@ -275,11 +278,12 @@ class aCLFController6(Controller):
         Vdot_for_scenario
         Description
             This function computes the modified version of V-dot which aCLFs use to guarantee convergence.
-        Input
+        Args:
             x: a bs x self.dynamics_model.n_dims tensor containing the states in the current batch
             theta_hat: a bs x self.dynamics_model.n_params tensor containing the parameters in the current batch
             scen: bs x self.dynamics_model.n_scenario the observed scenario of the current environment
             u: a bs x self.dynamics_model.n_controls tensor containing the inputs at each state-parameter constant
+        Returns:
 
         """
         # Constants
@@ -1073,11 +1077,11 @@ class aCLFController6(Controller):
         return thetadot
 
     def V_oracle(
-            self,
-            x: torch.Tensor,
-            theta_hat: torch.Tensor,
-            theta: torch.Tensor,
-            scen: torch.Tensor,
+        self,
+        x: torch.Tensor,
+        theta_hat: torch.Tensor,
+        theta: torch.Tensor,
+        scen: torch.Tensor,
     ):
         """
         V_oracle
@@ -1216,3 +1220,130 @@ class aCLFController6(Controller):
         return CvxpyLayer(
             problem, variables=variables, parameters=parameters
         )
+
+
+    def evaluate_QP_constraint_function_across(
+        self,
+        U: torch.Tensor,
+        x: torch.Tensor,
+        scen: torch.Tensor,
+    ):
+        """
+        evaluate_QP_constraint_function_across
+        Description:
+            This function evaluates the QP constraint function across a set of inputs represented
+            as columns in the U tensor.
+        Args:
+            U: torch.Tensor
+                A N_samples x self.dynamics_model.n_controls tensor of inputs to evaluate the constraint function across.
+            x: torch.Tensor
+                A batch_size x self.dynamics_model.n_dims tensor of states of the system.
+        Returns:
+            constraint_values: torch.Tensor
+                A batch_size x N_samples x n_V_Theta tensor of constraint values.
+        """
+        # Constants
+        n_samples = U.shape[1]
+        batch_size = x.shape[0]
+        dynamics_model = self.dynamics_model
+
+        n_params = dynamics_model.n_params
+        n_dims = dynamics_model.n_dims
+        n_scenario = dynamics_model.n_scenario
+
+        V_Theta = self.dynamics_model.V_Theta
+        n_V_Theta = V_Theta.shape[0]
+
+        # Evaluate each individual batch because I can't think of a more clever way
+        u = U.T
+        lhs = torch.zeros(
+            (batch_size, n_samples, n_V_Theta)
+        )
+        for batch_index in range(batch_size):
+            temp_lhs = torch.zeros(
+                (n_samples, n_V_Theta)
+            )
+            for v_index in range(n_V_Theta):
+                temp_v = V_Theta[v_index, :].reshape(1, n_params)
+                temp_v = temp_v.repeat(n_samples, 1)
+
+                temp_x = x[batch_index, :].reshape(1, n_dims)
+                temp_x = temp_x.repeat(n_samples, 1)
+                temp_scen = scen[batch_index, :].reshape(1, n_scenario)
+                temp_scen = temp_scen.repeat(n_samples, 1)
+
+                temp_lhs[:, v_index] = self.Vdot_for_scenario(
+                    temp_x, temp_v, temp_scen, u,
+                ).squeeze()
+
+                temp_lhs[:, v_index] = temp_lhs[:, v_index] + self.clf_lambda * self.V(temp_x, temp_v, temp_scen)
+                # print(temp_lhs)
+
+            lhs[batch_index, :, :] = temp_lhs
+
+        return lhs
+
+    def evaluate_QP_objective_across(
+        self,
+        U: torch.Tensor,
+        x: torch.Tensor,
+        theta_hat: torch.Tensor,
+        scen: torch.Tensor,
+        constraint_values: torch.Tensor,
+    ):
+        """
+        evaluate_QP_constraint_function_across
+        Description:
+            This function evaluates the QP constraint function across a set of inputs represented
+            as columns in the U tensor.
+        Args:
+            U: torch.Tensor
+                A N_samples x self.dynamics_model.n_controls tensor of inputs to evaluate the constraint function across.
+            x: torch.Tensor
+                A batch_size x self.dynamics_model.n_dims tensor of states of the system.
+            constraint_values: torch.Tensor
+                A batch_size x N_samples x n_V_Theta tensor of constraint values for each corner of the theta set.
+        Returns:
+            objective_values: torch.Tensor
+                A batch_size x N_samples tensor of constraint values.
+        """
+        # Constants
+        n_samples = U.shape[1]
+        batch_size = x.shape[0]
+        dynamics_model = self.dynamics_model
+
+        n_params = dynamics_model.n_params
+        n_dims = dynamics_model.n_dims
+        n_scenario = dynamics_model.n_scenario
+
+        V_Theta = self.dynamics_model.V_Theta
+        n_V_Theta = V_Theta.shape[0]
+
+        # Evaluate each individual batch because I can't think of a more clever way
+        u = U.T
+        u = u.unsqueeze(2)
+
+        temp_u_nominal = self.dynamics_model.u_nominal(x, theta_hat, scen).reshape(1, n_dims)
+        temp_u_nominal = temp_u_nominal.repeat(n_samples, 1).unsqueeze(2)
+
+        objective = torch.zeros((batch_size, n_samples)).to(x.device)
+        for batch_index in range(batch_size):
+            obj_i = torch.bmm(
+                (tempU - temp_u_nominal).mT,
+                torch.bmm(
+                    torch.tensor([[1.0, 0.0], [0.0, 2.0]]).repeat(n_samples, 1, 1),
+                    (tempU - temp_u_nominal),
+                ),
+            )
+
+            relaxation = torch.max(constraint_values[batch_index, :, :], dim=1)[0].squeeze()
+            relaxation = torch.relu(relaxation)
+
+            obj_i = obj_i + relaxation.shape(n_samples, 1, 1)
+
+            objective[batch_index, :] = obj_i.squeeze()
+
+        return objective
+
+
+

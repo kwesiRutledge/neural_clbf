@@ -142,6 +142,8 @@ neural_clbf/systems/adaptive/tests/*.png
 neural_clbf/systems/adaptive/tests/figures/*.mp4
 neural_clbf/systems/adaptive/tests/figures/*.png
 neural_clbf/systems/tests/*.png
+neural_clbf/systems/adaptive_w_scenarios/tests/figures/*.png
+neural_clbf/controllers/adaptive_with_observed_parameters/tests/figures/*.png
 
 # Experiments
 neural_clbf/evaluation/datafiles/load_sharing/*.png

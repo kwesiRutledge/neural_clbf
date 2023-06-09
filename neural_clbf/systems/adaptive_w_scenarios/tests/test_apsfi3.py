@@ -8,8 +8,10 @@ import torch
 import numpy as np
 
 import unittest
+import os
 
 import polytope as pc
+import matplotlib.pyplot as plt
 
 from neural_clbf.systems.adaptive_w_scenarios import AdaptivePusherSliderStickingForceInput3
 
@@ -400,6 +402,79 @@ class TestAPSFI3(unittest.TestCase):
             sum(aps.unsafe_mask(x_samples, th_samples, s_samples)),
             n_samples,
         )
+
+    def test_plot10(self):
+        """
+        test_plot10
+        Description:
+            Verifies that we can successfully plot:
+            - the obstacle AND
+            - the goal
+            along with the current state.
+        Notes:
+            Used on an update meeting on April 3, 2023.
+        """
+
+        # Constants
+        nominal_scenario = {
+            "obstacle_0_center_x": 0.1,
+            "obstacle_0_center_y": 0.3,
+            "goal_x": 0.5,
+            "goal_y": 0.5,
+        }
+        s_length = 0.09
+        s_width = 0.09
+        Theta1 = pc.box2poly(
+            np.array([
+                [-0.01, 0.01],  # CoM_x
+                [-0.01 + (s_length / 2.0), 0.01 + (s_length / 2.0)]  # ub
+            ])
+        )
+        V_Theta = torch.tensor(pc.extreme(Theta1))
+
+        ps = AdaptivePusherSliderStickingForceInput3(
+            nominal_scenario, V_Theta,
+            n_obstacles=1,
+        )
+
+        # Get Initial Conditions and Parameter
+        batch_size = 1
+        x = torch.zeros((batch_size, ps.n_dims))
+
+        x[0, :] = torch.tensor([-0.8, -0.8, torch.pi/4])
+        # x[1, :] = torch.Tensor([-0.1, 0.1, 0.0])
+        # x[2, :] = torch.Tensor([-0.1, -0.1, 0.0])
+        # x[3, :] = torch.Tensor([0.1, -0.1, 0.0])
+
+        th = torch.zeros((batch_size, ps.n_params))
+        f = torch.zeros((batch_size, ps.n_controls))
+
+        th[:, :] = ps.sample_Theta_space(batch_size)
+        # print(th)
+
+        f = torch.tensor([[-0.01, 0.1] for idx in range(batch_size)])
+
+        # Algorithm
+        # limits = [[-0.3, 0.7], [-0.3, 0.3]]
+
+        p9 = plt.figure()
+        ax = p9.add_subplot(111)
+        ps.plot(x, th, torch.tensor(ps.scenario_to_list(nominal_scenario)).reshape(1, -1),
+                ax=ax, hide_axes=False, current_force=f,
+                show_obstacle=True,
+                show_friction_cone_vectors=False,
+                limits=[[-1.0, 1.0], [-1.0, 1.0]],
+                )
+
+        goal_point = torch.tensor([0.0, 0.0])
+        plt.scatter(
+            goal_point[0], goal_point[1],
+            marker="s",
+        )
+
+        if "/neural_clbf/systems/adaptive_w_scenarios/tests" in os.getcwd():
+            # Only save if we are running from inside tests directory
+            p9.savefig("figures/pusher-slider-test_plot10.png", dpi=300)
 
 if __name__ == '__main__':
     unittest.main()
